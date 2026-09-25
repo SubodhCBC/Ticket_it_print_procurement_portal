@@ -194,10 +194,6 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
     PENDING_APPROVAL: { count: 0, value: 0 },
     CHANGES_REQUESTED: { count: 0, value: 0 },
     APPROVED: { count: 0, value: 0 },
-    PAID: { count: 0, value: 0 },
-    ORDER_PLACED: { count: 0, value: 0 },
-    IN_PRODUCTION: { count: 0, value: 0 },
-    RECEIVED: { count: 0, value: 0 },
     PROCESSING: { count: 0, value: 0 },
     DISPATCHED: { count: 0, value: 0 },
     DELIVERED: { count: 0, value: 0 },
@@ -216,7 +212,7 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
     totalRevenueMonth: 36850.0,
     revenueDeltaPct: 14.8,
     activeOrdersCount: orders.filter(
-      (o) => o.status === 'RECEIVED' || o.status === 'PROCESSING'
+      (o) => o.status === 'APPROVED' || o.status === 'PROCESSING'
     ).length,
     ordersDeltaPct: 8.2,
     pendingFulfilmentCount: orders.filter((o) => o.status === 'PROCESSING')

@@ -246,7 +246,7 @@ export async function payOrder(
 
   const updated: Order = {
     ...current,
-    status: 'IN_PRODUCTION',
+    status: 'PROCESSING',
     paymentStatus: 'PAID',
     paymentMethod,
     paymentReference: ref,
@@ -256,7 +256,7 @@ export async function payOrder(
     statusHistory: [
       ...history,
       {
-        status: 'PAID',
+        status: 'PROCESSING',
         timestamp: now,
         actorName: paidBy,
         actorRole: 'HEAD_OFFICE',
