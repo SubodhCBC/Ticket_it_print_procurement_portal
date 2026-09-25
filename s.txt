@@ -1,0 +1,23 @@
+ M .env.example
+ M prisma/schema.prisma
+ M scripts/check-ticketit-dam.mjs
+ D src/app/api/v1/catalog/products/[productId]/assets/presign/route.ts
+ M src/app/api/v1/catalog/products/[productId]/assets/route.ts
+ M src/app/api/v1/dam/files/route.ts
+ M src/app/api/v1/dam/folders/route.ts
+ D src/app/api/v1/templates/[templateId]/assets/presign/route.ts
+ M src/app/api/v1/templates/[templateId]/assets/route.ts
+ M src/server/audit/audit.actions.ts
+ M src/server/auth/ticketit/ticketit-auth.repository.ts
+ M src/server/catalog/product.validation.ts
+ M src/server/catalog/products.service.ts
+ M src/server/config.ts
+ M src/server/dam/dam.service.ts
+ M src/server/dam/dam.types.ts
+ M src/server/dam/dam.validation.ts
+ M src/server/openapi/route-manifest.generated.ts
+ M src/server/storage/storage.service.ts
+ M src/server/templates/template.validation.ts
+ M src/server/templates/templates.service.ts
+?? prisma/migrations/20260915120000_dam_asset_origin/
+?? src/server/dam/dam-service-account.ts

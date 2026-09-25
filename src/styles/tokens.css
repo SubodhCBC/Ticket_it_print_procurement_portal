@@ -1,0 +1,100 @@
+/* ==========================================================================
+   Print Procurement Portal Design System - Color Theme & Tokens
+   ========================================================================== */
+
+:root {
+  /* 03 Color Theme */
+  --color-primary: #f73582;
+  --color-primary-hover: #e02573;
+  --color-primary-light: rgba(247, 53, 130, 0.12);
+  --color-primary-glow: rgba(247, 53, 130, 0.35);
+
+  --color-secondary: #2b253e;
+  --color-secondary-hover: #1e192c;
+  --color-secondary-light: rgba(43, 37, 62, 0.08);
+  --color-secondary-surface: #362f4e;
+
+  --color-green: #58b97d;
+  --color-green-hover: #48a56b;
+  --color-green-light: rgba(88, 185, 125, 0.14);
+
+  --color-anime-blush: #ff7b83;
+  --color-anime-blush-hover: #fa636c;
+  --color-anime-blush-light: rgba(255, 123, 131, 0.15);
+
+  /* Canvas & Surfaces */
+  --color-bg: #faf6f8;
+  --color-bg-alt: #f5eef2;
+  --color-surface: #ffffff;
+  --color-surface-translucent: rgba(255, 255, 255, 0.88);
+  --color-surface-glass: rgba(255, 255, 255, 0.72);
+  --color-surface-dark: #201a30;
+
+  /* Text & Accents */
+  --color-text-main: #2b253e;
+  --color-text-sub: #6e6781;
+  --color-text-muted: #a39bb3;
+  --color-text-inverse: #ffffff;
+  --color-border: #f0e6ec;
+  --color-border-light: rgba(255, 255, 255, 0.6);
+  --color-border-glow: rgba(247, 53, 130, 0.4);
+
+  /* 04 Typography - Figtree, loaded in app/layout.tsx. Acumin stays behind it
+     for machines that have it; before Figtree it was the only face asked for,
+     and most machines fell straight through to the system font. */
+  --font-family-base:
+    'Figtree', 'Acumin Pro', 'Acumin', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-display:
+    'Figtree', 'Acumin Pro', 'Acumin', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+
+  /* Font Sizes */
+  --font-size-xs: 0.75rem; /* 12px */
+  --font-size-sm: 0.875rem; /* 14px */
+  --font-size-md: 1rem; /* 16px */
+  --font-size-lg: 1.125rem; /* 18px */
+  --font-size-xl: 1.25rem; /* 20px */
+  --font-size-2xl: 1.5rem; /* 24px */
+  --font-size-3xl: 2rem; /* 32px */
+  --font-size-4xl: 2.5rem; /* 40px */
+  --font-size-5xl: 3.25rem; /* 52px */
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(43, 37, 62, 0.05);
+  --shadow-md: 0 8px 24px rgba(43, 37, 62, 0.08);
+  --shadow-lg: 0 16px 40px rgba(43, 37, 62, 0.12);
+  --shadow-primary: 0 8px 25px rgba(247, 53, 130, 0.28);
+  --shadow-green: 0 8px 25px rgba(88, 185, 125, 0.25);
+  --shadow-glass: 0 8px 32px 0 rgba(43, 37, 62, 0.06);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* Layout */
+  --max-width: 1280px;
+  --navbar-height: 76px;
+  --mobile-nav-height: 64px;
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true,
+        "allowExportNames": [
+          "metadata",
+          "generateMetadata",
+          "viewport",
+          "generateViewport",
+          "dynamic",
+          "dynamicParams",
+          "revalidate",
+          "fetchCache",
+          "runtime",
+          "preferredRegion",
+          "maxDuration"
+        ]
+      }
+    ]
+  }
+}

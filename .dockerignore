@@ -1,0 +1,32 @@
+# Everything the image does not need, and two things it must never contain.
+
+node_modules
+.next
+.git
+.github
+
+# Secrets. `.env` holds real credentials and would otherwise be baked into a
+# layer, readable by anyone who can pull the image — and it would also override
+# the environment the container is actually given. `.env.example` and
+# `.env.production.example` are documentation and carry no values, so they stay
+# out simply because nothing reads them at runtime.
+.env
+.env.*
+
+# Local development only. Backups carry real users and orders as well.
+docker/
+backups/
+*.log
+npm-debug.log*
+
+# Build and editor artefacts.
+tsconfig.tsbuildinfo
+coverage/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Scratch files. Named so a stray test script cannot ride into an image.
+*.tmp.mjs
+*.tmp.js

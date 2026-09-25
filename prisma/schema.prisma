@@ -1,0 +1,2642 @@
+// ---------------------------------------------------------------------------
+// Ticket-IT Portal — data model (PostgreSQL, owned by this service)
+//
+// This is the primary database. The legacy Azure SQL Server database is a
+// separate, read-only datasource with its own schema and its own generated
+// client — see src/database/prisma/legacy/schema.prisma.
+//
+// Conventions agreed up front, so every model that follows obeys them:
+//   * Public ids are prefixed strings from @/common (createId).
+//   * Money is NUMERIC(12,2) via @db.Decimal(12, 2) — never Float.
+//   * Timestamps are @db.Timestamptz(3); the database stores UTC.
+//   * Tenant-owned tables carry accountId and are covered by RLS policies.
+//   * Nothing is hard-deleted; rows carry deletedAt and a status enum.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider          = "sqlserver"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// --- Identity ---------------------------------------------------------------
+
+/// A tenant. Derived from the legacy `Users.Client` column, which holds a plain
+/// retailer name ("Cellarbrations", "BottleO", "IHG") rather than a foreign key
+/// — the legacy schema has no accounts table. Accounts are therefore created on
+/// demand, the first time a user of that client authenticates.
+model Account {
+  id String @id @db.NVarChar(64)
+
+  /// Slugified `Users.Client`. The natural key we de-duplicate on when a legacy
+  /// user first authenticates, because the raw string's casing and spacing are
+  /// inconsistent upstream. Internal — the customer never sees it.
+  slug         String  @unique @db.NVarChar(255)
+  /// The customer-facing code, as it appears on invoices and in the admin UI.
+  /// Set by an administrator; back-filled from the slug for accounts that were
+  /// auto-created from a legacy login before this column existed.
+  accountCode  String  @unique @db.NVarChar(255)
+  /// The raw legacy value, preserved verbatim for support and reconciliation.
+  /// Null for an account created here rather than derived from a legacy client.
+  legacyClient String? @db.NVarChar(500)
+  name         String @db.NVarChar(255)
+
+  status String @default("ACTIVE") @db.VarChar(32)
+
+  /// Where invoices and account-level notifications go. Not a login.
+  contactEmail String? @db.NVarChar(500)
+  contactPhone String? @db.NVarChar(500)
+
+  /// Order total above which an order needs head-office approval. Null means
+  /// every order is approved automatically; zero means every order needs
+  /// approval, which is a real configuration and the reason this is not
+  /// modelled as "0 = no threshold".
+  approvalThreshold Decimal? @db.Decimal(12, 2)
+
+  /// Account-wide defaults for the purchase-order rule. A site may override
+  /// both — see `Site.poRequired` / `Site.poPrefix`, which win when set.
+  requirePoNumber Boolean @default(false)
+  poPrefix        String? @db.NVarChar(500)
+  /// The shape a PO reference must take (SOW F-14, AD-8: "PO format rule"),
+  /// such as `PO-####-YY`. Grammar in src/lib/po-format.ts. Null is no rule.
+  /// A site's own format wins over this one.
+  poFormat        String? @db.NVarChar(64)
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  users             User[]
+  sites             Site[]
+  addresses         Address[]
+  invitations       Invitation[]
+  siteAccess        UserSiteAccess[]
+  permissionGrants  UserPermissionGrant[]
+  auditLog          AuditLogEntry[]
+  productVisibility ProductAccountVisibility[]
+  categoryVisibility CategoryAccountVisibility[]
+  templateVisibility TemplateAccountVisibility[]
+  catalogImports    CatalogImportJob[]
+  rateCards         RateCard[]
+  carts             Cart[]
+  orders            Order[]
+  approvalRules     ApprovalRule[]
+  approvalRequests  ApprovalRequest[]
+  invoices          Invoice[]
+  settings          AccountSettings?
+
+  ownedTemplates Template[] @relation("TemplateOwnerAccount")
+
+  cartShippingSelections CartShippingSelection[]
+  orderShipping          OrderShipping[]
+  shipments              Shipment[]
+  shipmentParcels        ShipmentParcel[]
+  shipmentTrackingEvents ShipmentTrackingEvent[]
+
+  @@map("accounts")
+}
+
+/// Operational preferences for an account: locale, ordering rules, alert
+/// routing and session policy.
+///
+/// A separate table rather than more columns on `Account` because the two have
+/// opposite access patterns. Every authentication reads the account row, and
+/// none of it needs the timezone or the low-stock threshold; these are read on
+/// one settings screen and written by hand a few times a year. Keeping them
+/// apart leaves the hot row narrow.
+///
+/// The row is created on demand — `SettingsService.forAccount` upserts — so an
+/// account that has never opened the screen still reads its defaults rather
+/// than a null.
+model AccountSettings {
+  id String @id @db.NVarChar(64)
+
+  accountId String  @unique @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  // --- Locale ----------------------------------------------------------------
+  /// ISO 4217. Reporting and invoicing only: prices are stored as NUMERIC and
+  /// carry no currency of their own, so changing this does not convert them.
+  currency String @default("USD") @db.NVarChar(500)
+  /// IANA zone name. Decides the day a report bucket starts on and the period
+  /// an order is billed into, both of which move across a date boundary.
+  timezone String @default("UTC") @db.NVarChar(500)
+
+  // --- Ordering --------------------------------------------------------------
+  /// Prefix for platform order numbers. Distinct from `Account.poPrefix`, which
+  /// is the customer's own purchase-order series.
+  orderNumberPrefix String? @db.NVarChar(500)
+  /// Hold a line at its minimum order quantity instead of reporting the
+  /// shortfall and letting the buyer proceed.
+  enforceMoq           Boolean @default(true)
+  /// Accept an order for stock that is not on hand.
+  allowBackorders      Boolean @default(false)
+  requireDeliveryNotes Boolean @default(false)
+
+  // --- Tax (SOW F-06, A-08) --------------------------------------------------
+  /// Whether prices on this account are stated including GST. False: GST is
+  /// added on the invoice. True: the invoice shows the GST each price contains.
+  pricesIncludeGst Boolean @default(false)
+  gstRatePercent   Decimal @default(15.00) @db.Decimal(5, 2)
+  /// Whether a buyer may type a one-off delivery address at checkout instead of
+  /// choosing one of the branch's saved ones (SOW F-18: "alternate ship-to entry
+  /// enabled or disabled per account by configuration"; AD-8). Off by default,
+  /// so no account gains the ability without an administrator turning it on.
+  allowCustomDeliveryAddress Boolean @default(false)
+
+  // --- Notifications ---------------------------------------------------------
+  sendOrderConfirmations   Boolean @default(true)
+  /// Where operational alerts go. Null falls back to `Account.contactEmail`.
+  notificationEmail        String? @db.NVarChar(500)
+  sendLowStockAlerts       Boolean @default(true)
+  /// Units on hand at or below which the low-stock alert fires.
+  lowStockAlertThreshold   Int     @default(50)
+  sendMonthlyBillingDigest Boolean @default(true)
+
+  // --- Session policy --------------------------------------------------------
+  /// Minutes of inactivity before the client signs the user out. Advisory: the
+  /// access token's own 15-minute lifetime is what the API enforces, and this
+  /// cannot extend it.
+  sessionTimeoutMinutes Int     @default(60)
+  /// Recorded, not yet enforced — there is no second-factor enrolment. Reading
+  /// it as "2FA is on" would be wrong until there is.
+  enforceTwoFactor      Boolean @default(false)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@map("account_settings")
+}
+
+/// A branch, outlet or store: the level an order is placed for and billed to.
+///
+/// Sourced from the legacy `Outlets` table (`legacyOutletId`), but sites can
+/// also be created directly in the portal for accounts that have no legacy
+/// footprint. Budget caps and purchase-order rules live here rather than on the
+/// account because they are negotiated per branch.
+model Site {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Branch code as the customer knows it ("VIC-042"). Unique within the
+  /// account, not globally — two retailers may both use "001".
+  code String @db.NVarChar(255)
+  name String @db.NVarChar(255)
+
+  /// `Outlets.Id` upstream, when this site was imported rather than created
+  /// here. Unique so a re-import updates rather than duplicates.
+  legacyOutletId Int? @unique
+
+  status String @default("ACTIVE") @db.VarChar(32)
+
+  /// Spend ceiling per billing period, enforced at checkout. Null means the
+  /// site is uncapped; zero means it may not order at all, which is a
+  /// meaningful state and the reason this is not modelled as "0 = unlimited".
+  monthlyBudget Decimal? @db.Decimal(12, 2)
+
+  /// Whether checkout requires a purchase-order reference, and the prefix that
+  /// reference must start with. Both are per-site contractual rules.
+  poRequired Boolean @default(false)
+  poPrefix   String? @db.NVarChar(500)
+  /// This branch's PO format; wins over `Account.poFormat` when set.
+  poFormat   String? @db.NVarChar(64)
+
+  /// Finance attribution, passed through to the ERP journal entry.
+  costCentre String? @db.NVarChar(500)
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  addresses     Address[]
+  users         User[]           @relation("UserPrimarySite")
+  siteAccess    UserSiteAccess[]
+  invitations   Invitation[]
+  carts         Cart[]
+  orders        Order[]
+  approvalRules ApprovalRule[]
+
+  @@unique([accountId, code])
+  @@index([accountId, status])
+  @@map("sites")
+}
+
+/// A bill-to or ship-to address.
+///
+/// Modelled as rows rather than as columns on Site because a branch routinely
+/// has one billing address and several delivery addresses (the store, a
+/// warehouse, a campaign venue), and checkout has to let the user pick.
+model Address {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Null for an account-level address — typically the head-office bill-to.
+  siteId String? @db.NVarChar(64)
+  site   Site?   @relation(fields: [siteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  kind String @db.VarChar(32)
+
+  /// What the customer calls it in the picker ("Back dock", "Head office").
+  label         String? @db.NVarChar(500)
+  recipientName String? @db.NVarChar(500)
+
+  line1    String @db.NVarChar(500)
+  line2    String? @db.NVarChar(500)
+  city     String @db.NVarChar(500)
+  region   String? @db.NVarChar(500)
+  postcode String @db.NVarChar(500)
+  /// ISO 3166-1 alpha-2. Stored uppercase; the carrier adapters depend on it.
+  country  String  @db.Char(2)
+  phone    String? @db.NVarChar(500)
+
+  /// The one pre-selected at checkout for this site and kind. Not enforced as
+  /// a partial unique index yet — the service keeps it single.
+  isDefault Boolean @default(false)
+
+  /// Typed by a buyer at checkout for one basket (SOW F-18), not saved to the
+  /// branch. Kept out of every branch address list, and usable only by the buyer
+  /// in `createdById` — an address one person typed for one parcel is not a
+  /// branch address anybody else should be offered.
+  isOneOff    Boolean @default(false)
+  createdById String? @db.NVarChar(64)
+
+  /// What NZ Post's ParcelAddress resolved this address to (SOW F-16). All
+  /// null until it has been validated; set together when it is.
+  nzPostAddressId   String?   @db.NVarChar(64)
+  dpid              String?   @db.NVarChar(32)
+  isRural           Boolean?
+  nzPostValidatedAt DateTime? @db.DateTimeOffset
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  cartsShippingTo  Cart[]  @relation("CartShipTo")
+  cartsBillingTo   Cart[]  @relation("CartBillTo")
+  ordersShippingTo Order[] @relation("OrderShipTo")
+  ordersBillingTo  Order[] @relation("OrderBillTo")
+
+  @@index([accountId])
+  @@index([siteId, kind])
+  @@map("addresses")
+}
+
+/// A user of the portal.
+///
+/// Three origins share this table (see `UserType`). A legacy user is replicated
+/// here on first successful login; the legacy row remains the source of truth
+/// for *provisioning*, while this row is the source of truth for
+/// *authentication* from the second login onwards. Portal-native and external
+/// users have no legacy counterpart at all, which is why every `legacy*` column
+/// is nullable.
+model User {
+  id String @id @db.NVarChar(64)
+
+  /// The stable, immutable identifier this user is known by across systems.
+  ///
+  /// The architecture document is explicit that email and username must not be
+  /// integration keys because they change. `legacyUserId` cannot serve either:
+  /// portal-native and external users do not have one. Every future integration
+  /// — DAM, ERP, a centralized identity provider — joins on this.
+  identityUserId String @unique @default(dbgenerated("newid()")) @db.UniqueIdentifier
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The branch this user belongs to. Null for ADMIN and for account-wide
+  /// HEAD_OFFICE users, matching `AuthenticatedActor.siteId`.
+  siteId String? @db.NVarChar(64)
+  site   Site?   @relation("UserPrimarySite", fields: [siteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  userType String @default("EXISTING") @db.VarChar(32)
+
+  /// `Users.Id` upstream, and the join key for every re-sync — a login can be
+  /// renamed upstream, an integer id cannot. Null for users created here.
+  legacyUserId Int? @unique
+
+  /// `Users.Login`, stored lowercased. Verified unique case-insensitively
+  /// across all 4432 legacy rows, so it is the credential identifier. For a
+  /// portal-native or external user it is their email address.
+  /// `loginDisplay` keeps the original casing for the UI.
+  login        String @unique @db.NVarChar(255)
+  loginDisplay String @db.NVarChar(500)
+
+  /// NOT unique: 159 groups of legacy users share an email address. Anything
+  /// looking a user up by email must expect multiple matches.
+  email String @db.NVarChar(255)
+
+  firstName String @db.NVarChar(500)
+  lastName  String @db.NVarChar(500)
+  phone     String? @db.NVarChar(500)
+
+  /// Argon2id hash of the password the user typed at first login, or the one
+  /// they chose when accepting an invitation. The legacy PBKDF2-SHA1 / bcrypt
+  /// hash is deliberately NOT carried over — see password-hasher.service.ts.
+  /// Null means the local credential is unusable: for a legacy user the next
+  /// login falls back to legacy verification, for an invited user it means the
+  /// invitation has not been accepted yet.
+  passwordHash String? @db.NVarChar(500)
+
+  role   String @db.VarChar(32)
+  status String @default("ACTIVE") @db.VarChar(32)
+
+  /// The raw `webpages_Roles.RoleName` this user held upstream, kept because
+  /// the mapping to PortalRole is lossy (Franchisee and RegionalManager are
+  /// distinct upstream but both drive site-level access here).
+  legacyRoleName String? @db.NVarChar(500)
+
+  /// Denormalised legacy org fields. Copied verbatim on sync so support can
+  /// reconcile a portal user against the legacy record without a cross-database
+  /// join, which no single query can do here.
+  legacyRegionName   String? @db.NVarChar(500)
+  legacyGroupName    String? @db.NVarChar(500)
+  legacyOutletId     Int?
+  isHeadOfficeAdmin  Boolean @default(false)
+  /// `Users.IsPasswordChangeRequired` — surfaced to the client so it can force
+  /// a change screen; this service does not yet enforce it.
+  mustChangePassword Boolean @default(false)
+
+  /// When this row was last refreshed from legacy, and the fingerprint of the
+  /// legacy payload at that moment. The fingerprint lets a re-sync skip the
+  /// write when nothing upstream changed. Both null for a user who has no
+  /// legacy counterpart.
+  legacySyncedAt    DateTime? @db.DateTimeOffset
+  legacyFingerprint String? @db.NVarChar(500)
+
+  /// Free-text organisational label shown in the admin user table. Not a
+  /// permission boundary and deliberately not a foreign key — the legacy
+  /// `Departments` table is a different concept and is not synced.
+  department String? @db.NVarChar(500)
+
+  /// This user's own spend ceiling per billing period, checked at checkout
+  /// alongside the site's. Null means only the site cap applies. SOW BE-02
+  /// requires both levels, because a branch budget is not a purchasing limit
+  /// for each person who can spend it.
+  monthlyBudgetCap Decimal? @db.Decimal(12, 2)
+
+  /// Overrides the site's purchase-order prefix for this user, for accounts
+  /// that allocate PO ranges per buyer.
+  poPrefix String? @db.NVarChar(500)
+
+  lastLoginAt DateTime? @db.DateTimeOffset
+  /// When an invited user accepted and set a password.
+  activatedAt DateTime? @db.DateTimeOffset
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  refreshTokens    RefreshToken[]
+  passwordResets   PasswordResetToken[]
+  siteAccess       UserSiteAccess[]
+  permissionGrants UserPermissionGrant[] @relation("GrantSubject")
+  grantsIssued     UserPermissionGrant[] @relation("GrantIssuer")
+  invitationsSent  Invitation[]          @relation("InvitationIssuer")
+  invitationUsed   Invitation?           @relation("InvitationAcceptor")
+  auditEntries     AuditLogEntry[]
+  catalogImports   CatalogImportJob[]
+  rateCardsCreated RateCard[]            @relation("RateCardAuthor")
+  carts            Cart[]
+  ordersPlaced     Order[]               @relation("OrderPlacedBy")
+  ordersApproved   Order[]               @relation("OrderApprovedBy")
+  approvalRules    ApprovalRule[]        @relation("ApprovalRuleApprover")
+  approvalSteps    ApprovalStep[]        @relation("ApprovalStepApprover")
+  approvalsDecided ApprovalStep[]        @relation("ApprovalStepDecider")
+  templatesCreated Template[]            @relation("TemplateCreatedBy")
+  templatesUpdated Template[]            @relation("TemplateUpdatedBy")
+  templateVersions TemplateVersion[]     @relation("TemplateVersionAuthor")
+
+  @@index([accountId])
+  @@index([email])
+  @@index([siteId])
+  ownedTemplates Template[] @relation("TemplateOwner")
+
+  @@map("users")
+}
+
+/// What happened, who did it, and to what.
+///
+/// SOW BE-06 calls for an immutable audit log covering every entity mutation.
+/// Immutable here means by convention and by API surface — there is no update
+/// or delete path in AuditService, and no endpoint exposes one. PostgreSQL is
+/// not asked to enforce it, because the migration role would be able to bypass
+/// whatever trigger did.
+///
+/// The actor's name, email and role are **copied in, not joined**. An audit
+/// entry has to keep saying what was true at the time: a user who is later
+/// renamed, demoted or deactivated must not silently rewrite three years of
+/// history, and a hard-deleted actor must not turn their entries into nulls.
+model AuditLogEntry {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Null for an action taken by the system itself — a scheduled job, a
+  /// webhook, a migration.
+  actorId String? @db.NVarChar(64)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  actorName  String @db.NVarChar(500)
+  actorEmail String @db.NVarChar(500)
+  actorRole  String @db.NVarChar(500)
+
+  /// Past tense, dotted, stable: `site.created`, `order.approved`,
+  /// `user.permission_granted`. Read by dashboards and alerts, so it is an API
+  /// in its own right — see AuditAction in audit.actions.ts.
+  action String @db.NVarChar(500)
+
+  entityType String @db.VarChar(32)
+  entityId   String @db.NVarChar(64)
+  /// Human label at the time of the action ("Richmond", "VIC-042"), so the log
+  /// stays readable after the entity is renamed or removed.
+  entityName String? @db.NVarChar(500)
+
+  /// The changed fields as they were, and as they became — JSON objects holding
+  /// only the fields that moved, written by `recordAudit` from one diff so every
+  /// entry has the same shape. `beforeValues` is `{}` on a creation and
+  /// `afterValues` is `{}` on a removal.
+  ///
+  /// Both NULL means the change was not captured: an event with no fields (a
+  /// download, a reset request), or a row written before these columns existed.
+  /// That is deliberately distinct from `{}` on both sides, which means a change
+  /// was recorded and nothing had actually moved.
+  beforeValues String? @db.NVarChar(Max)
+  afterValues  String? @db.NVarChar(Max)
+  /// `|name|status|` — the keys of either side, for filtering by field with an
+  /// exact token match instead of searching inside the JSON.
+  changedFields String? @db.NVarChar(4000)
+
+  /// Context that is not a field change: counts, the reason given, what else the
+  /// action touched. Never secrets: password hashes, tokens and presigned URLs
+  /// are stripped by AuditService before the row is written.
+  details String? @db.NVarChar(Max)
+
+  ipAddress String? @db.NVarChar(500)
+  userAgent String? @db.NVarChar(Max)
+  /// Correlates an audit entry with the request that produced it, and with the
+  /// structured logs for that request.
+  requestId String? @db.NVarChar(64)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([accountId, createdAt(sort: Desc)])
+  @@index([accountId, entityType, entityId])
+  @@index([accountId, actorId, createdAt(sort: Desc)])
+  @@map("audit_log_entries")
+}
+
+/// Extra sites a HEAD_OFFICE user oversees beyond their primary one.
+///
+/// A site user has exactly one site (`User.siteId`) and no rows here. A
+/// regional or head-office user has a primary site of null and one row per
+/// branch they may act for, which is what makes "approve for these five
+/// stores" expressible without inventing a second role per region.
+model UserSiteAccess {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  userId String @db.NVarChar(64)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  siteId String @db.NVarChar(64)
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@unique([userId, siteId])
+  @@index([accountId])
+  @@index([siteId])
+  @@map("user_site_access")
+}
+
+/// A per-user departure from the permissions their role grants by default.
+///
+/// The default role -> permission map lives in code
+/// (src/common/authorization/permissions.ts) because it is a product decision
+/// that belongs in review and in tests, not in a table an operator can edit
+/// into a privilege escalation. This table exists for the cases the map cannot
+/// express: an external user given access to one document, or a site user
+/// temporarily denied ordering. DENY always wins over ALLOW.
+model UserPermissionGrant {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  userId String @db.NVarChar(64)
+  user   User   @relation("GrantSubject", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// A value from the `Permission` catalog in code. Stored as text rather than
+  /// an enum so adding a permission is a code deploy, not a migration that
+  /// locks the table.
+  permission String @db.NVarChar(255)
+
+  effect String @default("ALLOW") @db.VarChar(32)
+
+  /// Narrows the grant to one object — a DAM document id, a site id. Null means
+  /// the grant applies everywhere the permission is checked.
+  resourceId String? @db.NVarChar(64)
+
+  grantedById String? @db.NVarChar(64)
+  grantedBy   User?   @relation("GrantIssuer", fields: [grantedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reason      String? @db.NVarChar(Max)
+
+  /// Null for a permanent grant. Expired rows are ignored, not deleted, so the
+  /// audit trail survives.
+  expiresAt DateTime? @db.DateTimeOffset
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  /// PostgreSQL treats NULLs as distinct, so this does not prevent two
+  /// account-wide grants of the same permission. The service upserts, and the
+  /// resolver de-duplicates.
+  @@unique([userId, permission, resourceId])
+  @@index([accountId])
+  @@index([userId, expiresAt])
+  @@map("user_permission_grants")
+}
+
+/// An outstanding invitation for a portal-native or external user.
+///
+/// The user row is only created when the invitation is accepted, so a revoked
+/// or expired invitation leaves nothing behind that could later be logged into.
+/// The token is emailed once and stored only as a SHA-256 digest, exactly as
+/// refresh tokens are.
+model Invitation {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The branch the invitee will belong to. Required for EXTERNAL invitees —
+  /// enforced in the service, since Prisma cannot express a conditional NOT
+  /// NULL.
+  siteId String? @db.NVarChar(64)
+  site   Site?   @relation(fields: [siteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  email     String @db.NVarChar(255)
+  firstName String @db.NVarChar(500)
+  lastName  String @db.NVarChar(500)
+
+  role     String @db.VarChar(32)
+  userType String @db.VarChar(32)
+
+  /// SHA-256 of the opaque invitation token.
+  tokenHash String @unique @db.NVarChar(255)
+
+  status    String @default("PENDING") @db.VarChar(32)
+  expiresAt DateTime         @db.DateTimeOffset
+
+  acceptedAt     DateTime? @db.DateTimeOffset
+  acceptedUserId String?   @unique @db.NVarChar(64)
+  acceptedUser   User?     @relation("InvitationAcceptor", fields: [acceptedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  revokedAt DateTime? @db.DateTimeOffset
+
+  invitedById String? @db.NVarChar(64)
+  invitedBy   User?   @relation("InvitationIssuer", fields: [invitedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@index([accountId, status])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("invitations")
+}
+
+/// One row per password-reset request.
+///
+/// Not tenant-scoped and deliberately not covered by RLS: the reset flow runs
+/// unauthenticated, before any account is known.
+model PasswordResetToken {
+  id String @id @db.NVarChar(64)
+
+  userId String @db.NVarChar(64)
+  user   User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  tokenHash String @unique @db.NVarChar(255)
+
+  expiresAt DateTime  @db.DateTimeOffset
+  usedAt    DateTime? @db.DateTimeOffset
+
+  ip        String? @db.NVarChar(500)
+  userAgent String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([userId, usedAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+/// One row per issued refresh token, so a session can actually be revoked.
+///
+/// A stateless refresh JWT cannot be invalidated before it expires, which for a
+/// 30-day TTL means a stolen token stays valid for a month. The token itself is
+/// never stored — only its SHA-256 digest, so a dump of this table cannot be
+/// replayed.
+model RefreshToken {
+  id String @id @db.NVarChar(64)
+
+  userId String @db.NVarChar(64)
+  user   User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// SHA-256 of the opaque token. Unique so a replayed token is a lookup, not
+  /// a scan.
+  tokenHash String @unique @db.NVarChar(255)
+
+  /// Set when this token is exchanged for a new one. A second use of an
+  /// already-rotated token means the token leaked: the whole family is revoked.
+  rotatedToId String? @unique @db.NVarChar(64)
+
+  expiresAt DateTime  @db.DateTimeOffset
+  revokedAt DateTime? @db.DateTimeOffset
+
+  ip        String? @db.NVarChar(500)
+  userAgent String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// --- Catalog -----------------------------------------------------------------
+//
+// The product catalog is GLOBAL, not tenant-owned.
+//
+// SOW section 1 gives the system administrator "complete control over global
+// catalog", and BE-04 makes per-customer pricing and visibility a rate-card
+// concern rather than a data-ownership one. So none of the models below carries
+// an accountId and none is covered by an RLS policy — the single exception is
+// ProductAccountVisibility, which exists precisely to express "this account may
+// see this product" and is therefore tenant-owned.
+//
+// The consequence to keep in mind: a bug in a catalog query cannot leak one
+// customer's data to another, because there is no customer's data in here. What
+// it *can* leak is a restricted product to an account that should not see it,
+// which is why visibility is filtered in exactly one place — see
+// visibilityFilter() in products.service.ts.
+
+/// A top-level catalog grouping: Signs, Posters, Banners, Flyers, Business
+/// Cards, Brochures, Marketing Assets, Promotional Products.
+///
+/// Flat rather than a tree. The eight categories the statement of work names
+/// have no hierarchy, and a self-referencing parent that nothing populates is a
+/// query complication in every catalog listing for a structure nobody asked
+/// for. Nesting is a migration away if the catalog outgrows this.
+model ProductCategory {
+  id String @id @db.NVarChar(64)
+
+  /// Stable, human-readable key used in imports and URLs ("BUSINESS_CARDS").
+  /// Upper-cased on write so a re-import cannot create a case-only duplicate.
+  code String @unique @db.NVarChar(255)
+  name String @db.NVarChar(255)
+
+  description String? @db.NVarChar(Max)
+
+  /// Display order in the catalog navigation. Ties are broken by name.
+  sortOrder Int @default(0)
+
+  status String @default("ACTIVE") @db.VarChar(32)
+
+  /// ALL_ACCOUNTS or RESTRICTED (SOW AD-5: "per-account visibility rules at
+  /// category and product level"). A RESTRICTED category hides every product in
+  /// it from accounts not on its list, whatever each product's own visibility
+  /// says — the two rules must both pass. See `categoryVisibilityFilter()`.
+  visibility String @default("ALL_ACCOUNTS") @db.VarChar(32)
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  products      Product[]
+  templates     Template[]
+  approvalRules ApprovalRule[]
+  visibleTo     CategoryAccountVisibility[]
+
+  @@index([status, sortOrder])
+  @@map("product_categories")
+}
+
+/// A catalog item.
+///
+/// Print specifications (bleed, safe margin, dimensions) live here rather than
+/// on the template, because they are properties of the physical product a
+/// template is placed onto — the same A2 poster stock has the same 3mm bleed
+/// whichever artwork is printed on it. INT-01 sends these to the print
+/// production system verbatim.
+model Product {
+  id String @id @db.NVarChar(64)
+
+  /// The customer-facing stock code. Unique across the catalog, upper-cased on
+  /// write, and the key the bulk importer upserts on.
+  sku  String @unique @db.NVarChar(255)
+  name String @db.NVarChar(255)
+
+  description String? @db.NVarChar(Max)
+
+  categoryId String @db.NVarChar(64)
+  category   ProductCategory @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status     String     @default("DRAFT") @db.VarChar(32)
+  visibility String @default("ALL_ACCOUNTS") @db.VarChar(32)
+
+  /// List price for one `uom` before any rate card is applied. Rate cards
+  /// (BE-04) override it per account; this is what they discount from.
+  basePrice Decimal @db.Decimal(12, 2)
+
+  /// How GST applies to this product (SOW F-06): STANDARD, ZERO_RATED or
+  /// EXEMPT. Whether `basePrice` already includes it is the account's
+  /// convention (`AccountSettings.pricesIncludeGst`), not the product's.
+  taxTreatment String @default("STANDARD") @db.VarChar(32)
+
+  /// Minimum order quantity, and the increment above it. An `orderMultiple` of
+  /// 50 with an `moq` of 100 means 100, 150, 200 — enforced at checkout by
+  /// BE-05.
+  moq           Int @default(1)
+  orderMultiple Int @default(1)
+
+  /// How many physical units are in one sellable unit — a pack of 250 cards is
+  /// packSize 250, uom PACK. Pricing and stock are both per `uom`, never per
+  /// physical unit, and BE-05 depends on that staying true.
+  packSize Int           @default(1)
+  uom      String @default("EACH") @db.VarChar(32)
+
+  /// Finished trim size, in millimetres. Null for products with no fixed size
+  /// (promotional items, variable-length roll media).
+  widthMm  Int?
+  heightMm Int?
+  depthMm  Int?
+
+  /// Shipping weight of one `uom`, for the 3PL adapter (INT-02).
+  weightGrams Int?
+
+  /// Print specification, in millimetres. `bleedMm` is the artwork that runs
+  /// past the trim; `safeMarginMm` is the inset nothing important may cross.
+  bleedMm      Decimal? @db.Decimal(5, 2)
+  safeMarginMm Decimal? @db.Decimal(5, 2)
+
+  /// Whether stock is counted for this item. False for print-on-demand, where
+  /// there is no shelf to run out of and a stock check would block every order.
+  trackInventory    Boolean @default(true)
+  stockOnHand       Int     @default(0)
+  lowStockThreshold Int     @default(0)
+
+  /// Units promised to orders that have been placed but not yet shipped.
+  ///
+  /// `stockOnHand` is what is physically on the shelf; `stockOnHand -
+  /// stockReserved` is what anyone else can still buy. Two axes rather than one
+  /// decremented count, because a warehouse stocktake has to reconcile against
+  /// what is really there — and a shelf count that had already been reduced by
+  /// unshipped orders would never match the floor.
+  stockReserved Int @default(0)
+
+  /// How many to buy when stock falls to `lowStockThreshold`. Advisory: it goes
+  /// on the low-stock alert so whoever reorders does not have to look it up.
+  reorderQuantity Int?
+
+  /// Working days from order approval to dispatch, shown at checkout.
+  leadTimeDays Int?
+
+  /// The replacement, when this product is SUPERSEDED. Self-referencing so a
+  /// re-order of a discontinued item can follow the chain to what replaced it.
+  supersededById String? @db.NVarChar(64)
+  supersededBy   Product?  @relation("ProductSuccession", fields: [supersededById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  supersedes     Product[] @relation("ProductSuccession")
+
+  /// Free-form search and merchandising labels. A Postgres text[], queried with
+  /// `has` / `hasSome` rather than a join, because tags carry no data of their
+  /// own.
+  tags String @default("[]") @db.NVarChar(Max)
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  options       ProductOption[]
+  variants      ProductVariant[]
+  volumeTiers   ProductVolumeTier[]
+  assets        ProductAsset[]
+  visibleTo     ProductAccountVisibility[]
+  templates     Template[]
+  rateCardItems RateCardItem[]
+  cartLines     CartLine[]
+  orderLines    OrderLineItem[]
+
+  @@index([categoryId, status])
+  @@index([status, name])
+  @@index([visibility])
+  /// Substring search. `ILIKE '%banner%'` cannot use a B-tree at all — it
+  /// degrades to a sequential scan the moment the catalogue outgrows a demo —
+  /// so name and SKU each carry a GIN trigram index.
+  @@map("products")
+}
+
+/// One configurable axis of a product — Size, Material, Finish, Pack Size.
+///
+/// The selectable values are a text[] on the option rather than their own table:
+/// they are ordered strings with no attributes of their own, and a row per value
+/// would mean a join on every product detail page just to render a dropdown.
+/// ProductVariant references them by value, which is why a value already in use
+/// by a variant cannot be removed — see the guard in products.service.ts.
+model ProductOption {
+  id String @id @db.NVarChar(64)
+
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  /// "Size", "Material", "Finish". Unique per product.
+  name String @db.NVarChar(255)
+
+  /// Ordered as the customer should see them: ["A4", "A3", "A2"], not
+  /// alphabetically.
+  values String @db.NVarChar(Max)
+
+  /// What a value adds to the price of one pack, as a JSON map of value to
+  /// money: {"Gloss Laminate": "30.00"}. A value absent from the map adds
+  /// nothing. Kept beside `values` rather than inside it so everything that
+  /// reads the values as a list of strings goes on doing so.
+  valuePrices String? @db.NVarChar(Max)
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@unique([productId, name])
+  @@index([productId, sortOrder])
+  @@map("product_options")
+}
+
+/// A specific configuration of a product, with its own stock code and stock.
+///
+/// `attributes` is a JSON map of option name to chosen value —
+/// `{"Size": "A2", "Material": "Gloss 150gsm"}`. A join table of variant to
+/// option value would normalise it, at the cost of a three-table join to answer
+/// "what is this variant", which is the most common catalog read there is. The
+/// service validates every key and value against the product's options on write,
+/// so the JSON cannot drift from them.
+model ProductVariant {
+  id String @id @db.NVarChar(64)
+
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  sku String @unique @db.NVarChar(255)
+
+  attributes String @db.NVarChar(Max)
+
+  /// Absolute price for this variant, not a delta. A delta is the tempting
+  /// choice and the wrong one: a base price change would silently reprice every
+  /// variant, and "A2 costs 18.00" is what the contract actually says. Null
+  /// means the variant sells at the product's base price.
+  priceOverride Decimal? @db.Decimal(12, 2)
+
+  stockOnHand   Int           @default(0)
+  /// See `Product.stockReserved`.
+  stockReserved Int           @default(0)
+  status        String @default("ACTIVE") @db.VarChar(32)
+  sortOrder     Int           @default(0)
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  cartLines  CartLine[]
+  orderLines OrderLineItem[]
+
+  @@index([productId, status])
+  @@map("product_variants")
+}
+
+/// "100 or more, 10% off" — the catalog-wide ladder, before any rate card.
+///
+/// Stored as a discount percentage rather than a unit price so a base price
+/// change carries through the whole ladder. A rate card that sets a fixed
+/// contract price (BE-04) replaces the ladder rather than stacking on it.
+model ProductVolumeTier {
+  id String @id @db.NVarChar(64)
+
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  /// Inclusive lower bound, in `uom`. The applicable tier is the highest one
+  /// whose minQuantity the order line meets.
+  minQuantity     Int
+  discountPercent Decimal @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@unique([productId, minQuantity])
+  @@index([productId, minQuantity])
+  @@map("product_volume_tiers")
+}
+
+/// A file attached to a product, held in object storage.
+///
+/// Only the key is stored. URLs are minted on read as short-lived presigned
+/// links (see StorageService), because a stored URL is either permanent — and
+/// therefore a public bucket — or expired by the time anyone opens the row.
+model ProductAsset {
+  id String @id @db.NVarChar(64)
+
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  kind String @default("IMAGE") @db.VarChar(32)
+
+  /// Object key within the bucket, as built by StorageService.buildKey().
+  storageKey  String @unique @db.NVarChar(255)
+  filename    String @db.NVarChar(500)
+  contentType String @db.NVarChar(500)
+  sizeBytes   Int
+
+  /// Alt text for IMAGE assets. Not optional in spirit — a catalog that fails a
+  /// screen reader fails an accessibility audit — but nullable because a bulk
+  /// import cannot invent it.
+  altText String? @db.NVarChar(Max)
+
+  /// Intrinsic pixel size, read from the file when derivatives are generated.
+  /// Lets the front end reserve the right box before the image loads, which is
+  /// what stops a catalogue grid reflowing as it fills in.
+  widthPx  Int?
+  heightPx Int?
+
+  /// Resized copies, produced asynchronously on the RENDER queue.
+  ///
+  /// Two sizes, not a ladder: a grid thumbnail and a detail-page preview. The
+  /// original is kept untouched and is what the print pipeline uses — a
+  /// derivative is never the source of truth for artwork.
+  derivativeStatus String @default("NOT_APPLICABLE") @db.VarChar(32)
+  thumbnailKey     String? @db.NVarChar(500)
+  previewKey       String? @db.NVarChar(500)
+  /// Why generation failed, when it did. Surfaced to the admin UI so a broken
+  /// upload is visible rather than silently thumbnail-less.
+  derivativeError  String? @db.NVarChar(Max)
+
+  /// The document-library file this asset was copied from — same meaning and
+  /// same rules as TemplateAsset.damDocumentId.
+  damDocumentId String? @db.NVarChar(512)
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([productId, kind, sortOrder])
+  @@index([derivativeStatus])
+  @@map("product_assets")
+}
+
+/// Which accounts may see a RESTRICTED product.
+///
+/// The one tenant-owned table in the catalog, and therefore the one with an RLS
+/// policy: without it a head-office user could read the list and learn which
+/// other customers hold the same contract-specific line.
+///
+/// Rows are ignored entirely for ALL_ACCOUNTS products, so flipping a product
+/// back to unrestricted does not require deleting them — which matters, because
+/// a restriction lifted for a campaign is usually reinstated afterwards.
+model ProductAccountVisibility {
+  id String @id @db.NVarChar(64)
+
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@unique([productId, accountId])
+  @@index([accountId])
+  @@map("product_account_visibility")
+}
+
+/// Which accounts may see a RESTRICTED category, and so the products in it.
+///
+/// Shaped exactly like `ProductAccountVisibility`, for the same reasons: it is
+/// tenant-owned and covered by the RLS policy, so a head-office user cannot read
+/// which other customers share a contract category; and the rows are kept when a
+/// category goes back to ALL_ACCOUNTS, so a restriction lifted for a campaign can
+/// be reinstated without re-entering the list.
+model CategoryAccountVisibility {
+  id String @id @db.NVarChar(64)
+
+  categoryId String          @db.NVarChar(64)
+  category   ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  accountId String  @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@unique([categoryId, accountId])
+  @@index([accountId])
+  @@map("category_account_visibility")
+}
+
+/// A bulk catalogue import, tracked so the client can poll it.
+///
+/// The rows live here rather than in the queue payload. BullMQ stores job data
+/// in Redis, and a ten-thousand-row spreadsheet is not something to hold there
+/// and keep for a day under the completed-job retention — the queue carries the
+/// job id and nothing else, which is the general rule for anything bulky.
+///
+/// Tenant-owned so the operator who ran an import can find it again and nobody
+/// else's shows up in their list. The catalogue it writes to is global; the
+/// record of who loaded what is not.
+model CatalogImportJob {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  requestedById String? @db.NVarChar(64)
+  requestedBy   User?   @relation(fields: [requestedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status String @default("QUEUED") @db.VarChar(32)
+
+  /// Validate and report without writing. Takes the same path as a real run.
+  dryRun         Boolean @default(false)
+  /// When false, an existing SKU is reported as skipped rather than updated.
+  updateExisting Boolean @default(false)
+
+  /// The submitted rows, unvalidated. Kept after the run so a failed import can
+  /// be re-read against the error report without the operator re-uploading.
+  payload String @db.NVarChar(Max)
+
+  totalRows Int @default(0)
+  created   Int @default(0)
+  updated   Int @default(0)
+  skipped   Int @default(0)
+  failed    Int @default(0)
+
+  /// Per-row outcomes, in submission order.
+  results String? @db.NVarChar(Max)
+
+  /// Set only when the job itself failed, as opposed to individual rows failing.
+  error String? @db.NVarChar(Max)
+
+  startedAt  DateTime? @db.DateTimeOffset
+  finishedAt DateTime? @db.DateTimeOffset
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@index([accountId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("catalog_import_jobs")
+}
+
+// --- Rate cards -------------------------------------------------------------
+
+/// A negotiated price list for one account (SOW BE-04).
+///
+/// Tenant-owned and policied, unlike the catalog it prices. The catalog is the
+/// platform operator's and is global; what a particular customer pays is that
+/// customer's contract, and one account reading another's rate card is exactly
+/// the disclosure RLS exists to prevent.
+///
+/// At most one card can be ACTIVE for an account at any instant. That is
+/// enforced by an EXCLUDE constraint on (accountId, effective window) rather
+/// than by a check in the service, because two administrators activating two
+/// cards at the same moment would both pass an application-level check and
+/// leave the account with an ambiguous price. See the migration.
+model RateCard {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// What the contract is called in conversation — "Apex Enterprise Tier A".
+  name  String @db.NVarChar(255)
+  notes String? @db.NVarChar(Max)
+
+  status String @default("DRAFT") @db.VarChar(32)
+
+  /// Inclusive. The card prices nothing before this instant.
+  effectiveFrom DateTime  @db.DateTimeOffset
+  /// Exclusive, and null means open-ended. Exclusive so a card ending on the
+  /// 1st and one starting on the 1st are not both in force for that instant.
+  effectiveTo   DateTime? @db.DateTimeOffset
+
+  /// Applied to any product the card does not name explicitly — the "15% off
+  /// list on everything" half of most contracts. Zero means the card only
+  /// prices the products it lists.
+  defaultDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
+
+  /// Who signed it off here. Nullable because a card may outlive the
+  /// administrator who created it.
+  createdById String? @db.NVarChar(64)
+  createdBy   User?   @relation("RateCardAuthor", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  items RateCardItem[]
+
+  /// The lookup on every priced request: this account's live card at an
+  /// instant. Ordered so the planner can walk the window from the index.
+  @@index([accountId, status, effectiveFrom])
+  @@index([status, effectiveTo])
+  @@map("rate_cards")
+}
+
+/// One product's price under one rate card.
+///
+/// Exactly one of `fixedPrice` and `discountPercent` may be set, or neither —
+/// "neither" means the item exists only to carry its own volume ladder, or to
+/// pin a product to the card's default discount explicitly. Both at once is
+/// refused at write time, because the precedence between them would be a rule
+/// nobody reading the contract could predict.
+model RateCardItem {
+  id String @id @db.NVarChar(64)
+
+  rateCardId String @db.NVarChar(64)
+  rateCard   RateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The contract price for one `uom`, absolute. Replaces the catalog's volume
+  /// ladder outright rather than discounting from it — see rate-card-pricing.ts
+  /// for the full precedence, which is the thing QA-01 asks to be tested.
+  fixedPrice Decimal? @db.Decimal(12, 2)
+
+  /// Percentage off the product's base price. Overrides the card default for
+  /// this product; does not compound with it.
+  discountPercent Decimal? @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  tiers RateCardTier[]
+
+  /// One row per product per card. The upsert key the bulk item editor uses.
+  @@unique([rateCardId, productId])
+  @@index([productId])
+  @@map("rate_card_items")
+}
+
+/// A contract volume ladder: "5,000 or more, 22% off".
+///
+/// Present only when the negotiated ladder differs from the public one. When an
+/// item has tiers they replace the product's `ProductVolumeTier` rows entirely —
+/// they do not stack. A contract that says "22% at 5,000" means the customer
+/// pays 22% off, not 22% off the already-discounted public tier.
+model RateCardTier {
+  id String @id @db.NVarChar(64)
+
+  rateCardItemId String @db.NVarChar(64)
+  rateCardItem   RateCardItem @relation(fields: [rateCardItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  /// Inclusive lower bound, in the product's `uom`.
+  minQuantity     Int
+  discountPercent Decimal @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@unique([rateCardItemId, minQuantity])
+  @@index([rateCardItemId, minQuantity])
+  @@map("rate_card_tiers")
+}
+
+// --- Cart and checkout ------------------------------------------------------
+
+/// A basket being assembled, and the checkout details attached to it (SOW BE-05).
+///
+/// One OPEN cart per user per site. A head-office buyer who orders for three
+/// branches keeps three baskets, because the branch decides the budget, the
+/// purchase-order rule and the delivery address — merging them would make every
+/// one of those ambiguous.
+///
+/// **No prices are stored here.** A cart is re-priced on every read through
+/// PricingService, because a rate card can be activated, corrected or expire
+/// between adding a line and paying for it. A stored price would be a quote the
+/// system had silently stopped honouring. Prices are snapshotted exactly once,
+/// onto the order line, at the moment BE-06 turns this into an order.
+model Cart {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  userId String @db.NVarChar(64)
+  user   User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The branch this basket is for. Null only while a head-office user has not
+  /// chosen one yet; checkout refuses to proceed without it.
+  siteId String? @db.NVarChar(64)
+  site   Site?   @relation(fields: [siteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status String @default("OPEN") @db.VarChar(32)
+
+  // --- Checkout details, filled in by the stepper (FE-04) -------------------
+
+  /// The customer's purchase-order reference. Whether it is required, and what
+  /// it must start with, is the site's rule falling back to the account's.
+  poNumber String? @db.NVarChar(500)
+
+  /// Campaign or project attribution, passed through to the ERP journal entry
+  /// by INT-03 and reported on by BE-10.
+  campaignCode String? @db.NVarChar(500)
+
+  /// The buyer's own reference for the order, free text (SOW F-14: "free-text
+  /// customer reference also captured"). Unlike the PO it follows no account
+  /// format rule and is never required.
+  customerReference String? @db.NVarChar(200)
+
+  /// Free-text from the buyer, carried onto the order for production.
+  notes String? @db.NVarChar(Max)
+
+  requestedDeliveryDate DateTime? @db.DateTimeOffset
+
+  shippingAddressId String? @db.NVarChar(64)
+  shippingAddress   Address? @relation("CartShipTo", fields: [shippingAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  billingAddressId String? @db.NVarChar(64)
+  billingAddress   Address? @relation("CartBillTo", fields: [billingAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// A selector, not a payment processor. Whether the platform ever takes a
+  /// card is still open with the client, so this records the corporate terms
+  /// the order is placed under and nothing more.
+  paymentMethod String? @db.VarChar(32)
+
+  /// How the parcel travels: a code from src/server/cart/shipping-methods.ts.
+  /// Null until the buyer reaches the delivery step, and checkout refuses
+  /// without one. The price is not stored — it is read from that list when the
+  /// basket is priced, like every other number on a cart.
+  shippingMethod String? @db.VarChar(32)
+
+  /// When the buyer accepted the terms on the review step. Null means they have
+  /// not, and checkout refuses.
+  termsAcceptedAt DateTime? @db.DateTimeOffset
+
+  /// Set when BE-06 converts this cart into an order, so the basket becomes
+  /// history rather than being deleted and the order can point back at it.
+  checkedOutAt DateTime? @db.DateTimeOffset
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  lines CartLine[]
+  order Order?
+
+  /// NZ Post delivery choice for this basket. A separate table so `carts`, which
+  /// the RLS predicates are schema-bound to, is not altered.
+  shippingSelection CartShippingSelection?
+
+  /// The lookup on every cart request: this user's open basket for this site.
+  @@index([accountId, userId, status])
+  @@index([accountId, siteId, status])
+  @@map("carts")
+}
+
+/// One line in a basket.
+///
+/// Deliberately **not** uniquely keyed on (cart, product, variant). The same SKU
+/// can legitimately appear twice with different personalisation — two runs of
+/// business cards for two staff members — and a unique index would force the
+/// second one to overwrite the first. The service merges quantities only when
+/// both lines are plain, uncustomised and for the same variant.
+model CartLine {
+  id String @id @db.NVarChar(64)
+
+  cartId String @db.NVarChar(64)
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The chosen configuration, when the product has options. Null means the
+  /// product is sold as a single unconfigured item.
+  variantId String? @db.NVarChar(64)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// In the product's `uom`, and validated against its MOQ and order multiple.
+  /// Stored as the buyer typed it: rounding is reported at validation so they
+  /// see the adjustment, rather than applied silently on the way in.
+  quantity Int
+
+  /// The template this line was personalised from, and the exact published
+  /// version of it the buyer saw.
+  ///
+  /// Both or neither: a product with no artwork — a box of envelopes — carries
+  /// no template, and the database enforces the pairing. Without the version,
+  /// `customisation` is a bag of values nobody can place on a page: "businessName
+  /// = Apex" says nothing about which poster, in what font, where.
+  ///
+  /// The version is pinned rather than followed. A designer who republishes
+  /// while this basket sits must not silently change the artwork the buyer
+  /// agreed to; cart validation reports that a newer version exists and lets
+  /// them re-personalise, which is a choice rather than a surprise.
+  templateId String? @db.NVarChar(64)
+  template   Template? @relation(fields: [templateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  templateVersionId String? @db.NVarChar(64)
+  templateVersion   TemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Personalisation captured by the template customiser (FE-03) — artwork
+  /// field values, finish choices, an uploaded asset key.
+  ///
+  /// Validated against `templateVersion`'s editable layers when one is set, so
+  /// a value aimed at a layer the designer locked cannot reach production. Free
+  /// form when no template is named. BE-06 snapshots it onto the order line and
+  /// INT-01 sends it on; neither interprets it.
+  customisation String? @db.NVarChar(Max)
+
+  /// Per-line instruction from the buyer, distinct from the cart-wide note.
+  notes String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@index([cartId])
+  @@index([productId])
+  @@map("cart_lines")
+}
+
+// --- Orders -----------------------------------------------------------------
+
+/// A placed order (SOW BE-06).
+///
+/// ---------------------------------------------------------------------------
+/// Two status axes, not one
+/// ---------------------------------------------------------------------------
+/// `status` is where the order is in fulfilment; `paymentStatus` is whether it
+/// has been paid. The statement of work lists "Paid" among the lifecycle
+/// states, but folding it in would make DISPATCHED and PAID mutually
+/// exclusive — and on Net 30 terms, which is how most of this trade works, an
+/// order is routinely delivered a month before it is paid. One axis would make
+/// that state unrepresentable.
+///
+/// ---------------------------------------------------------------------------
+/// Everything price-related is a snapshot
+/// ---------------------------------------------------------------------------
+/// The cart deliberately stores no prices, because a rate card can move. An
+/// order is the opposite: the moment it is placed, every number stops moving.
+/// The line items carry their own unit price, the discount that produced it and
+/// the rate card it came from, so re-pricing a historical order is impossible
+/// by construction rather than by convention.
+model Order {
+  id String @id @db.NVarChar(64)
+
+  /// Human-facing reference, unique across the platform: `ORD-2026-000123`.
+  /// Allocated from a PostgreSQL sequence — see the migration for why gaps in
+  /// it are acceptable and gaplessness is not worth what it would cost.
+  orderNumber String @unique @db.NVarChar(255)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The branch the order is for and billed to. Required — unlike on a cart,
+  /// where it can still be unset while the buyer chooses.
+  siteId String @db.NVarChar(64)
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Who placed it. The name and email are also snapshotted below, for the same
+  /// reason the audit log copies them: a renamed or deactivated buyer must not
+  /// silently rewrite the record of who ordered what.
+  placedById String @db.NVarChar(64)
+  placedBy   User   @relation("OrderPlacedBy", fields: [placedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  placedByName  String @db.NVarChar(500)
+  placedByEmail String @db.NVarChar(500)
+  /// The buyer's role when they placed it (SOW F-13). Null on orders placed
+  /// before it was captured — the user's role today is not the role they held.
+  placedByRole  String? @db.VarChar(32)
+
+  /// The basket this came from, kept so a buyer can see what they submitted and
+  /// so a support question can be traced back. Null once an old cart is swept.
+  cartId String? @unique @db.NVarChar(64)
+  cart   Cart?   @relation(fields: [cartId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status String @default("DRAFT") @db.VarChar(32)
+
+  paymentStatus    String  @default("UNPAID") @db.VarChar(32)
+  paymentMethod    String? @db.VarChar(32)
+  /// The customer's own payment reference, once finance records one.
+  paymentReference String? @db.NVarChar(500)
+  paidAt           DateTime?      @db.DateTimeOffset
+
+  /// The purchase-order reference, validated against the rule in force at the
+  /// time of placing. Kept verbatim: it is quoted on the invoice.
+  poNumber String? @db.NVarChar(500)
+
+  /// Campaign and project attribution, passed to the ERP journal entry by
+  /// INT-03 and reported on by BE-10.
+  campaignCode String? @db.NVarChar(500)
+  projectCode  String? @db.NVarChar(500)
+
+  /// Copied from the cart at placement (SOW F-14), and from here onto every
+  /// invoice line (B-05: "PO number and customer reference").
+  customerReference String? @db.NVarChar(200)
+
+  /// Whether this order needed approval, and the outcome. The routing engine is
+  /// BE-07; what is recorded here is the decision.
+  requiresApproval  Boolean   @default(false)
+  approvedById      String? @db.NVarChar(64)
+  approvedBy        User?     @relation("OrderApprovedBy", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedAt        DateTime? @db.DateTimeOffset
+  /// Mandatory when an order is rejected — SOW BE-07 is explicit about it.
+  rejectionReason   String? @db.NVarChar(500)
+  /// The note attached to a "request changes" decision.
+  changeRequestNote String? @db.NVarChar(500)
+
+  // --- Money, all snapshotted at placement -----------------------------------
+
+  /// Sum of the line totals. Stored rather than derived so a historical order
+  /// cannot be re-totalled by a later change to a line.
+  subtotal        Decimal @db.Decimal(12, 2)
+  /// What the same order would have cost at catalogue prices, for reporting on
+  /// what contracts are actually saving customers.
+  catalogSubtotal Decimal @db.Decimal(12, 2)
+  /// Subtotal plus `shippingCost`. Tax is not modelled yet — see the note in
+  /// the migration.
+  total           Decimal @db.Decimal(12, 2)
+
+  /// How the parcel travels, copied from the basket: a code from
+  /// src/server/cart/shipping-methods.ts. Null on orders placed before delivery
+  /// was a choice.
+  shippingMethod String? @db.VarChar(32)
+  /// What delivery added, frozen at placement like every other number here.
+  shippingCost   Decimal @default(0) @db.Decimal(12, 2)
+
+  /// The rate card in force when this was priced, if any. A soft reference for
+  /// audit: the line items already carry the numbers it produced.
+  rateCardId   String? @db.NVarChar(64)
+  rateCardName String? @db.NVarChar(500)
+
+  /// `YYYY-MM`, UTC. The key BE-09 aggregates invoices by, and the window the
+  /// branch's monthly budget is measured over. Stored rather than derived from
+  /// `createdAt` so a period cannot shift if the billing rules ever change.
+  billingPeriod String @db.NVarChar(255)
+
+  // --- Delivery ---------------------------------------------------------------
+
+  /// The delivery address as chosen, and as a snapshot. The row is referenced
+  /// for the admin UI to link to; the copy is what actually shipped, because an
+  /// address that is later corrected must not rewrite where a past order went.
+  shippingAddressId String? @db.NVarChar(64)
+  shippingAddress   Address? @relation("OrderShipTo", fields: [shippingAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shippingSnapshot  String @db.NVarChar(Max)
+
+  /// The bill-to, referenced and frozen the same way (SOW F-15: "snapshotted
+  /// onto the order and invoice"). Null on orders placed before it was captured,
+  /// and on an order whose account had no billing address on file.
+  billingAddressId String? @db.NVarChar(64)
+  billingAddress   Address? @relation("OrderBillTo", fields: [billingAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  billingSnapshot  String? @db.NVarChar(Max)
+
+  recipientName  String? @db.NVarChar(500)
+  recipientPhone String? @db.NVarChar(500)
+  recipientEmail String? @db.NVarChar(500)
+
+  requestedDeliveryDate DateTime? @db.DateTimeOffset
+
+  carrier        String? @db.NVarChar(500)
+  trackingNumber String? @db.NVarChar(500)
+  deliveryNotes  String? @db.NVarChar(500)
+
+  dispatchedAt DateTime? @db.DateTimeOffset
+  deliveredAt  DateTime? @db.DateTimeOffset
+  cancelledAt  DateTime? @db.DateTimeOffset
+
+  /// Buyer's note, carried to production.
+  notes String? @db.NVarChar(Max)
+
+  /// When the buyer accepted the terms, copied from the cart.
+  termsAcceptedAt DateTime? @db.DateTimeOffset
+
+  /// What this order has done to the warehouse.
+  ///
+  /// Tracked on the order rather than inferred from its status, because the two
+  /// can legitimately disagree for a moment and because inferring it would make
+  /// every release idempotent only by luck. An order releases its reservation
+  /// exactly once, whatever path it took to being cancelled.
+  stockState String @default("NONE") @db.VarChar(32)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  lines           OrderLineItem[]
+  history         OrderStatusEvent[]
+  approvalRequest ApprovalRequest?
+  invoiceLines    InvoiceLine[]
+
+  /// NZ Post delivery facts frozen at placement, and the labels made for it.
+  /// Child tables rather than columns for the same reason as the cart's.
+  shipping  OrderShipping?
+  shipments Shipment[]
+
+  /// Order history, newest first — the most common customer-facing read.
+  @@index([accountId, createdAt(sort: Desc)])
+  @@index([accountId, siteId, createdAt(sort: Desc)])
+  @@index([accountId, status])
+  @@index([accountId, placedById, createdAt(sort: Desc)])
+  /// The budget query: this branch's committed spend in a period. Ordered so it
+  /// is answered from the index alone.
+  @@index([siteId, billingPeriod, status])
+  /// The billing run: every order for an account in a period, at a billable
+  /// status. Distinct from the budget index above because that one leads with
+  /// the branch, and a leading column cannot be skipped.
+  @@index([accountId, billingPeriod, status])
+  /// The approvals queue (BE-07).
+  @@index([status, requiresApproval])
+  @@map("orders")
+}
+
+/// One ordered line, frozen at the moment of placement.
+///
+/// Every field that could change upstream is copied, not joined: the product
+/// name and SKU, the print specification, the unit price and the rule that
+/// produced it. A product renamed or repriced next year must not alter what an
+/// invoice from this year says.
+model OrderLineItem {
+  id String @id @db.NVarChar(64)
+
+  orderId String @db.NVarChar(64)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Referenced so the UI can link through to the catalogue, but never read for
+  /// any value that appears on the order.
+  productId String @db.NVarChar(64)
+  product   Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  variantId String? @db.NVarChar(64)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // --- Snapshot ---------------------------------------------------------------
+
+  sku        String @db.NVarChar(255)
+  name       String @db.NVarChar(255)
+  variantSku String? @db.NVarChar(500)
+  uom        String @db.VarChar(32)
+  packSize   Int
+
+  /// The quantity actually ordered — already rounded to the product's MOQ and
+  /// order multiple by the cart.
+  quantity Int
+
+  unitPrice        Decimal @db.Decimal(12, 2)
+  lineTotal        Decimal @db.Decimal(12, 2)
+  /// The product's tax treatment, frozen at placement like its price.
+  taxTreatment     String  @default("STANDARD") @db.VarChar(32)
+  /// What the line would have cost with no rate card, for savings reporting.
+  catalogUnitPrice Decimal @db.Decimal(12, 2)
+  discountPercent  Decimal @db.Decimal(5, 2)
+  /// Which pricing rule produced the unit price — the same vocabulary
+  /// `PriceSource` uses in the pricing module. Stored as text because it is a
+  /// record of what happened, and a later change to the rule set must not
+  /// invalidate rows that recorded the old one.
+  priceSource      String @db.NVarChar(500)
+
+  /// Print specification, copied so INT-01 sends production exactly what was
+  /// ordered even if the product is later respecified.
+  widthMm      Int?
+  heightMm     Int?
+  bleedMm      Decimal? @db.Decimal(5, 2)
+  safeMarginMm Decimal? @db.Decimal(5, 2)
+
+  /// The template and the exact version this line was personalised from,
+  /// copied from the basket at checkout.
+  ///
+  /// A reference rather than a copy of the artwork, and safe as one precisely
+  /// because a version is immutable: the row it points at cannot be edited, and
+  /// an archived or deleted template keeps its versions for exactly this
+  /// reason. This is what lets an operator — and later INT-01 — reconstruct
+  /// what to print from an order placed months ago.
+  templateId String? @db.NVarChar(64)
+  template   Template? @relation(fields: [templateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  templateVersionId String? @db.NVarChar(64)
+  templateVersion   TemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Personalisation from the template customiser, carried through unchanged.
+  /// Validated against the version above at the time it entered the basket.
+  customisation String? @db.NVarChar(Max)
+
+  /// The chosen configuration as a JSON map — {"Finish": "Gloss Laminate"} —
+  /// copied from the variant at placement so a reconfigured variant cannot
+  /// change what this line says was printed. Null for a line with no options.
+  options String? @db.NVarChar(Max)
+
+  notes         String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([orderId])
+  @@index([productId])
+  /// The fulfilment lookup: every line waiting on one version of one artwork.
+  @@index([templateVersionId])
+  @@map("order_line_items")
+}
+
+/// Every status change, with who made it.
+///
+/// Separate from the audit log on purpose. The audit log is a compliance record
+/// covering every entity in the system; this is the order's own timeline, shown
+/// to the customer on the order detail page (FE-05), and it is read on a hot
+/// path that must not scan a table holding every mutation the platform has ever
+/// made. The actor is snapshotted here for the same reason it is there.
+model OrderStatusEvent {
+  id String @id @db.NVarChar(64)
+
+  orderId String @db.NVarChar(64)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Null for the first event, which records the order being created.
+  fromStatus String? @db.VarChar(32)
+  toStatus   String @db.VarChar(32)
+
+  actorId   String? @db.NVarChar(64)
+  actorName String @db.NVarChar(500)
+  actorRole String @db.VarChar(32)
+  /// Free text from the actor: a rejection reason, a dispatch note.
+  comment   String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([orderId, createdAt])
+  @@map("order_status_events")
+}
+
+// --- Approvals --------------------------------------------------------------
+
+/// One configurable reason an order needs a decision, and who makes it
+/// (SOW BE-07).
+///
+/// ---------------------------------------------------------------------------
+/// Rules are conditions, not a workflow
+/// ---------------------------------------------------------------------------
+/// Each row says "when an order looks like *this*, someone at tier N must
+/// approve it". Several can match one order; their tiers are collected, sorted
+/// and walked in turn. That is deliberately simpler than a graph: a customer's
+/// finance policy is a list of thresholds and exceptions, not a flowchart, and
+/// a graph would let an administrator build an unreachable state nobody notices
+/// until an order is stuck in it.
+///
+/// A rule with no conditions at all matches every order, which is how "all
+/// orders need head-office sign-off" is expressed.
+model ApprovalRule {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// What the administrator calls it — "Over $1,000", "All print for VIC".
+  name        String @db.NVarChar(255)
+  description String? @db.NVarChar(Max)
+
+  active Boolean @default(true)
+
+  // --- Triggers. Null means "does not constrain". All present ones must match.
+
+  /// Order total at or above this. `Account.approvalThreshold` remains the
+  /// simple case; this is the configurable one that supersedes it when rules
+  /// exist for the account.
+  minTotal Decimal? @db.Decimal(12, 2)
+
+  /// Any line in this category. The most common non-monetary trigger: branded
+  /// stationery goes through marketing whatever it costs.
+  categoryId String? @db.NVarChar(64)
+  category   ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Only orders raised by someone in this role.
+  requesterRole String? @db.VarChar(32)
+
+  /// Only orders for this branch.
+  siteId String? @db.NVarChar(64)
+  site   Site?   @relation(fields: [siteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // --- Routing ---------------------------------------------------------------
+
+  /// Which round of approval this rule contributes. Tiers are walked lowest
+  /// first, and every step in a tier must be decided before the next opens.
+  tier Int @default(1)
+
+  /// Who may decide. Exactly one of these is set — the service refuses a rule
+  /// that names neither, because a rule with no approver would strand every
+  /// order it matched.
+  approverRole   String? @db.VarChar(32)
+  approverUserId String? @db.NVarChar(64)
+  approverUser   User?       @relation("ApprovalRuleApprover", fields: [approverUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  deletedAt DateTime? @db.DateTimeOffset
+
+  steps ApprovalStep[]
+
+  @@index([accountId, active, tier])
+  @@map("approval_rules")
+}
+
+/// One order's journey through approval.
+///
+/// Created when an order is placed and at least one rule matches. Holds the
+/// tier currently open; the steps hold the decisions.
+model ApprovalRequest {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  orderId String @unique @db.NVarChar(64)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status String @default("PENDING") @db.VarChar(32)
+
+  /// The tier whose steps are open for decision. Advances only when every step
+  /// in it is approved.
+  currentTier Int @default(1)
+
+  /// The order total when the request was raised. Kept because a resubmitted
+  /// order can be a different size, and the record of what each round was
+  /// deciding on must not move under it.
+  totalAtRequest Decimal @db.Decimal(12, 2)
+
+  completedAt DateTime? @db.DateTimeOffset
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  steps ApprovalStep[]
+
+  @@index([accountId, status, currentTier])
+  @@map("approval_requests")
+}
+
+/// One person's decision, or the absence of it.
+///
+/// A step is created for every rule that matched, at the tier that rule names.
+/// `approverRole` steps are open to anyone in the account holding that role;
+/// `approverUserId` steps name one person.
+model ApprovalStep {
+  id String @id @db.NVarChar(64)
+
+  requestId String @db.NVarChar(64)
+  request   ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The rule that produced this step. Nullable so a rule can be retired
+  /// without erasing the history of what it once required.
+  ruleId String? @db.NVarChar(64)
+  rule   ApprovalRule? @relation(fields: [ruleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  tier Int
+
+  /// Copied from the rule, so retiring or editing the rule cannot rewrite who
+  /// this step was addressed to.
+  approverRole   String? @db.VarChar(32)
+  approverUserId String? @db.NVarChar(64)
+  approverUser   User?       @relation("ApprovalStepApprover", fields: [approverUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status String @default("PENDING") @db.VarChar(32)
+
+  decidedById   String? @db.NVarChar(64)
+  decidedBy     User?     @relation("ApprovalStepDecider", fields: [decidedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  /// Snapshotted, like every other actor in this system.
+  decidedByName String? @db.NVarChar(500)
+  decidedAt     DateTime? @db.DateTimeOffset
+  comment       String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([requestId, tier])
+  @@index([approverUserId, status])
+  @@map("approval_steps")
+}
+
+// --- Billing ----------------------------------------------------------------
+
+/// A consolidated monthly invoice for one account (SOW BE-09).
+///
+/// ---------------------------------------------------------------------------
+/// Draft, then frozen
+/// ---------------------------------------------------------------------------
+/// A DRAFT invoice can be regenerated as often as anyone likes — it recomputes
+/// from the orders every time and holds no number. ISSUING it allocates the
+/// invoice number and freezes every line. Nothing after that can change what a
+/// customer was billed; a mistake becomes a credit note, which is what finance
+/// teams expect and what an auditor will ask for.
+///
+/// ---------------------------------------------------------------------------
+/// Which orders land on it
+/// ---------------------------------------------------------------------------
+/// Orders whose own `billingPeriod` is this period and which have reached
+/// DISPATCHED or DELIVERED at the moment of generation. Two halves, both
+/// deliberate: the period comes from the order rather than from the shipment,
+/// so it agrees with the branch's budget for that month; and only shipped goods
+/// are billed, because invoicing something still in production is how a credit
+/// note gets created.
+model Invoice {
+  id String @id @db.NVarChar(64)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// Allocated at issue, never at draft. `INV-2026-000123`, gapless within a
+  /// year — see the migration for why this differs from order numbering.
+  invoiceNumber String? @unique @db.NVarChar(255)
+
+  /// `YYYY-MM`, UTC. The same key orders carry and budgets are measured over.
+  billingPeriod String @db.NVarChar(255)
+
+  status String @default("DRAFT") @db.VarChar(32)
+
+  /// Sum of the lines. Stored rather than derived so an issued invoice cannot
+  /// be re-totalled by anything that happens later.
+  subtotal Decimal @db.Decimal(12, 2)
+  /// Zero until the tax treatment is settled — see the migration. Present so
+  /// the PDF and the exports have a column that will not need adding later.
+  tax      Decimal @default(0) @db.Decimal(12, 2)
+  total    Decimal @db.Decimal(12, 2)
+
+  /// The GST rate and convention the invoice was taxed on, copied from the
+  /// account at generation. Null on invoices generated before tax was applied,
+  /// whose `tax` is the 0.00 they were issued with.
+  taxRatePercent   Decimal? @db.Decimal(5, 2)
+  pricesIncludeTax Boolean  @default(false)
+
+  /// Counts, snapshotted so a listing does not aggregate on every read.
+  orderCount Int @default(0)
+  siteCount  Int @default(0)
+
+  issuedAt         DateTime? @db.DateTimeOffset
+  /// Payment terms applied at issue. Null while the invoice is a draft.
+  dueAt            DateTime? @db.DateTimeOffset
+  paidAt           DateTime? @db.DateTimeOffset
+  /// The customer's remittance reference, once finance records one.
+  paymentReference String? @db.NVarChar(500)
+
+  /// Why it was voided. Mandatory when the status is VOID.
+  voidReason String? @db.NVarChar(500)
+
+  notes String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  lines InvoiceLine[]
+
+  /// One invoice per account per period, and the lookup the explorer makes.
+  /// Not unique: a voided invoice and its replacement share both.
+  @@index([accountId, billingPeriod])
+  @@index([status, billingPeriod])
+  @@map("invoices")
+}
+
+/// One order on an invoice.
+///
+/// Per order rather than per site: the site breakdown the billing screen shows
+/// is a grouping of these, and a line per site would lose the order-level
+/// reconciliation finance actually does when a customer queries a total.
+///
+/// Every field is copied from the order, not joined. An invoice states what was
+/// billed, and an order that is later corrected must not silently restate it.
+model InvoiceLine {
+  id String @id @db.NVarChar(64)
+
+  invoiceId String @db.NVarChar(64)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  orderId String @db.NVarChar(64)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // --- Snapshot ---------------------------------------------------------------
+
+  orderNumber String @db.NVarChar(255)
+  orderedAt   DateTime @db.DateTimeOffset
+
+  siteId       String @db.NVarChar(64)
+  siteCode     String @db.NVarChar(500)
+  siteName     String @db.NVarChar(500)
+  /// Finance attribution, carried through to the ERP journal entry.
+  costCentre   String? @db.NVarChar(500)
+  poNumber     String? @db.NVarChar(500)
+  campaignCode String? @db.NVarChar(500)
+  /// Snapshotted from the order at generation, like `poNumber`, so the backing
+  /// file reconciles to what the buyer wrote (SOW B-05).
+  customerReference String? @db.NVarChar(200)
+  /// The order's bill-to, copied at generation (SOW F-15: "snapshotted onto the
+  /// order and invoice"; B-09: "bill-to address"). A copy of the order's own
+  /// frozen copy, so an issued invoice cannot change if the order is touched.
+  /// Null for orders placed before bill-to was captured.
+  billingSnapshot String? @db.NVarChar(Max)
+
+  /// Who ordered it and in which role (SOW B-04, F-13), where it went (B-08),
+  /// the notes (B-11) and where it had got to (B-10) — copied at generation
+  /// for the backing file, like every other column here.
+  placedByName     String? @db.NVarChar(500)
+  placedByEmail    String? @db.NVarChar(500)
+  placedByRole     String? @db.VarChar(32)
+  shippingSnapshot String? @db.NVarChar(Max)
+  recipientName    String? @db.NVarChar(500)
+  deliveryNotes    String? @db.NVarChar(500)
+  orderNotes       String? @db.NVarChar(Max)
+  orderStatus      String? @db.VarChar(32)
+  trackingNumber   String? @db.NVarChar(500)
+
+  itemCount Int
+  amount    Decimal @db.Decimal(12, 2)
+  /// The GST on this order: the sum of its items' `taxAmount`.
+  tax       Decimal @default(0) @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  items InvoiceLineItem[]
+
+  /// An order appears at most once on an invoice.
+  @@unique([invoiceId, orderId])
+  @@index([invoiceId, siteId])
+  @@index([orderId])
+  @@map("invoice_lines")
+}
+
+/// One billed line of an order on an invoice (SOW O-6: a backing file "that
+/// reconciles line for line").
+///
+/// A PRODUCT row per order line and a DELIVERY row for the order's delivery
+/// charge, so the items of an order add up to its `amount` and the items of an
+/// invoice to its subtotal. Copied, not joined, like `InvoiceLine`.
+model InvoiceLineItem {
+  id String @id @db.NVarChar(64)
+
+  /// For row-level security; always the invoice's account.
+  accountId String @db.NVarChar(64)
+  /// Denormalised for the per-invoice read. Not a relation: a second cascade
+  /// path from invoices is one SQL Server refuses.
+  invoiceId String @db.NVarChar(64)
+
+  invoiceLineId String      @db.NVarChar(64)
+  invoiceLine   InvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  /// The order line it came from. Null for a DELIVERY row.
+  orderLineId String? @db.NVarChar(64)
+
+  kind     String @db.VarChar(16)
+  sequence Int
+
+  sku        String  @db.NVarChar(255)
+  name       String  @db.NVarChar(255)
+  variantSku String? @db.NVarChar(500)
+  uom        String? @db.VarChar(32)
+  packSize   Int?
+  quantity   Int
+
+  unitPrice    Decimal @db.Decimal(12, 2)
+  lineValue    Decimal @db.Decimal(12, 2)
+  taxTreatment String  @db.VarChar(32)
+  taxAmount    Decimal @db.Decimal(12, 2)
+
+  /// The line-level note (SOW B-11).
+  notes String? @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([invoiceLineId, sequence])
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+/// The gapless counter behind invoice numbers.
+///
+/// A table rather than a PostgreSQL sequence, unlike order numbers, because
+/// several jurisdictions require invoice numbers to have no gaps and a sequence
+/// does not roll back. One row per year, incremented under its own row lock
+/// inside the issuing transaction — see the migration for why the contention
+/// that costs is acceptable here and would not be on checkout.
+model InvoiceSequence {
+  /// The calendar year the numbers belong to.
+  year Int @id
+
+  /// The last number handed out.
+  lastNumber Int @default(0)
+
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@map("invoice_sequences")
+}
+
+// --- Templates ---------------------------------------------------------------
+
+/// A master artwork template (SOW FE-13).
+///
+/// -----------------------------------------------------------------------------
+/// The working copy and the published version are not the same row
+/// -----------------------------------------------------------------------------
+/// This row is the **draft**: what the builder opens, autosaves into, and what
+/// `version` counts. What a buyer personalises is `publishedVersion` — an
+/// immutable snapshot in `template_versions`.
+///
+/// Editing a live template therefore cannot change artwork a customer is
+/// halfway through ordering, and publishing is the one deliberate act that
+/// moves them. It is the same reasoning that freezes an order line's price and
+/// an invoice's lines: the moment somebody acts on something, what they acted
+/// on has to stop moving.
+///
+/// -----------------------------------------------------------------------------
+/// Global, like the catalogue it prints onto
+/// -----------------------------------------------------------------------------
+/// Templates are the platform operator's, not a customer's — `TEMPLATE_MANAGE`
+/// is in no customer role. So there is no `accountId` and no row-level
+/// security here; access is decided by the permission on the route and, for
+/// RESTRICTED templates, by `template_account_visibility`. That is the same
+/// shape as Product, and for the same reason.
+model Template {
+  id String @id @db.NVarChar(64)
+
+  /// Operator-facing code, unique across the platform and upper-cased on write.
+  /// The natural key a designer quotes in a support thread.
+  code        String  @unique @db.NVarChar(255)
+  name        String @db.NVarChar(255)
+  description String? @db.NVarChar(Max)
+
+  /// The product this artwork is printed onto.
+  ///
+  /// Print specification — physical bleed, stock dimensions — belongs to the
+  /// *product*, because the same A2 stock has the same 3mm bleed whatever is
+  /// printed on it. The margins held here are the designer's canvas settings,
+  /// which may legitimately be tighter than the stock demands but must never be
+  /// looser; the service checks that on publish.
+  productId String? @db.NVarChar(64)
+  product   Product? @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  categoryId String? @db.NVarChar(64)
+  category   ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// What this design costs, and how many units that buys.
+  ///
+  /// The price of a print job is the design's, not the stock's: the same A2
+  /// sheet costs a different amount to originate depending on what is on it,
+  /// and a buyer who personalises a template pays for the design they chose
+  /// however far they move the text about. So `price` is the price of one
+  /// pack — a quantity of 2 is two packs, not two sheets — and `unitsPerPack`
+  /// exists to print "2.50 each" beside it rather than to be multiplied by.
+  ///
+  /// Nullable because a draft is allowed to be half-built; `assertPublishable`
+  /// is what refuses to publish an unpriced design, and the database enforces
+  /// only that the two move together.
+  price        Decimal? @db.Decimal(12, 2)
+  unitsPerPack Int?
+
+  status     String     @default("DRAFT") @db.VarChar(32)
+  /// Who may see this template, and by extension whose it is.
+  ///
+  /// ALL_ACCOUNTS and RESTRICTED are the operator's own library, as they always
+  /// were. ACCOUNT and PRIVATE are what a customer creates: a head office builds
+  /// for its branches, a site user builds for itself. See `visibilityFilter()`.
+  visibility String @default("ALL_ACCOUNTS") @db.VarChar(32)
+
+  /// The user whose template this is. Null for the operator's own library.
+  ///
+  /// Set on anything a customer creates or clones, and it is what lets a site
+  /// user run the full builder on their own copy without being given
+  /// TEMPLATE_MANAGE, which would also let them edit the operator's originals.
+  ownerUserId String? @db.NVarChar(64)
+  ownerUser   User?   @relation("TemplateOwner", fields: [ownerUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The account a customer-owned template belongs to.
+  ///
+  /// Denormalised from the owner so the visibility predicate can filter on it
+  /// without a join, in the same way the tenant columns elsewhere exist for
+  /// Row-Level Security rather than for ownership.
+  ownerAccountId String?  @db.NVarChar(64)
+  ownerAccount   Account? @relation("TemplateOwnerAccount", fields: [ownerAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The catalogue template this was cloned from, if it was.
+  ///
+  /// Kept for provenance rather than for behaviour: it answers "which of ours
+  /// did this come from" when a customer asks for help with a design they have
+  /// since edited beyond recognition. Null on a template built from scratch.
+  sourceTemplateId String?   @db.NVarChar(64)
+  sourceTemplate   Template? @relation("TemplateClones", fields: [sourceTemplateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  clones           Template[] @relation("TemplateClones")
+
+  theme String? @db.NVarChar(500)
+
+  orientation String @default("PORTRAIT") @db.VarChar(32)
+  /// Free text ("4:3", "1:1"). A label the storefront prints, not a number
+  /// anything computes with — deriving it from the dimensions would be lossy
+  /// for the sizes that do not reduce cleanly.
+  aspectRatio String? @db.NVarChar(500)
+
+  widthValue    Decimal               @db.Decimal(10, 3)
+  heightValue   Decimal               @db.Decimal(10, 3)
+  dimensionUnit String @default("IN") @db.VarChar(32)
+  bleedMargin   Decimal               @default(0) @db.Decimal(10, 3)
+  safeMargin    Decimal               @default(0) @db.Decimal(10, 3)
+
+  /// Canvas background — colour, gradient, pattern, backdrop image.
+  canvasConfig String @db.NVarChar(Max)
+  /// The flat layer list the storefront renders and the customiser drives.
+  /// A field a buyer may change is a layer with `isEditableBySiteUser: true`;
+  /// everything else is locked, which is what makes "personalise" different
+  /// from "redesign".
+  layers String @db.NVarChar(Max)
+  /// The editor's structured source of truth — groups, masks, gradients,
+  /// filters. `layers` is the flat view derived from it.
+  design String? @db.NVarChar(Max)
+  /// Fabric.js serialisation, kept so a document saved before `design` existed
+  /// still reopens. Text rather than Json because it is opaque to this system:
+  /// it is only ever handed back to the editor that wrote it, and parsing it
+  /// into jsonb would cost on every read for nothing.
+  ///
+  /// Max, like its three neighbours. It was NVarChar(500) -- the port gave every
+  /// String an explicit width and this one kept the default -- which is smaller
+  /// than any real canvas: fabric's toJSON is kilobytes for an empty artboard.
+  /// Every save and publish from the builder failed on it with P2000, while the
+  /// API tests passed because none of them sent a canvasJson at all.
+  canvasJson String? @db.NVarChar(Max)
+
+  /// At most one of each, enforced by the unique constraints. A listing tile
+  /// and a mock-up are singular by nature; anything else is a SOURCE asset.
+  thumbnailAssetId String?        @unique @db.NVarChar(64)
+  thumbnailAsset   TemplateAsset? @relation("TemplateThumbnail", fields: [thumbnailAssetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  previewAssetId   String?        @unique @db.NVarChar(64)
+  previewAsset     TemplateAsset? @relation("TemplatePreview", fields: [previewAssetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// The draft's revision counter, bumped on every save.
+  ///
+  /// Also the optimistic-concurrency token: a save carrying a stale version is
+  /// refused rather than applied. Two designers with the same template open is
+  /// an ordinary Tuesday, and silently keeping whichever save landed last is
+  /// how an afternoon's work disappears with nothing to show it ever existed.
+  version Int @default(1)
+
+  /// The snapshot buyers render. Null until the template is published once.
+  publishedVersionId String?          @unique @db.NVarChar(64)
+  publishedVersion   TemplateVersion? @relation("TemplatePublished", fields: [publishedVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  publishedAt        DateTime?        @db.DateTimeOffset
+
+  /// Copied in alongside the id, for the same reason the audit log copies an
+  /// actor's name: a designer who leaves must not turn the authorship of every
+  /// template they made into a null.
+  createdById   String? @db.NVarChar(64)
+  createdBy     User?   @relation("TemplateCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByName String? @db.NVarChar(500)
+  updatedById   String? @db.NVarChar(64)
+  updatedBy     User?   @relation("TemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updatedByName String? @db.NVarChar(500)
+
+  versions   TemplateVersion[]           @relation("TemplateVersions")
+  assets     TemplateAsset[]             @relation("TemplateAssets")
+  visibleTo  TemplateAccountVisibility[]
+  cartLines  CartLine[]
+  orderLines OrderLineItem[]
+
+  createdAt DateTime  @default(now()) @db.DateTimeOffset
+  updatedAt DateTime  @updatedAt @db.DateTimeOffset
+  /// Soft delete. A template a customer has ordered from is never removed —
+  /// the order's snapshot points at one of its versions.
+  deletedAt DateTime? @db.DateTimeOffset
+
+  /// The storefront query: published, visible, not deleted, newest first.
+  @@index([status, visibility, deletedAt])
+  @@index([categoryId])
+  @@index([productId])
+  @@index([ownerUserId])
+  @@index([ownerAccountId, visibility])
+  @@map("templates")
+}
+
+/// An immutable snapshot of a template's design at one moment.
+///
+/// Written on every publish, and on demand when a designer wants a restore
+/// point. Never updated — the whole value of the row is that it cannot move
+/// under an order that references it.
+///
+/// The snapshot is the whole design rather than a diff. Diffs are smaller and
+/// are the wrong trade here: reconstructing artwork by replaying a chain means
+/// one corrupt link loses everything after it, and these documents are
+/// kilobytes, not gigabytes.
+model TemplateVersion {
+  id String @id @db.NVarChar(64)
+
+  templateId String @db.NVarChar(64)
+  template   Template @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  /// Matches `Template.version` at the moment the snapshot was taken.
+  version Int
+
+  /// Everything needed to render the template without reading the draft:
+  /// name, dimensions, margins, canvas config, layers, design.
+  snapshot String @db.NVarChar(Max)
+
+  /// The price this version was published at, frozen.
+  ///
+  /// Also inside `snapshot`, and duplicated out here on purpose: pricing a
+  /// basket reads this per line, and a number that can only be reached by
+  /// parsing a document column is one the database cannot join on, filter by
+  /// or index. The snapshot stays the record of what was published; these two
+  /// are the copy the pricing path actually reads.
+  price        Decimal? @db.Decimal(12, 2)
+  unitsPerPack Int?
+
+  /// Why this version exists — "Published", "Before the Q4 rebrand".
+  label String? @db.NVarChar(500)
+
+  createdById   String? @db.NVarChar(64)
+  createdBy     User?   @relation("TemplateVersionAuthor", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByName String? @db.NVarChar(500)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  publishedFor Template? @relation("TemplatePublished")
+
+  /// Why a version is never hard-deleted: baskets and orders point at it.
+  cartLines  CartLine[]
+  orderLines OrderLineItem[]
+
+  @@unique([templateId, version])
+  @@index([templateId, createdAt(sort: Desc)])
+  @@map("template_versions")
+}
+
+/// A file belonging to a template: its tile, its mock-up, or imagery inside it.
+///
+/// The same two-step upload the catalogue uses — presign, upload straight to
+/// storage, then register — because a print-resolution image has no business
+/// passing through this process.
+model TemplateAsset {
+  id String @id @db.NVarChar(64)
+
+  templateId String @db.NVarChar(64)
+  template   Template @relation("TemplateAssets", fields: [templateId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  kind String @default("SOURCE") @db.VarChar(32)
+
+  /// Object key within the bucket, as built by StorageService.buildKey().
+  storageKey  String @unique @db.NVarChar(255)
+  filename    String @db.NVarChar(500)
+  contentType String @db.NVarChar(500)
+  sizeBytes   Int
+
+  altText String? @db.NVarChar(Max)
+
+  /// Intrinsic pixel size, filled in when derivatives are generated. Lets the
+  /// listing reserve the right box before the image loads, which is what stops
+  /// a gallery reflowing as it fills in.
+  widthPx  Int?
+  heightPx Int?
+
+  /// Resized copies, produced on the RENDER queue exactly as product images
+  /// are. A tile that is a 12MB PNG scaled down in the browser is how a
+  /// gallery of forty templates becomes unusable on a laptop.
+  derivativeStatus String @default("NOT_APPLICABLE") @db.VarChar(32)
+  thumbnailKey     String? @db.NVarChar(500)
+  previewKey       String? @db.NVarChar(500)
+  derivativeError  String? @db.NVarChar(Max)
+
+  /// The document-library file this asset was copied from: its folder and name
+  /// joined, e.g. "Templates/tpl_01J9Z.../logo.png". Null for anything that did
+  /// not come from the library.
+  ///
+  /// A library file has no id, so this pair is its whole identity — which is
+  /// what the unlink on delete needs. Never a URL: the links the library hands
+  /// out may be signed and time-limited, and one stored here would be a
+  /// credential that has expired by the time anyone reads the row.
+  damDocumentId String? @db.NVarChar(512)
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  thumbnailFor Template? @relation("TemplateThumbnail")
+  previewFor   Template? @relation("TemplatePreview")
+
+  @@index([templateId, kind])
+  @@map("template_assets")
+}
+
+/// Which accounts may see a RESTRICTED template. Ignored for ALL_ACCOUNTS.
+model TemplateAccountVisibility {
+  id String @id @db.NVarChar(64)
+
+  templateId String @db.NVarChar(64)
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  accountId String @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@unique([templateId, accountId])
+  @@index([accountId])
+  @@map("template_account_visibility")
+}
+
+// --- Shipping (NZ Post) -----------------------------------------------------
+//
+// SOW §7. Every table here is new rather than a column on `carts` or `orders`:
+// those two are reached by schema-bound RLS predicate functions, and altering
+// them means dropping and rebuilding the whole security policy. See
+// migration 20260911090000_nzpost_shipping.
+//
+// Tenant-owned rows carry their own `accountId`, children included, so each is
+// covered by the plain account predicate rather than by a new schema-bound
+// function that would tie `shipments` down the way `orders` is tied down.
+
+/// The buyer's delivery choice for one basket: the NZ Post address they picked,
+/// optionally a collection point near it, and the service and quote they chose.
+///
+/// A quote is recorded, never billed (decision D4): freight is the client's own
+/// cost on its NZ Post account, so none of this reaches the order total, the
+/// branch budget or the invoice.
+model CartShippingSelection {
+  cartId String @id @db.NVarChar(64)
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  accountId String  @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  /// ADDRESS or COLLECTION.
+  deliveryKind String @default("ADDRESS") @db.VarChar(32)
+
+  nzPostAddressId String?  @db.NVarChar(64)
+  dpid            String?  @db.NVarChar(32)
+  isRural         Boolean?
+  fullAddress     String?  @db.NVarChar(500)
+  /// Structured the way ParcelLabel wants it. JSON.
+  deliveryAddress String?  @db.NVarChar(Max)
+
+  collectionPointId String? @db.NVarChar(64)
+  /// The chosen parcel collection location, as NZ Post described it. JSON.
+  collectionPoint   String? @db.NVarChar(Max)
+
+  serviceCode        String?   @db.NVarChar(32)
+  serviceDescription String?   @db.NVarChar(255)
+  /// NZPOST or FLAT_RATE.
+  quoteSource        String?   @db.VarChar(32)
+  quotedPriceExclGst Decimal?  @db.Decimal(12, 2)
+  quotedPriceInclGst Decimal?  @db.Decimal(12, 2)
+  quotedAt           DateTime? @db.DateTimeOffset
+  /// The weight and box the quote was asked for. JSON.
+  parcelEstimate     String?   @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@index([accountId])
+  @@map("cart_shipping_selections")
+}
+
+/// The delivery choice, frozen onto the order at placement.
+model OrderShipping {
+  orderId String @id @db.NVarChar(64)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  accountId String  @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  deliveryKind String @default("ADDRESS") @db.VarChar(32)
+
+  nzPostAddressId String?  @db.NVarChar(64)
+  dpid            String?  @db.NVarChar(32)
+  isRural         Boolean?
+  fullAddress     String?  @db.NVarChar(500)
+  deliveryAddress String?  @db.NVarChar(Max)
+
+  collectionPointId String? @db.NVarChar(64)
+  collectionPoint   String? @db.NVarChar(Max)
+
+  serviceCode        String?   @db.NVarChar(32)
+  serviceDescription String?   @db.NVarChar(255)
+  quoteSource        String?   @db.VarChar(32)
+  quotedPriceExclGst Decimal?  @db.Decimal(12, 2)
+  quotedPriceInclGst Decimal?  @db.Decimal(12, 2)
+  quotedAt           DateTime? @db.DateTimeOffset
+  parcelEstimate     String?   @db.NVarChar(Max)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  @@index([accountId])
+  @@map("order_shipping")
+}
+
+/// One label request: a consignment of one or more parcels for one order.
+///
+/// PENDING      recorded, not yet sent to NZ Post
+/// SUBMITTED    NZ Post accepted it and gave a consignment id; label not ready
+/// LABELLED     the PDF is stored and the parcels have tracking references
+/// FAILED       retries exhausted, or NZ Post refused the request outright
+/// VOIDED       withdrawn in the portal. NZ Post has no void endpoint; a label
+///              nobody scans is never charged.
+model Shipment {
+  id String @id @db.NVarChar(64)
+
+  accountId String  @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  orderId String @db.NVarChar(64)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  status      String @default("PENDING") @db.VarChar(32)
+  carrier     String @default("COURIERPOST") @db.NVarChar(64)
+  serviceCode String @db.NVarChar(32)
+
+  /// Makes a double-click or a replayed request create nothing new.
+  idempotencyKey String @unique @db.NVarChar(128)
+
+  /// The exact body sent to `POST /labels`, built once when the shipment was
+  /// requested so every retry and replay sends the same thing. JSON.
+  requestPayload String @db.NVarChar(Max)
+
+  /// Unique where present (filtered index in the migration).
+  consignmentId String?   @unique @db.NVarChar(64)
+  messageId     String?   @db.NVarChar(64)
+  labelFileKey  String?   @db.NVarChar(500)
+  labelExpiresAt DateTime? @db.DateTimeOffset
+
+  attempts  Int     @default(0)
+  lastError String? @db.NVarChar(2000)
+
+  requestedById   String? @db.NVarChar(64)
+  requestedByName String  @db.NVarChar(500)
+
+  pickupBookingId String?        @db.NVarChar(64)
+  pickupBooking   PickupBooking? @relation(fields: [pickupBookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  labelledAt         DateTime? @db.DateTimeOffset
+  lastTrackedAt      DateTime? @db.DateTimeOffset
+  deliveredAt        DateTime? @db.DateTimeOffset
+  /// Set by the daily check when a label has gone unscanned too long.
+  unscannedFlaggedAt DateTime? @db.DateTimeOffset
+  voidedAt           DateTime? @db.DateTimeOffset
+  voidReason         String?   @db.NVarChar(500)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  parcels        ShipmentParcel[]
+  trackingEvents ShipmentTrackingEvent[]
+
+  @@index([orderId])
+  @@index([accountId, status])
+  @@index([status, lastTrackedAt])
+  @@index([pickupBookingId])
+  @@map("shipments")
+}
+
+/// One box. Measured by staff when the label is requested (decision D2).
+model ShipmentParcel {
+  id String @id @db.NVarChar(64)
+
+  accountId String  @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  shipmentId String   @db.NVarChar(64)
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  sequence    Int
+  serviceCode String  @db.NVarChar(32)
+  description String? @db.NVarChar(255)
+
+  weightGrams Int
+  lengthMm    Int
+  widthMm     Int
+  heightMm    Int
+
+  /// Filled in once NZ Post has generated the label.
+  labelId           String? @db.NVarChar(64)
+  trackingReference String? @db.NVarChar(64)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@unique([shipmentId, sequence])
+  @@index([trackingReference])
+  @@map("shipment_parcels")
+}
+
+/// A tracking event as ParcelTrack reported it.
+model ShipmentTrackingEvent {
+  id String @id @db.NVarChar(64)
+
+  accountId String  @db.NVarChar(64)
+  account   Account @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  shipmentId String   @db.NVarChar(64)
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  trackingReference String @db.NVarChar(64)
+  /// Reference, time and NZ Post's sequence reference, so a re-poll adds nothing.
+  dedupeKey         String @db.NVarChar(255)
+
+  occurredAt   DateTime @db.DateTimeOffset
+  status       String?  @db.NVarChar(255)
+  description  String?  @db.NVarChar(1000)
+  edifactCode  String?  @db.NVarChar(32)
+  depotName    String?  @db.NVarChar(255)
+  signedByName String?  @db.NVarChar(255)
+  isDelivered  Boolean  @default(false)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@unique([shipmentId, dedupeKey])
+  @@index([shipmentId, occurredAt])
+  @@map("shipment_tracking_events")
+}
+
+/// A courier pickup booked at the warehouse.
+///
+/// Platform-level, not tenant-owned: one pickup collects parcels for many
+/// customers at once, so it carries no accountId and is not under RLS. Only
+/// ORDER_MANAGE — an operator permission — reaches it.
+model PickupBooking {
+  id String @id @db.NVarChar(64)
+
+  /// BOOKED, REJECTED or FAILED.
+  status         String @db.VarChar(32)
+  idempotencyKey String @unique @db.NVarChar(128)
+
+  pickupAt             DateTime @db.DateTimeOffset
+  parcelQuantity       Int
+  estimatedWeightGrams Int
+  instructions         String?  @db.NVarChar(500)
+
+  carrierJobId     String? @db.NVarChar(64)
+  carrierJobNumber String? @db.NVarChar(64)
+  responseType     String? @db.NVarChar(32)
+  rejectCode       String? @db.NVarChar(32)
+  messageId        String? @db.NVarChar(64)
+  lastError        String? @db.NVarChar(2000)
+
+  requestedById   String? @db.NVarChar(64)
+  requestedByName String  @db.NVarChar(500)
+
+  createdAt DateTime @default(now()) @db.DateTimeOffset
+  updatedAt DateTime @updatedAt @db.DateTimeOffset
+
+  shipments Shipment[]
+
+  @@index([pickupAt])
+  @@map("pickup_bookings")
+}
+
+/// One call to an outside integration, for integration health (SOW §15).
+///
+/// Platform data: no account and no row-level security. It holds the operation,
+/// the outcome and the timings, never an address, a name or a payload.
+model IntegrationCall {
+  id String @id @db.NVarChar(64)
+
+  provider  String @db.VarChar(32)
+  /// LIVE or MOCK, so a demo's figures are never read as NZ Post's.
+  mode      String @db.VarChar(16)
+  operation String @db.NVarChar(64)
+  outcome   String @db.VarChar(16)
+
+  durationMs  Int
+  /// Which attempt of a queued job this was; 1 for a call nothing retried.
+  attempt     Int @default(1)
+  /// Retries made inside the call itself: interactive reads, a refused token.
+  httpRetries Int @default(0)
+
+  errorCode  String? @db.NVarChar(64)
+  httpStatus Int?
+
+  occurredAt DateTime @default(now()) @db.DateTimeOffset
+
+  @@index([provider, occurredAt])
+  @@map("integration_calls")
+}
+
+/// One run of a reconciliation sweep, and what it found (SOW §7.2, §15).
+model ReconciliationRun {
+  id String @id @db.NVarChar(64)
+
+  kind    String @db.VarChar(32)
+  outcome String @db.VarChar(16)
+
+  startedAt  DateTime  @default(now()) @db.DateTimeOffset
+  finishedAt DateTime? @db.DateTimeOffset
+
+  examined    Int?
+  flagged     Int?
+  /// Everything flagged and still unresolved after the run, not only new flags.
+  outstanding Int?
+  message     String? @db.NVarChar(1000)
+
+  @@index([kind, startedAt])
+  @@map("reconciliation_runs")
+}

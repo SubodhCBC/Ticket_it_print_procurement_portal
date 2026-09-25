@@ -1,0 +1,122 @@
+[
+  {
+    "id": "rc-001",
+    "accountId": "acc-001",
+    "accountName": "Apex Healthcare Group",
+    "name": "Apex Enterprise Tier A (15% Master Discount)",
+    "effectiveFrom": "2026-01-01T00:00:00.000Z",
+    "effectiveTo": "2026-12-31T23:59:59.000Z",
+    "defaultDiscountPct": 15,
+    "status": "ACTIVE",
+    "itemCount": 5,
+    "items": [
+      {
+        "id": "rci-001",
+        "rateCardId": "rc-001",
+        "productId": "prod-001",
+        "productSku": "POS-WND-BANNER-01",
+        "productName": "Ultra-Clear Window Vinyl Poster",
+        "basePrice": 145.0,
+        "fixedPrice": 120.0,
+        "discountPct": 17.24,
+        "effectivePrice": 120.0
+      },
+      {
+        "id": "rci-002",
+        "rateCardId": "rc-001",
+        "productId": "prod-002",
+        "productSku": "POS-FLR-STAND-02",
+        "productName": "Illuminated Slim LED Totem Stand",
+        "basePrice": 380.0,
+        "fixedPrice": 320.0,
+        "discountPct": 15.79,
+        "effectivePrice": 320.0
+      },
+      {
+        "id": "rci-003",
+        "rateCardId": "rc-001",
+        "productId": "prod-003",
+        "productSku": "PKG-COLD-TOTE-03",
+        "productName": "Validated Cold-Chain Thermal Tote 12L",
+        "basePrice": 290.0,
+        "fixedPrice": 240.0,
+        "discountPct": 17.24,
+        "effectivePrice": 240.0
+      },
+      {
+        "id": "rci-004",
+        "rateCardId": "rc-001",
+        "productId": "prod-004",
+        "productSku": "PKG-BIO-BAGS-04",
+        "productName": "Tamper-Evident Medical Seal Bags (Large)",
+        "basePrice": 115.0,
+        "discountPct": 15.0,
+        "effectivePrice": 97.75
+      },
+      {
+        "id": "rci-005",
+        "rateCardId": "rc-001",
+        "productId": "prod-005",
+        "productSku": "LBL-DIRECT-THM-05",
+        "productName": "Cryogenic Dispensing Barcode Labels",
+        "basePrice": 48.5,
+        "discountPct": 15.0,
+        "effectivePrice": 41.22
+      }
+    ]
+  },
+  {
+    "id": "rc-002",
+    "accountId": "acc-002",
+    "accountName": "Metro Dispensaries Network",
+    "name": "Metro Standard Multi-Site (10% Tier)",
+    "effectiveFrom": "2026-01-01T00:00:00.000Z",
+    "effectiveTo": "2026-12-31T23:59:59.000Z",
+    "defaultDiscountPct": 10,
+    "status": "ACTIVE",
+    "itemCount": 3,
+    "items": [
+      {
+        "id": "rci-006",
+        "rateCardId": "rc-002",
+        "productId": "prod-001",
+        "productSku": "POS-WND-BANNER-01",
+        "productName": "Ultra-Clear Window Vinyl Poster",
+        "basePrice": 145.0,
+        "discountPct": 10.0,
+        "effectivePrice": 130.5
+      },
+      {
+        "id": "rci-007",
+        "rateCardId": "rc-002",
+        "productId": "prod-003",
+        "productSku": "PKG-COLD-TOTE-03",
+        "productName": "Validated Cold-Chain Thermal Tote 12L",
+        "basePrice": 290.0,
+        "discountPct": 10.0,
+        "effectivePrice": 261.0
+      },
+      {
+        "id": "rci-008",
+        "rateCardId": "rc-002",
+        "productId": "prod-004",
+        "productSku": "PKG-BIO-BAGS-04",
+        "productName": "Tamper-Evident Medical Seal Bags (Large)",
+        "basePrice": 115.0,
+        "discountPct": 10.0,
+        "effectivePrice": 103.5
+      }
+    ]
+  },
+  {
+    "id": "rc-003",
+    "accountId": "acc-004",
+    "accountName": "Evergreen Specialty Pharma",
+    "name": "Baseline Retail Rate (0% Discount)",
+    "effectiveFrom": "2026-02-01T00:00:00.000Z",
+    "defaultDiscountPct": 0,
+    "status": "ACTIVE",
+    "itemCount": 0,
+    "items": []
+  }
+]

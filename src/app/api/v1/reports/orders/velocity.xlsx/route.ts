@@ -1,0 +1,58 @@
+import { Permission } from '@/server/auth/permissions'
+import { route } from '@/server/middleware/auth.middleware'
+import { exportContext } from '@/server/reports/report-export'
+import { resolveRange } from '@/server/reports/report-periods'
+import {
+  attachmentDisposition,
+  renderXlsx,
+} from '@/server/reports/report-table'
+import { ORDER_VELOCITY } from '@/server/reports/report-tables'
+import { ReportRangeQuerySchema } from '@/server/reports/report.validation'
+import { orderVelocity, resolveAccount } from '@/server/reports/reports.service'
+import { REQUEST_ID_HEADER } from '@/server/utils/response'
+import { parseQuery } from '@/server/utils/validation'
+
+export const runtime = 'nodejs'
+
+/**
+ * GET /api/v1/reports/orders/velocity.xlsx
+ *
+ * Orders per period — the velocity chart as rows.
+ *
+ * The same rows as `GET /api/v1/reports/orders/velocity`, with the columns declared
+ * once in `report-tables.ts` for both file formats (SOW §15: "CSV and XLSX for
+ * every tabular report"). Numbers as numbers — money, counts and percentages can be summed and
+ * filtered without retyping — and an About sheet saying who pulled it, when,
+ * and with which filters.
+ *
+ * @permission REPORT_VIEW Always.
+ */
+export const GET = route(
+  { permissions: [Permission.REPORT_VIEW] },
+  async ({ request, actor, requestId }) => {
+    const query = parseQuery(request, ReportRangeQuerySchema)
+    const report = await orderVelocity(actor, query)
+    const rows = report.buckets
+    const context = exportContext(
+      actor,
+      resolveAccount(actor, query.accountId),
+      { Branch: query.siteId, Granularity: report.granularity },
+      resolveRange(query.from, query.to)
+    )
+    const body = await renderXlsx(ORDER_VELOCITY, rows, context)
+
+    return new Response(body, {
+      headers: {
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': attachmentDisposition(
+          ORDER_VELOCITY,
+          context,
+          'xlsx'
+        ),
+        'Cache-Control': 'no-store',
+        [REQUEST_ID_HEADER]: requestId,
+      },
+    })
+  }
+)

@@ -1,0 +1,164 @@
+[
+  {
+    "id": "site-101",
+    "accountId": "acc-001",
+    "accountName": "Apex Healthcare Group",
+    "name": "Apex Midtown Central Pharmacy",
+    "code": "APX-MID-101",
+    "billToAddress": {
+      "street": "550 Lexington Avenue",
+      "suite": "14th Floor",
+      "city": "New York",
+      "state": "NY",
+      "postalCode": "10022",
+      "country": "USA"
+    },
+    "shipToAddress": {
+      "street": "550 Lexington Avenue",
+      "suite": "Ground Floor Dispensary Receiving",
+      "city": "New York",
+      "state": "NY",
+      "postalCode": "10022",
+      "country": "USA"
+    },
+    "activeUsersCount": 6,
+    "totalOrdersCount": 42,
+    "monthlySpend": 9450.0,
+    "createdAt": "2025-10-10T11:00:00.000Z"
+  },
+  {
+    "id": "site-102",
+    "accountId": "acc-001",
+    "accountName": "Apex Healthcare Group",
+    "name": "Apex Brooklyn Hub & Infusion",
+    "code": "APX-BK-102",
+    "billToAddress": {
+      "street": "550 Lexington Avenue",
+      "suite": "14th Floor",
+      "city": "New York",
+      "state": "NY",
+      "postalCode": "10022",
+      "country": "USA"
+    },
+    "shipToAddress": {
+      "street": "300 Cadman Plaza West",
+      "suite": "Building C Loading Dock",
+      "city": "Brooklyn",
+      "state": "NY",
+      "postalCode": "11201",
+      "country": "USA"
+    },
+    "activeUsersCount": 4,
+    "totalOrdersCount": 28,
+    "monthlySpend": 6800.0,
+    "createdAt": "2025-11-02T13:30:00.000Z"
+  },
+  {
+    "id": "site-103",
+    "accountId": "acc-002",
+    "accountName": "Metro Dispensaries Network",
+    "name": "Metro Chicago West Loop Dispensary",
+    "code": "MET-CHI-103",
+    "billToAddress": {
+      "street": "111 W Jackson Blvd",
+      "suite": "Suite 800",
+      "city": "Chicago",
+      "state": "IL",
+      "postalCode": "60604",
+      "country": "USA"
+    },
+    "shipToAddress": {
+      "street": "920 W Randolph St",
+      "suite": "Suite 100",
+      "city": "Chicago",
+      "state": "IL",
+      "postalCode": "60607",
+      "country": "USA"
+    },
+    "activeUsersCount": 5,
+    "totalOrdersCount": 35,
+    "monthlySpend": 7250.0,
+    "createdAt": "2025-12-05T09:15:00.000Z"
+  },
+  {
+    "id": "site-104",
+    "accountId": "acc-002",
+    "accountName": "Metro Dispensaries Network",
+    "name": "Downtown Dispensing Hub #104",
+    "code": "PHARM-NYC-104",
+    "billToAddress": {
+      "street": "111 W Jackson Blvd",
+      "suite": "Suite 800",
+      "city": "Chicago",
+      "state": "IL",
+      "postalCode": "60604",
+      "country": "USA"
+    },
+    "shipToAddress": {
+      "street": "420 8th Avenue",
+      "suite": "Dispensing Suite 2B",
+      "city": "New York",
+      "state": "NY",
+      "postalCode": "10001",
+      "country": "USA"
+    },
+    "activeUsersCount": 3,
+    "totalOrdersCount": 19,
+    "monthlySpend": 5150.0,
+    "createdAt": "2026-01-12T10:00:00.000Z"
+  },
+  {
+    "id": "site-105",
+    "accountId": "acc-003",
+    "accountName": "Beacon Clinic & Biologics",
+    "name": "Beacon Bay Area Biologics Center",
+    "code": "BCN-SF-105",
+    "billToAddress": {
+      "street": "650 Mission Street",
+      "suite": "Floor 20",
+      "city": "San Francisco",
+      "state": "CA",
+      "postalCode": "94105",
+      "country": "USA"
+    },
+    "shipToAddress": {
+      "street": "1800 Owens Street",
+      "suite": "Mission Bay Cleanroom Dock",
+      "city": "San Francisco",
+      "state": "CA",
+      "postalCode": "94158",
+      "country": "USA"
+    },
+    "activeUsersCount": 4,
+    "totalOrdersCount": 22,
+    "monthlySpend": 8200.0,
+    "createdAt": "2026-01-20T15:45:00.000Z"
+  },
+  {
+    "id": "site-106",
+    "accountId": "acc-001",
+    "accountName": "Apex Healthcare Group",
+    "name": "Apex Queens Specialist Centre",
+    "code": "APX-QNS-106",
+    "billToAddress": {
+      "street": "550 Lexington Avenue",
+      "suite": "14th Floor",
+      "city": "New York",
+      "state": "NY",
+      "postalCode": "10022",
+      "country": "USA"
+    },
+    "shipToAddress": {
+      "street": "90-21 Queens Blvd",
+      "suite": "Medical Suite 4F",
+      "city": "Elmhurst",
+      "state": "NY",
+      "postalCode": "11373",
+      "country": "USA"
+    },
+    "activeUsersCount": 3,
+    "totalOrdersCount": 18,
+    "monthlySpend": 7100.0,
+    "createdAt": "2026-03-10T09:00:00.000Z"
+  }
+]

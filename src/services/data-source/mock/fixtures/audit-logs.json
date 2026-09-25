@@ -1,0 +1,89 @@
+[
+  {
+    "id": "aud-001",
+    "actorId": "usr_admin_999",
+    "actorName": "Dr. Sarah Sterling",
+    "actorEmail": "admin@rahhawan.io",
+    "actorRole": "ADMIN",
+    "action": "ORDER_STATUS_UPDATED",
+    "entityType": "ORDER",
+    "entityId": "ord-902",
+    "entityName": "ORD-2026-0888",
+    "ipAddress": "192.168.1.10",
+    "details": {
+      "previousStatus": "RECEIVED",
+      "newStatus": "PROCESSING",
+      "note": "Assigned to dispensary preparation queue"
+    },
+    "timestamp": "2026-08-20T08:00:00.000Z"
+  },
+  {
+    "id": "aud-002",
+    "actorId": "usr_site_101",
+    "actorName": "Dr. Sarah Miller",
+    "actorEmail": "smiller@apexhealth.org",
+    "actorRole": "SITE_USER",
+    "action": "ORDER_CREATED",
+    "entityType": "ORDER",
+    "entityId": "ord-901",
+    "entityName": "ORD-2026-0891",
+    "ipAddress": "108.45.12.98",
+    "details": {
+      "itemCount": 3,
+      "totalAmount": 1420.0,
+      "poReference": "PO-APX-8821"
+    },
+    "timestamp": "2026-08-20T06:30:00.000Z"
+  },
+  {
+    "id": "aud-003",
+    "actorId": "usr_admin_999",
+    "actorName": "Dr. Sarah Sterling",
+    "actorEmail": "admin@rahhawan.io",
+    "actorRole": "ADMIN",
+    "action": "RATE_CARD_UPDATED",
+    "entityType": "RATE_CARD",
+    "entityId": "rc-001",
+    "entityName": "Apex Enterprise Tier A",
+    "ipAddress": "192.168.1.10",
+    "details": {
+      "updatedSku": "PKG-COLD-TOTE-03",
+      "fixedPrice": 240.0
+    },
+    "timestamp": "2026-08-19T17:45:00.000Z"
+  },
+  {
+    "id": "aud-004",
+    "actorId": "usr_admin_999",
+    "actorName": "Dr. Sarah Sterling",
+    "actorEmail": "admin@rahhawan.io",
+    "actorRole": "ADMIN",
+    "action": "ORDER_DISPATCHED",
+    "entityType": "ORDER",
+    "entityId": "ord-903",
+    "entityName": "ORD-2026-0872",
+    "ipAddress": "192.168.1.10",
+    "details": {
+      "carrier": "FedEx Healthcare Priority",
+      "trackingNumber": "FX-774910283011"
+    },
+    "timestamp": "2026-08-19T16:20:00.000Z"
+  },
+  {
+    "id": "aud-005",
+    "actorId": "usr_admin_999",
+    "actorName": "Dr. Sarah Sterling",
+    "actorEmail": "admin@rahhawan.io",
+    "actorRole": "ADMIN",
+    "action": "PRODUCT_CREATED",
+    "entityType": "PRODUCT",
+    "entityId": "prod-007",
+    "entityName": "Hardcover Controlled Substance Register",
+    "ipAddress": "192.168.1.10",
+    "details": {
+      "sku": "DOC-REG-LOGBOOK-07",
+      "basePrice": 89.0
+    },
+    "timestamp": "2026-08-18T10:00:00.000Z"
+  }
+]

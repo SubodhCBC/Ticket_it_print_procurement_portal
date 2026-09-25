@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="No product image">
+  <rect width="400" height="300" fill="#f1f5f9"/>
+  <rect x="0.5" y="0.5" width="399" height="299" fill="none" stroke="#e2e8f0"/>
+  <g fill="none" stroke="#cbd5e1" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="140" y="108" width="120" height="90" rx="8"/>
+    <path d="M140 172l30-26 24 20 26-30 40 34"/>
+  </g>
+  <circle cx="176" cy="134" r="9" fill="#cbd5e1"/>
+  <text x="200" y="232" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="15" font-weight="600" fill="#94a3b8">No image</text>
+</svg>

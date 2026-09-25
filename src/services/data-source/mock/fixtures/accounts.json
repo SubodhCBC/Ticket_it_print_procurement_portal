@@ -1,0 +1,54 @@
+[
+  {
+    "id": "acc-001",
+    "name": "Apex Healthcare Group",
+    "accountCode": "APEX-HLTH-001",
+    "status": "ACTIVE",
+    "contactEmail": "procurement@apexhealth.org",
+    "contactPhone": "+1 (212) 555-0190",
+    "sitesCount": 4,
+    "activeRateCardId": "rc-001",
+    "activeRateCardName": "Apex Enterprise Tier A",
+    "totalMonthlySpend": 28450.0,
+    "createdAt": "2025-10-01T09:00:00.000Z"
+  },
+  {
+    "id": "acc-002",
+    "name": "Metro Dispensaries Network",
+    "accountCode": "METRO-DISP-002",
+    "status": "ACTIVE",
+    "contactEmail": "ops@metrodispensary.com",
+    "contactPhone": "+1 (312) 555-0145",
+    "sitesCount": 3,
+    "activeRateCardId": "rc-002",
+    "activeRateCardName": "Metro Standard Multi-Site",
+    "totalMonthlySpend": 19200.0,
+    "createdAt": "2025-11-15T10:30:00.000Z"
+  },
+  {
+    "id": "acc-003",
+    "name": "Beacon Clinic & Biologics",
+    "accountCode": "BEACON-BIO-003",
+    "status": "ACTIVE",
+    "contactEmail": "supply@beaconbiologics.io",
+    "contactPhone": "+1 (415) 555-0188",
+    "sitesCount": 2,
+    "activeRateCardId": "rc-001",
+    "activeRateCardName": "Apex Enterprise Tier A",
+    "totalMonthlySpend": 14350.0,
+    "createdAt": "2026-01-05T14:00:00.000Z"
+  },
+  {
+    "id": "acc-004",
+    "name": "Evergreen Specialty Pharma",
+    "accountCode": "EVERGREEN-PH-004",
+    "status": "INACTIVE",
+    "contactEmail": "accounts@evergreenspecialty.com",
+    "contactPhone": "+1 (206) 555-0122",
+    "sitesCount": 1,
+    "activeRateCardId": "rc-003",
+    "activeRateCardName": "Baseline Retail Rate",
+    "totalMonthlySpend": 0.0,
+    "createdAt": "2026-02-20T08:15:00.000Z"
+  }
+]

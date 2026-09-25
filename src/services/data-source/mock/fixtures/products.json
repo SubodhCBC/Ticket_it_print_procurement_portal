@@ -1,0 +1,561 @@
+[
+  {
+    "id": "prod-001",
+    "sku": "SGN-YARD-CORO-1824",
+    "name": "Corrugated Yard & Lawn Signs (18\" x 24\")",
+    "description": "Weatherproof 4mm corrugated fluted plastic yard signs. Vibrant full-color UV direct print with standard metal H-wire ground stakes included.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-signs",
+    "categoryName": "Signs & Posters",
+    "packSize": "Pack of 5",
+    "uom": "PK",
+    "basePrice": 65.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Signs",
+    "templatesCount": 4,
+    "turnaroundDays": 2,
+    "availableSizes": [
+      {
+        "id": "sz-1824",
+        "label": "18\" x 24\" (Standard Yard Sign)",
+        "dimensions": "18\" x 24\"",
+        "widthInches": 24,
+        "heightInches": 18,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-2436",
+        "label": "24\" x 36\" (Large Property Sign)",
+        "dimensions": "24\" x 36\"",
+        "widthInches": 36,
+        "heightInches": 24,
+        "priceMultiplier": 1.65
+      },
+      {
+        "id": "sz-1218",
+        "label": "12\" x 18\" (Directional / Arrow Sign)",
+        "dimensions": "12\" x 18\"",
+        "widthInches": 18,
+        "heightInches": 12,
+        "priceMultiplier": 0.75
+      }
+    ],
+    "materials": [
+      {
+        "id": "mat-coro-4mm",
+        "name": "4mm Fluted Coroplast (Standard)",
+        "description": "Lightweight, waterproof, outdoor-rated for all seasons",
+        "priceAddon": 0,
+        "recommendedFor": "Outdoor lawns & sidewalks"
+      },
+      {
+        "id": "mat-coro-10mm",
+        "name": "10mm Heavy-Duty Coroplast",
+        "description": "Extra rigid commercial grade for high-wind areas",
+        "priceAddon": 18.0
+      }
+    ],
+    "finishingOptions": [
+      {
+        "id": "fin-single",
+        "name": "Single-Sided Print",
+        "description": "Printed front only with blank white backing",
+        "priceAddon": 0
+      },
+      {
+        "id": "fin-double",
+        "name": "Double-Sided Print (Recommended)",
+        "description": "Full color identical or mirrored print on both sides",
+        "priceAddon": 12.0
+      },
+      {
+        "id": "fin-grommets",
+        "name": "4 Corner Brass Grommets",
+        "description": "Added corner eyelets for hanging on fences/walls",
+        "priceAddon": 6.5
+      }
+    ],
+    "volumeDiscounts": [
+      {
+        "minQty": 5,
+        "discountPercent": 10
+      },
+      {
+        "minQty": 15,
+        "discountPercent": 18
+      },
+      {
+        "minQty": 50,
+        "discountPercent": 28
+      }
+    ],
+    "createdAt": "2026-01-10T08:30:00.000Z",
+    "updatedAt": "2026-08-20T14:20:00.000Z"
+  },
+  {
+    "id": "prod-002",
+    "sku": "BAN-ROLLUP-3380",
+    "name": "Retractable Pull-Up Banner Stand (33\" x 80\")",
+    "description": "Heavy-duty 13oz anti-curl polyester banner housed inside a sleek silver aluminum cassette base with padded nylon travel bag.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-banners",
+    "categoryName": "Banners & Displays",
+    "packSize": "Single Unit",
+    "uom": "EA",
+    "basePrice": 149.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Banners",
+    "templatesCount": 3,
+    "turnaroundDays": 3,
+    "availableSizes": [
+      {
+        "id": "sz-3380",
+        "label": "33\" x 80\" (Standard Expo Rollup)",
+        "dimensions": "33\" x 80\"",
+        "widthInches": 33,
+        "heightInches": 80,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-3980",
+        "label": "39\" x 80\" (Wide Executive Standee)",
+        "dimensions": "39\" x 80\"",
+        "widthInches": 39,
+        "heightInches": 80,
+        "priceMultiplier": 1.35
+      },
+      {
+        "id": "sz-4780",
+        "label": "47\" x 80\" (Super-Wide Stage Backdrop)",
+        "dimensions": "47\" x 80\"",
+        "widthInches": 47,
+        "heightInches": 80,
+        "priceMultiplier": 1.7
+      }
+    ],
+    "materials": [
+      {
+        "id": "mat-vinyl-13oz",
+        "name": "13oz Smooth Stay-Flat Vinyl",
+        "description": "Anti-curl opaque matte finish with zero glare",
+        "priceAddon": 0
+      },
+      {
+        "id": "mat-fabric-polyester",
+        "name": "260gsm Wrinkle-Resistant Tension Fabric",
+        "description": "Luxury textured fabric with vibrant dye-sublimation print",
+        "priceAddon": 35.0
+      }
+    ],
+    "finishingOptions": [
+      {
+        "id": "fin-standard-base",
+        "name": "Standard Aluminum Cassette + Padded Bag",
+        "description": "Lightweight twin swivel feet base",
+        "priceAddon": 0
+      },
+      {
+        "id": "fin-premium-base",
+        "name": "Premium Teardrop Chrome Base + Hard Case",
+        "description": "Weighted wide-stance base with magnetic end caps",
+        "priceAddon": 45.0
+      }
+    ],
+    "volumeDiscounts": [
+      {
+        "minQty": 3,
+        "discountPercent": 12
+      },
+      {
+        "minQty": 10,
+        "discountPercent": 20
+      }
+    ],
+    "createdAt": "2026-01-15T09:00:00.000Z",
+    "updatedAt": "2026-08-20T11:00:00.000Z"
+  },
+  {
+    "id": "prod-009",
+    "sku": "FLY-TRI-FOLD-1000",
+    "name": "Gloss Tri-Fold Promotional Brochure & Flyer",
+    "description": "100lb premium gloss book paper with double-sided aqueous coating. Machine scored and folded into clean 6-panel informational guides.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-flyers",
+    "categoryName": "Flyers & Brochures",
+    "packSize": "Pack of 250",
+    "uom": "PK",
+    "basePrice": 95.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Flyers",
+    "templatesCount": 4,
+    "turnaroundDays": 2,
+    "availableSizes": [
+      {
+        "id": "sz-8511",
+        "label": "8.5\" x 11\" (Letter Tri-Fold)",
+        "dimensions": "8.5\" x 11\"",
+        "widthInches": 11,
+        "heightInches": 8.5,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-8514",
+        "label": "8.5\" x 14\" (Legal 4-Panel Fold)",
+        "dimensions": "8.5\" x 14\"",
+        "widthInches": 14,
+        "heightInches": 8.5,
+        "priceMultiplier": 1.35
+      }
+    ],
+    "materials": [
+      {
+        "id": "mat-100lb-gloss",
+        "name": "100lb Gloss Book with Aqueous Seal",
+        "description": "Standard high-definition magazine-feel brochure paper",
+        "priceAddon": 0
+      },
+      {
+        "id": "mat-100lb-cover",
+        "name": "100lb Heavy Cover Cardstock",
+        "description": "Firm cardstock that stands independently in racks",
+        "priceAddon": 28.0
+      }
+    ],
+    "finishingOptions": [
+      {
+        "id": "fin-trifold",
+        "name": "Tri-Fold (Letter Fold)",
+        "description": "Standard 3-panel roll fold",
+        "priceAddon": 0
+      },
+      {
+        "id": "fin-zfold",
+        "name": "Z-Fold (Accordion Fold)",
+        "description": "Zig-zag opening for stepped presentations",
+        "priceAddon": 5.0
+      }
+    ],
+    "volumeDiscounts": [
+      {
+        "minQty": 4,
+        "discountPercent": 18
+      },
+      {
+        "minQty": 10,
+        "discountPercent": 35
+      }
+    ],
+    "createdAt": "2026-03-01T09:00:00.000Z",
+    "updatedAt": "2026-08-20T15:00:00.000Z"
+  },
+  {
+    "id": "prod-008",
+    "sku": "CRD-SOFT-TOUCH-500",
+    "name": "Executive Soft-Touch Business Cards (Pack of 500)",
+    "description": "Ultra-thick 18pt cardstock coated with tactile soft-touch velvet lamination. Crisp high-definition digital offset printing.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-cards",
+    "categoryName": "Business Cards & Stationery",
+    "packSize": "Box of 500",
+    "uom": "BX",
+    "basePrice": 48.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Business Cards",
+    "templatesCount": 6,
+    "turnaroundDays": 2,
+    "availableSizes": [
+      {
+        "id": "sz-std-card",
+        "label": "3.5\" x 2.0\" (Standard US Format)",
+        "dimensions": "3.5\" x 2.0\"",
+        "widthInches": 3.5,
+        "heightInches": 2.0,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-square-card",
+        "label": "2.5\" x 2.5\" (Modern Square)",
+        "dimensions": "2.5\" x 2.5\"",
+        "widthInches": 2.5,
+        "heightInches": 2.5,
+        "priceMultiplier": 1.15
+      }
+    ],
+    "materials": [
+      {
+        "id": "mat-18pt-velvet",
+        "name": "18pt Soft-Touch Velvet Cardstock",
+        "description": "Suede-like luxurious touch sensation",
+        "priceAddon": 0
+      },
+      {
+        "id": "mat-16pt-matte",
+        "name": "16pt Classic Silk Matte Cardstock",
+        "description": "Clean executive standard finish",
+        "priceAddon": -4.0
+      }
+    ],
+    "finishingOptions": [
+      {
+        "id": "fin-square-corners",
+        "name": "Standard 90° Square Corners",
+        "description": "Precision guillotine cut",
+        "priceAddon": 0
+      },
+      {
+        "id": "fin-rounded-corners",
+        "name": "Rounded 1/4\" Die-Cut Corners",
+        "description": "Smooth rounded modern edges",
+        "priceAddon": 8.0
+      },
+      {
+        "id": "fin-gold-foil",
+        "name": "Raised Gold Foil Accent on Logo",
+        "description": "3D embossed metallic reflection",
+        "priceAddon": 22.0
+      }
+    ],
+    "volumeDiscounts": [
+      {
+        "minQty": 2,
+        "discountPercent": 15
+      },
+      {
+        "minQty": 5,
+        "discountPercent": 30
+      }
+    ],
+    "createdAt": "2026-02-15T11:00:00.000Z",
+    "updatedAt": "2026-08-20T14:00:00.000Z"
+  },
+  {
+    "id": "prod-003",
+    "sku": "PST-GLOSS-1824",
+    "name": "Gloss Indoor Promotional Posters",
+    "description": "200gsm satin-gloss litho posters for window and in-store display. Fade-resistant inks, trimmed to size with a 3mm bleed.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1561998338-13ad7883b20f?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-signs",
+    "categoryName": "Signs & Posters",
+    "packSize": "Pack of 25",
+    "uom": "PK",
+    "basePrice": 48.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Posters",
+    "templatesCount": 0,
+    "turnaroundDays": 3,
+    "availableSizes": [
+      {
+        "id": "sz-a2",
+        "label": "A2 (Standard Window Poster)",
+        "dimensions": "16.5\" x 23.4\"",
+        "widthInches": 16.5,
+        "heightInches": 23.4,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-a1",
+        "label": "A1 (Large Format Display)",
+        "dimensions": "23.4\" x 33.1\"",
+        "widthInches": 23.4,
+        "heightInches": 33.1,
+        "priceMultiplier": 1.75
+      },
+      {
+        "id": "sz-a3",
+        "label": "A3 (Counter Top)",
+        "dimensions": "11.7\" x 16.5\"",
+        "widthInches": 11.7,
+        "heightInches": 16.5,
+        "priceMultiplier": 0.6
+      }
+    ],
+    "volumeDiscounts": [
+      {
+        "minQty": 10,
+        "discountPercent": 8
+      },
+      {
+        "minQty": 25,
+        "discountPercent": 15
+      }
+    ]
+  },
+  {
+    "id": "prod-004",
+    "sku": "BRO-TRI-A4",
+    "name": "Tri-Fold Corporate Brochure",
+    "description": "170gsm silk tri-fold brochure, creased and folded to a six-panel finish. Ideal for service overviews and pricing guides.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-flyers",
+    "categoryName": "Flyers & Brochures",
+    "packSize": "Pack of 100",
+    "uom": "PK",
+    "basePrice": 92.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Brochures",
+    "templatesCount": 0,
+    "turnaroundDays": 4,
+    "availableSizes": [
+      {
+        "id": "sz-a4-tri",
+        "label": "A4 Tri-Fold (Flat 11.7\" x 8.3\")",
+        "dimensions": "11.7\" x 8.3\"",
+        "widthInches": 11.7,
+        "heightInches": 8.3,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-dl-tri",
+        "label": "DL Tri-Fold (Flat 8.3\" x 3.9\")",
+        "dimensions": "8.3\" x 3.9\"",
+        "widthInches": 8.3,
+        "heightInches": 3.9,
+        "priceMultiplier": 0.7
+      },
+      {
+        "id": "sz-a3-tri",
+        "label": "A3 Tri-Fold (Flat 16.5\" x 11.7\")",
+        "dimensions": "16.5\" x 11.7\"",
+        "widthInches": 16.5,
+        "heightInches": 11.7,
+        "priceMultiplier": 1.6
+      }
+    ],
+    "volumeDiscounts": [
+      {
+        "minQty": 5,
+        "discountPercent": 6
+      },
+      {
+        "minQty": 20,
+        "discountPercent": 14
+      }
+    ]
+  },
+  {
+    "id": "prod-011",
+    "sku": "CAT-SADDLE-A4",
+    "name": "Full-Colour Product Catalogue (A4, Saddle-Stitched)",
+    "description": "Saddle-stitched A4 catalogue on 150gsm silk with a 250gsm laminated cover. Supplied in multiples of four pages.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-catalogue",
+    "categoryName": "Catalogues & Booklets",
+    "packSize": "Pack of 50",
+    "uom": "PK",
+    "basePrice": 210.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Catalogue",
+    "templatesCount": 0,
+    "turnaroundDays": 7,
+    "availableSizes": [
+      {
+        "id": "sz-a4-cat",
+        "label": "A4 Portrait (Standard Catalogue)",
+        "dimensions": "8.27\" x 11.69\"",
+        "widthInches": 8.27,
+        "heightInches": 11.69,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-a5-cat",
+        "label": "A5 Portrait (Pocket Booklet)",
+        "dimensions": "5.83\" x 8.27\"",
+        "widthInches": 5.83,
+        "heightInches": 8.27,
+        "priceMultiplier": 0.65
+      },
+      {
+        "id": "sz-sq-cat",
+        "label": "210mm Square (Premium Look Book)",
+        "dimensions": "8.27\" x 8.27\"",
+        "widthInches": 8.27,
+        "heightInches": 8.27,
+        "priceMultiplier": 1.2
+      }
+    ],
+    "volumeDiscounts": [
+      {
+        "minQty": 5,
+        "discountPercent": 10
+      },
+      {
+        "minQty": 15,
+        "discountPercent": 18
+      }
+    ]
+  },
+  {
+    "id": "prod-012",
+    "sku": "TPL-DESIGN-BASE",
+    "name": "Bespoke Template Design Starter",
+    "description": "A blank, brand-locked starter layout for building reusable master templates. Not printed on its own - it seeds the designs site teams personalise.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1626785774573-4b799315345d?w=600&auto=format&fit=crop&q=80",
+    "categoryId": "cat-design",
+    "categoryName": "Template Design Services",
+    "packSize": "Per design",
+    "uom": "EA",
+    "basePrice": 0.0,
+    "moq": 1,
+    "orderMultiple": 1,
+    "status": "ACTIVE",
+    "printCategory": "Template Design",
+    "templatesCount": 0,
+    "turnaroundDays": 1,
+    "availableSizes": [
+      {
+        "id": "sz-a4-tpl",
+        "label": "A4 Portrait",
+        "dimensions": "8.27\" x 11.69\"",
+        "widthInches": 8.27,
+        "heightInches": 11.69,
+        "priceMultiplier": 1.0,
+        "isPopular": true
+      },
+      {
+        "id": "sz-a4-land",
+        "label": "A4 Landscape",
+        "dimensions": "11.69\" x 8.27\"",
+        "widthInches": 11.69,
+        "heightInches": 8.27,
+        "priceMultiplier": 1.0
+      },
+      {
+        "id": "sz-sq-tpl",
+        "label": "Square (Social / In-Store)",
+        "dimensions": "10\" x 10\"",
+        "widthInches": 10,
+        "heightInches": 10,
+        "priceMultiplier": 1.0
+      },
+      {
+        "id": "sz-us-let",
+        "label": "US Letter",
+        "dimensions": "8.5\" x 11\"",
+        "widthInches": 8.5,
+        "heightInches": 11,
+        "priceMultiplier": 1.0
+      }
+    ]
+  }
+]

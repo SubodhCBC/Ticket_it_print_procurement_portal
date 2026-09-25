@@ -1,0 +1,44 @@
+[
+  {
+    "id": "cat-signs",
+    "name": "Signs & Posters",
+    "code": "SIGNS",
+    "description": "Yard signs, acrylic office signs, aluminum composite boards, and high-gloss posters",
+    "itemCount": 2
+  },
+  {
+    "id": "cat-banners",
+    "name": "Banners & Displays",
+    "code": "BAN",
+    "description": "Vinyl retractable rollup banners, mesh outdoor banners, step & repeat backdrops",
+    "itemCount": 1
+  },
+  {
+    "id": "cat-flyers",
+    "name": "Flyers & Brochures",
+    "code": "FLY",
+    "description": "Tri-fold promotional brochures, club flyers, and bi-fold product guides",
+    "itemCount": 2
+  },
+  {
+    "id": "cat-cards",
+    "name": "Business Cards & Stationery",
+    "code": "CARD",
+    "description": "Executive soft-touch cards, linen textured cards, foil stamped cards, and envelopes",
+    "itemCount": 1
+  },
+  {
+    "id": "cat-catalogue",
+    "name": "Catalogues & Booklets",
+    "code": "CATALOGUE",
+    "description": "Multi-page saddle-stitched catalogues, price lists and product booklets",
+    "itemCount": 1
+  },
+  {
+    "id": "cat-design",
+    "name": "Template Design Services",
+    "code": "TPLDESIGN",
+    "description": "Bespoke design starters and reusable brand layouts for site teams",
+    "itemCount": 1
+  }
+]

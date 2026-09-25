@@ -1,0 +1,249 @@
+import ExcelJS from 'exceljs'
+import { Prisma } from '@prisma/client'
+import { toCsv, withBom } from '../utils/csv'
+
+/**
+ * One definition per tabular report, rendered as CSV and as XLSX (SOW §15:
+ * "CSV and XLSX for every tabular report").
+ *
+ * ---------------------------------------------------------------------------
+ * Why the columns are declared once
+ * ---------------------------------------------------------------------------
+ * The acceptance criterion is that "exports to PDF, CSV and XLSX contain the
+ * same figures as the on-screen view". Two hand-written exporters per report
+ * would be two chances to round a percentage differently or drop a column from
+ * one of them. A report here is a list of columns — a header, a kind, and how to
+ * read the value from a row — and both formats are produced from that one list,
+ * over the same rows the JSON endpoint returns.
+ *
+ * ---------------------------------------------------------------------------
+ * What the kind decides
+ * ---------------------------------------------------------------------------
+ * In CSV everything is text, written the way the API writes it: money to two
+ * places, dates as ISO 8601. In XLSX a number is a number — a spend column that
+ * arrives as text cannot be summed or filtered in Excel without retyping it — so
+ * money, counts and percentages become numeric cells with a display format, and
+ * dates become real dates.
+ */
+
+export type ReportCellKind =
+  'text' | 'integer' | 'money' | 'percent' | 'decimal' | 'date' | 'datetime'
+
+export type ReportCellValue =
+  string | number | boolean | Date | Prisma.Decimal | null | undefined
+
+export interface ReportColumn<Row> {
+  readonly header: string
+  readonly kind: ReportCellKind
+  readonly value: (row: Row) => ReportCellValue
+  /** Characters, for the XLSX column. Defaults by kind. */
+  readonly width?: number
+}
+
+export interface ReportTable<Row> {
+  /** The file name stem: `spend-by-branch`. */
+  readonly name: string
+  /** The sheet's name and the title on the About sheet. At most 31 characters. */
+  readonly title: string
+  readonly columns: readonly ReportColumn<Row>[]
+}
+
+/** Who asked for the file and with what filters, printed on the About sheet. */
+export interface ReportContext {
+  readonly generatedAt: Date
+  readonly generatedBy: string
+  /** Shown as label/value rows. Nulls are shown as "all". */
+  readonly parameters: Readonly<Record<string, string | null | undefined>>
+  /**
+   * The window the figures cover, for the file name. Omitted for a report that
+   * is a snapshot rather than a range — access review, ageing.
+   */
+  readonly range?: { readonly from: Date; readonly to: Date }
+}
+
+/**
+ * CSV with a byte-order mark, so Excel reads it as UTF-8 — branch and product
+ * names carry macrons — and with every cell through the shared formula guard.
+ */
+export function renderCsv<Row>(
+  table: ReportTable<Row>,
+  rows: readonly Row[]
+): string {
+  return withBom(
+    toCsv(
+      table.columns.map((column) => column.header),
+      rows.map((row) =>
+        table.columns.map((column) => asText(column.kind, column.value(row)))
+      )
+    )
+  )
+}
+
+/**
+ * Two sheets: the data, and what it is.
+ *
+ * The data sheet is only the table — header, rows, frozen header, filter — so
+ * a pivot table or a finance import can point at it without skipping a preamble.
+ * What the figures are, who pulled them and with which filters goes on its own
+ * sheet, because a report forwarded a week later has to be able to say that
+ * without the email it came in.
+ */
+export async function renderXlsx<Row>(
+  table: ReportTable<Row>,
+  rows: readonly Row[],
+  context: ReportContext
+): Promise<Uint8Array<ArrayBuffer>> {
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'Print Procurement Portal'
+  workbook.created = context.generatedAt
+
+  const sheet = workbook.addWorksheet(sheetName(table.title), {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  })
+
+  sheet.columns = table.columns.map((column, index) => ({
+    header: column.header,
+    key: `c${index}`,
+    width: column.width ?? DEFAULT_WIDTH[column.kind],
+    style: { numFmt: NUMBER_FORMAT[column.kind] },
+  }))
+  sheet.getRow(1).font = { bold: true }
+
+  for (const row of rows) {
+    sheet.addRow(
+      Object.fromEntries(
+        table.columns.map((column, index) => [
+          `c${index}`,
+          asCell(column.kind, column.value(row)),
+        ])
+      )
+    )
+  }
+
+  if (table.columns.length > 0) {
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: table.columns.length },
+    }
+  }
+
+  const about = workbook.addWorksheet('About this report')
+  about.columns = [
+    { key: 'label', width: 22 },
+    { key: 'value', width: 60 },
+  ]
+  const facts: [string, string][] = [
+    ['Report', table.title],
+    ['Generated', context.generatedAt.toISOString()],
+    ['Generated by', context.generatedBy],
+    ['Rows', String(rows.length)],
+    ...Object.entries(context.parameters).map(
+      ([label, value]): [string, string] => [label, value ?? 'all']
+    ),
+    [
+      'Times',
+      'UTC. Money in the account currency, to two places, as on screen.',
+    ],
+  ]
+  for (const [label, value] of facts) {
+    about.addRow({ label, value }).getCell('label').font = { bold: true }
+  }
+
+  return new Uint8Array((await workbook.xlsx.writeBuffer()) as ArrayBuffer)
+}
+
+/**
+ * `spend-by-branch-2026-08-01-to-2026-08-31.xlsx`, or the day it was pulled for
+ * a snapshot. The dates are what tell two downloads of one report apart.
+ */
+export function attachmentDisposition(
+  table: Pick<ReportTable<never>, 'name'>,
+  context: ReportContext,
+  extension: 'csv' | 'xlsx'
+): string {
+  const day = (date: Date) => date.toISOString().slice(0, 10)
+  const span = context.range
+    ? // The range's end is exclusive — midnight after the last day — so the
+      // name shows the last day actually included.
+      `${day(context.range.from)}-to-${day(new Date(context.range.to.getTime() - 1))}`
+    : day(context.generatedAt)
+  return `attachment; filename="${table.name}-${span}.${extension}"`
+}
+
+// --- Cells ------------------------------------------------------------------
+
+const DEFAULT_WIDTH: Record<ReportCellKind, number> = {
+  text: 24,
+  integer: 10,
+  money: 14,
+  percent: 10,
+  decimal: 12,
+  date: 12,
+  datetime: 20,
+}
+
+const NUMBER_FORMAT: Record<ReportCellKind, string | undefined> = {
+  text: undefined,
+  integer: '0',
+  money: '#,##0.00',
+  // The values are already percentages — 12.5 means 12.5% — so this is a plain
+  // one-place format, not Excel's `%`, which would multiply by a hundred.
+  percent: '0.0',
+  decimal: '0.00',
+  date: 'yyyy-mm-dd',
+  datetime: 'yyyy-mm-dd hh:mm',
+}
+
+function asText(kind: ReportCellKind, value: ReportCellValue): string {
+  if (value === null || value === undefined || value === '') return ''
+  if (value instanceof Date) {
+    return kind === 'date'
+      ? value.toISOString().slice(0, 10)
+      : value.toISOString()
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (kind === 'money') {
+    // A money string from a service is already written to two places; parsing
+    // it through a float to write it again could only lose something.
+    return typeof value === 'string' ? value : toNumber(value).toFixed(2)
+  }
+  return String(value)
+}
+
+function asCell(
+  kind: ReportCellKind,
+  value: ReportCellValue
+): string | number | Date | null {
+  if (value === null || value === undefined || value === '') return null
+  if (value instanceof Date) return value
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+
+  switch (kind) {
+    case 'integer':
+    case 'money':
+    case 'percent':
+    case 'decimal': {
+      const number = toNumber(value)
+      return Number.isFinite(number) ? number : String(value)
+    }
+    case 'date':
+    case 'datetime': {
+      const date = new Date(String(value))
+      return Number.isNaN(date.getTime()) ? String(value) : date
+    }
+    default:
+      // A string, whatever it begins with. ExcelJS writes it as a string cell,
+      // not a formula, so a branch named "=SUM(...)" is shown and never run.
+      return String(value)
+  }
+}
+
+function toNumber(value: string | number | Prisma.Decimal): number {
+  if (typeof value === 'number') return value
+  return Number(value.toString())
+}
+
+/** Excel refuses a sheet name over 31 characters or containing `\ / ? * [ ] :`. */
+function sheetName(title: string): string {
+  return title.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31)
+}
