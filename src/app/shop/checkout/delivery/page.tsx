@@ -16,6 +16,7 @@ import {
   shippingOptionName,
 } from '@/components/shop/cart/line-format'
 import { NzPostDeliveryPanel } from '@/components/shop/checkout/NzPostDeliveryPanel'
+import { FieldError, fieldOutline } from '@/components/ui/FormField'
 import { getCartShipping } from '@/services/data-source/api/api-cart.adapter'
 import {
   Truck,
@@ -59,6 +60,18 @@ const EMPTY_ONE_OFF: OneOffForm = {
   country: '',
   phone: '',
 }
+
+/** Everything on this step that can be wrong on its own. */
+type DeliveryErrorKey =
+  'addressChoice' | 'contactName' | 'contactEmail' | 'requestedDate'
+
+type OneOffErrors = Partial<Record<keyof OneOffForm, string>>
+
+/**
+ * Loose on purpose: it catches a missing @ or a stray space and leaves the
+ * rest to the server, the only thing that can actually deliver mail.
+ */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const oneOffInput: React.CSSProperties = {
   width: '100%',
@@ -165,8 +178,29 @@ export default function CheckoutDeliveryPage() {
   // An account that switched the option off since keeps the buyer on the
   // saved addresses; the stale one-off is reported by validation.
   const oneOffActive = shipToMode === 'ONE_OFF' && customDeliveryAddress.allowed
-  const setOneOffField = (field: keyof OneOffForm, value: string) =>
+
+  /**
+   * The step's per-field errors, joining `shippingError` and
+   * `instructionsError` below. `errorMsg` is kept for what only the server can
+   * say — a refused save — never for a field this form can check itself.
+   */
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<DeliveryErrorKey, string>>
+  >({})
+  const [oneOffErrors, setOneOffErrors] = useState<OneOffErrors>({})
+  const clearField = (key: DeliveryErrorKey) =>
+    setFieldErrors((current) =>
+      current[key] === undefined ? current : { ...current, [key]: undefined }
+    )
+
+  const setOneOffField = (field: keyof OneOffForm, value: string) => {
     setOneOff((current) => ({ ...current, [field]: value }))
+    setOneOffErrors((current) =>
+      current[field] === undefined
+        ? current
+        : { ...current, [field]: undefined }
+    )
+  }
 
   // Carried to the order at placement: the cart has no field for them, but
   // `POST /orders` does (`recipientName`, `recipientPhone`, `recipientEmail`).
@@ -281,7 +315,6 @@ export default function CheckoutDeliveryPage() {
 
     setSavingMethod(method)
     setShippingError(null)
-    if (errorMsg?.startsWith('Choose a shipping method')) setErrorMsg(null)
 
     const saved = await chooseShippingMethod(method)
     setSavingMethod(null)
@@ -292,83 +325,79 @@ export default function CheckoutDeliveryPage() {
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!contactName.trim()) {
-      setErrorMsg('Please enter a delivery contact name.')
-      return
-    }
-
     // A saved address must be one of this branch's; the id on the basket may
     // be a one-off typed earlier, which the saved list does not contain.
     const savedChoice =
       siteData?.addresses.find((option) => option.id === selectedAddressId)
         ?.id ?? null
 
+    const email = contactEmail.trim()
+    const trimmedInstructions = instructions.trim()
+
+    // Everything is judged in one pass, so a buyer who left three boxes empty
+    // is told about all three now rather than one refusal per press.
+    const found: Partial<Record<DeliveryErrorKey, string>> = {}
+    const oneOffFound: OneOffErrors = {}
+
+    if (!contactName.trim()) {
+      found.contactName = 'Enter a contact name for the delivery.'
+    }
+    if (email && !EMAIL_SHAPE.test(email)) {
+      found.contactEmail =
+        'That does not look like an email address. Leave it blank if you would rather not give one.'
+    }
+    if (requestedDate && requestedDate < todayUtc) {
+      found.requestedDate = 'The requested delivery date cannot be in the past.'
+    }
+
     if (oneOffActive) {
-      if (
-        !oneOff.line1.trim() ||
-        !oneOff.city.trim() ||
-        !oneOff.postcode.trim()
-      ) {
-        setErrorMsg(
-          'Enter the street address, city and postcode for the delivery address.'
-        )
-        return
-      }
-      if (!/^[A-Za-z]{2}$/.test(oneOff.country.trim())) {
-        setErrorMsg(
-          'Enter the delivery country as its two-letter code, for example NZ.'
-        )
-        return
+      if (!oneOff.line1.trim()) oneOffFound.line1 = 'Enter a street address.'
+      if (!oneOff.city.trim()) oneOffFound.city = 'Enter a city or town.'
+      if (!oneOff.postcode.trim()) oneOffFound.postcode = 'Enter a postcode.'
+      const country = oneOff.country.trim()
+      if (!country) {
+        oneOffFound.country =
+          'Enter the two-letter country code, such as NZ for New Zealand.'
+      } else if (!/^[A-Za-z]{2}$/.test(country)) {
+        oneOffFound.country =
+          'Use the two-letter country code, such as NZ for New Zealand.'
       }
     } else if (!savedChoice) {
-      setErrorMsg(
+      found.addressChoice =
         (siteData?.addresses.length ?? 0) === 0
           ? customDeliveryAddress.allowed
-            ? 'This branch has no saved delivery address. Enter one under "Deliver somewhere else".'
+            ? 'Choose "Deliver somewhere else" and enter an address — this branch has none saved.'
             : 'This branch has no delivery address on file. An administrator has to add one before you can check out.'
           : 'Choose a delivery address.'
-      )
+    }
+
+    const methodError = checkoutState.shippingMethod
+      ? null
+      : 'Choose one of the delivery options above.'
+
+    let notesError: string | null = null
+    if (deliveryNotesRequired && !trimmedInstructions) {
+      notesError = 'This account requires delivery instructions on every order.'
+    } else if (trimmedInstructions.length > DELIVERY_NOTES_MAX) {
+      notesError = `Keep delivery instructions to ${DELIVERY_NOTES_MAX} characters.`
+    }
+
+    setFieldErrors(found)
+    setOneOffErrors(oneOffFound)
+    setShippingError(methodError)
+    setInstructionsError(notesError)
+    if (
+      Object.keys(found).length > 0 ||
+      Object.keys(oneOffFound).length > 0 ||
+      methodError ||
+      notesError
+    ) {
       return
     }
 
     if (savingMethod) return
 
-    if (!checkoutState.shippingMethod) {
-      setShippingError('Please choose one of the delivery options above.')
-      setErrorMsg('Choose a shipping method to continue to review.')
-      return
-    }
-
-    const email = contactEmail.trim()
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setErrorMsg(
-        'Enter a valid email for the receiving contact, or leave it blank.'
-      )
-      return
-    }
-
-    if (requestedDate && requestedDate < todayUtc) {
-      setErrorMsg('The requested delivery date cannot be in the past.')
-      return
-    }
-
-    const trimmedInstructions = instructions.trim()
-    if (deliveryNotesRequired && !trimmedInstructions) {
-      setInstructionsError(
-        'This account requires delivery instructions on every order.'
-      )
-      setErrorMsg('Add delivery instructions to continue to review.')
-      return
-    }
-    if (trimmedInstructions.length > DELIVERY_NOTES_MAX) {
-      setInstructionsError(
-        `Keep delivery instructions to ${DELIVERY_NOTES_MAX} characters.`
-      )
-      return
-    }
-
     setErrorMsg(null)
-    setInstructionsError(null)
     setIsSaving(true)
 
     // The address and date go to the server's basket, which the order is
@@ -515,6 +544,7 @@ export default function CheckoutDeliveryPage() {
       >
         <form
           onSubmit={handleNext}
+          noValidate
           style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
         >
           {/* 1. Separate Bill-To & Ship-To Displays. Two columns inside the
@@ -728,6 +758,7 @@ export default function CheckoutDeliveryPage() {
                         onChange={() => {
                           setShipToMode('SAVED')
                           setSelectedAddressId(option.id)
+                          clearField('addressChoice')
                         }}
                         style={{ marginTop: '2px', accentColor: '#F73582' }}
                       />
@@ -756,6 +787,10 @@ export default function CheckoutDeliveryPage() {
                   )
                 })}
 
+                {fieldErrors.addressChoice && (
+                  <FieldError>{fieldErrors.addressChoice}</FieldError>
+                )}
+
                 {customDeliveryAddress.allowed && (
                   <div
                     style={{
@@ -783,6 +818,7 @@ export default function CheckoutDeliveryPage() {
                         checked={oneOffActive}
                         onChange={() => {
                           setShipToMode('ONE_OFF')
+                          clearField('addressChoice')
                           setOneOff((current) =>
                             current.country
                               ? current
@@ -830,25 +866,54 @@ export default function CheckoutDeliveryPage() {
                           fontSize: '0.78rem',
                         }}
                       >
+                        {/* The third column is a hint under the box, not a
+                            placeholder inside it: a placeholder disappears the
+                            moment it is needed most, as the buyer types. The
+                            fifth is the placeholder — an example of the value,
+                            never the rule, and blank where no example helps. */}
                         {(
                           [
-                            ['label', 'Label', 'e.g. Pop-up store', 120, false],
+                            [
+                              'label',
+                              'Label',
+                              'Your own name for this address.',
+                              120,
+                              'Reception',
+                            ],
                             [
                               'recipientName',
                               'Recipient',
-                              'Who signs for it',
+                              'Who signs for it.',
                               160,
-                              false,
+                              '',
                             ],
-                            ['line1', 'Street address *', '', 200, true],
-                            ['line2', 'Unit, level, building', '', 200, false],
-                            ['city', 'City *', '', 120, true],
-                            ['region', 'Region', '', 120, false],
-                            ['postcode', 'Postcode *', '', 24, true],
-                            ['country', 'Country code *', 'NZ', 2, true],
-                            ['phone', 'Phone', '', 40, false],
+                            [
+                              'line1',
+                              'Street address *',
+                              '',
+                              200,
+                              '12 Queen Street',
+                            ],
+                            [
+                              'line2',
+                              'Unit, level, building',
+                              '',
+                              200,
+                              'Level 3, Unit B',
+                            ],
+                            ['city', 'City *', '', 120, 'Auckland'],
+                            ['region', 'Region', '', 120, 'Waikato'],
+                            ['postcode', 'Postcode *', '', 24, '1010'],
+                            [
+                              'country',
+                              'Country code *',
+                              'Two letters, such as NZ.',
+                              2,
+                              'NZ',
+                            ],
+                            ['phone', 'Phone', '', 40, ''],
                           ] as const
-                        ).map(([field, text, placeholder, max, required]) => (
+                        ).map(([field, text, hint, max, example]) => (
                           <label
                             key={field}
                             style={{
@@ -864,8 +929,10 @@ export default function CheckoutDeliveryPage() {
                               type="text"
                               value={oneOff[field]}
                               maxLength={max}
-                              required={required}
-                              placeholder={placeholder}
+                              placeholder={example || undefined}
+                              aria-invalid={
+                                oneOffErrors[field] ? true : undefined
+                              }
                               autoComplete={
                                 field === 'line1'
                                   ? 'address-line1'
@@ -893,8 +960,24 @@ export default function CheckoutDeliveryPage() {
                                 ...(field === 'country'
                                   ? { fontFamily: 'monospace' }
                                   : {}),
+                                ...fieldOutline(Boolean(oneOffErrors[field])),
                               }}
                             />
+                            {oneOffErrors[field] ? (
+                              <FieldError>{oneOffErrors[field]}</FieldError>
+                            ) : (
+                              hint && (
+                                <span
+                                  style={{
+                                    fontWeight: 400,
+                                    fontSize: '0.72rem',
+                                    color: '#A39BB3',
+                                  }}
+                                >
+                                  {hint}
+                                </span>
+                              )
+                            )}
                           </label>
                         ))}
                       </div>
@@ -1093,23 +1176,29 @@ export default function CheckoutDeliveryPage() {
                   Contact Name *
                 </label>
                 <input
+                  id="deliveryContactName"
                   type="text"
-                  required
                   value={contactName}
-                  onChange={(e) => setContactName(e.target.value)}
+                  aria-invalid={fieldErrors.contactName ? true : undefined}
+                  onChange={(e) => {
+                    setContactName(e.target.value)
+                    clearField('contactName')
+                  }}
                   maxLength={200}
-                  placeholder="Full name"
+                  autoComplete="name"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
-                    backgroundColor: '#FFFFFF',
                     fontSize: '0.84rem',
                     color: '#2B253E',
                     outline: 'none',
+                    ...fieldOutline(Boolean(fieldErrors.contactName)),
                   }}
                 />
+                {fieldErrors.contactName && (
+                  <FieldError>{fieldErrors.contactName}</FieldError>
+                )}
               </div>
 
               <div>
@@ -1124,12 +1213,12 @@ export default function CheckoutDeliveryPage() {
                   Contact Phone
                 </label>
                 <input
+                  id="deliveryContactPhone"
                   type="tel"
                   value={contactPhone}
                   autoComplete="tel"
                   onChange={(e) => setContactPhone(e.target.value)}
                   maxLength={40}
-                  placeholder="+64 21 123 4567"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -1155,22 +1244,30 @@ export default function CheckoutDeliveryPage() {
                   Contact Email
                 </label>
                 <input
+                  id="deliveryContactEmail"
                   type="email"
+                  placeholder="jane.smith@company.co.nz"
                   value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
+                  aria-invalid={fieldErrors.contactEmail ? true : undefined}
+                  autoComplete="email"
+                  onChange={(e) => {
+                    setContactEmail(e.target.value)
+                    clearField('contactEmail')
+                  }}
                   maxLength={254}
-                  placeholder="receiving@branch.co.nz"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
-                    backgroundColor: '#FFFFFF',
                     fontSize: '0.84rem',
                     color: '#2B253E',
                     outline: 'none',
+                    ...fieldOutline(Boolean(fieldErrors.contactEmail)),
                   }}
                 />
+                {fieldErrors.contactEmail && (
+                  <FieldError>{fieldErrors.contactEmail}</FieldError>
+                )}
               </div>
 
               <div>
@@ -1185,21 +1282,27 @@ export default function CheckoutDeliveryPage() {
                   Requested Delivery Date
                 </label>
                 <input
+                  id="requestedDeliveryDate"
                   type="date"
                   value={requestedDate}
-                  min={todayUtc}
-                  onChange={(e) => setRequestedDate(e.target.value)}
+                  aria-invalid={fieldErrors.requestedDate ? true : undefined}
+                  onChange={(e) => {
+                    setRequestedDate(e.target.value)
+                    clearField('requestedDate')
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
-                    backgroundColor: '#FFFFFF',
                     fontSize: '0.84rem',
                     color: '#2B253E',
                     outline: 'none',
+                    ...fieldOutline(Boolean(fieldErrors.requestedDate)),
                   }}
                 />
+                {fieldErrors.requestedDate && (
+                  <FieldError>{fieldErrors.requestedDate}</FieldError>
+                )}
               </div>
             </div>
           </div>
@@ -1245,13 +1348,11 @@ export default function CheckoutDeliveryPage() {
               rows={3}
               maxLength={DELIVERY_NOTES_MAX}
               value={instructions}
-              required={deliveryNotesRequired}
               aria-invalid={instructionsError ? true : undefined}
               onChange={(e) => {
                 setInstructions(e.target.value)
                 if (instructionsError) setInstructionsError(null)
               }}
-              placeholder="e.g. Loading dock open 8am - 4pm. Ring buzzer B for dispensary access."
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -1275,7 +1376,7 @@ export default function CheckoutDeliveryPage() {
                 fontSize: '0.74rem',
               }}
             >
-              <span style={{ color: '#DC2626', fontWeight: 500 }}>
+              <span role="alert" style={{ color: '#DC2626', fontWeight: 500 }}>
                 {instructionsError}
               </span>
               <span style={{ color: '#A39BB3', whiteSpace: 'nowrap' }}>

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import type { Product, ProductCategory } from '@/types'
 import type { ApiUom } from '@/services/data-source/api/catalog.types'
+import { FieldError, fieldOutline } from '@/components/ui/FormField'
 import {
   packSizeLabel,
   parsePackSize,
@@ -14,10 +15,15 @@ import {
   UOM_OPTIONS,
 } from '@/services/data-source/api/product.mapper'
 
-/** A placeholder SKU for a new product, replaced by whoever creates it. */
-function newSkuPlaceholder(): string {
-  return `SKU-${Math.floor(1000 + Math.random() * 9000)}`
-}
+/**
+ * The SKU box starts empty.
+ *
+ * It used to open pre-filled with `SKU-4821` — a random number dressed up as a
+ * product code. Anyone who did not notice created a product whose code means
+ * nothing, and the code is the key imports, orders and invoices match on. An
+ * example belongs in the placeholder, where it cannot be saved by accident.
+ */
+const SKU_EXAMPLE = 'BC-SOFT-90X55'
 
 const STATUS_LABELS: Record<Product['status'], string> = {
   DRAFT: 'DRAFT (not orderable yet)',
@@ -46,6 +52,10 @@ function statusChoices(
             : ['SUPERSEDED']
   return allowed.map((value) => ({ value, label: STATUS_LABELS[value] }))
 }
+
+/** The fields this form can refuse on its own, before the server sees them. */
+type ProductField = 'name' | 'sku' | 'widthMm' | 'heightMm'
+type ProductErrors = Partial<Record<ProductField, string>>
 
 interface ProductEditModalProps {
   product: Product | null
@@ -84,29 +94,39 @@ export function ProductEditModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [tagsText, setTagsText] = useState('')
+  /** The server's refusal only; anything this form can see belongs to a field. */
   const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<ProductErrors>({})
 
   // Reseeded whenever it opens or is handed a different product or category
   // list. Adjusted during render rather than in an effect, so the form never
   // paints the previous product's values first.
+  //
+  // The categories are compared by their ids joined into a string, not by the
+  // identity of the array. `useProducts` returns `query.data ?? []` — a brand
+  // new empty array on every render while that query is loading or failed — so
+  // comparing references reseeded the form, which set state during render,
+  // which rendered again: "Too many re-renders", with the modal open and the
+  // typing lost.
+  const categoriesKey = categories.map((c) => c.id).join(',')
   const [seededFor, setSeededFor] = useState<{
     product: typeof product
-    categories: typeof categories
+    categoriesKey: string
     isOpen: boolean
   } | null>(null)
   if (
     !seededFor ||
     seededFor.product !== product ||
-    seededFor.categories !== categories ||
+    seededFor.categoriesKey !== categoriesKey ||
     seededFor.isOpen !== isOpen
   ) {
-    setSeededFor({ product, categories, isOpen })
+    setSeededFor({ product, categoriesKey, isOpen })
     setTagsText((product?.tags ?? []).join(', '))
     if (product) {
       setFormData(product)
     } else {
       setFormData({
-        sku: newSkuPlaceholder(),
+        sku: '',
         name: '',
         description: '',
         categoryId: categories[0]?.id || 'cat-signs',
@@ -121,9 +141,19 @@ export function ProductEditModal({
       })
     }
     setError(null)
+    setErrors({})
   }
 
   if (!isOpen) return null
+
+  /** A field stops being wrong the moment it is edited. */
+  const clearError = (key: ProductField) =>
+    setErrors((previous) => {
+      if (!previous[key]) return previous
+      const next = { ...previous }
+      delete next[key]
+      return next
+    })
 
   // The unit and the count are what is edited; the "Box of 100" label is
   // composed from them, so it can never say something the two do not.
@@ -140,12 +170,64 @@ export function ProductEditModal({
     })
   const basePrice = Number(formData.basePrice) || 0
 
+  /**
+   * A millimetre field, or nothing.
+   *
+   * Empty is not zero: a product with no fixed size — a design service — has no
+   * trim, and the template studio leaves the artboard alone for it rather than
+   * collapsing it to nothing.
+   */
+  const setMm = (
+    key: 'widthMm' | 'heightMm' | 'bleedMm' | 'safeMarginMm',
+    raw: string
+  ) => {
+    const trimmed = raw.trim()
+    const value = trimmed === '' ? null : Number(trimmed)
+    if (key === 'widthMm' || key === 'heightMm') clearError(key)
+    setFormData({
+      ...formData,
+      [key]:
+        value !== null && Number.isFinite(value) && value > 0 ? value : null,
+    })
+  }
+
+  const trimOrientation =
+    formData.widthMm && formData.heightMm
+      ? formData.widthMm > formData.heightMm
+        ? 'landscape'
+        : formData.widthMm < formData.heightMm
+          ? 'portrait'
+          : 'square'
+      : null
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.name || !formData.sku) {
-      setError('Product name and SKU are required')
-      return
+
+    // Every field is checked in one pass, so the form is not discovered to be
+    // wrong one refusal at a time.
+    const found: ProductErrors = {}
+    if (!formData.name?.trim()) found.name = 'Enter a product name.'
+    if (!formData.sku?.trim()) {
+      found.sku = 'Enter a SKU — it is the key used by imports and invoices.'
     }
+
+    // Print size is optional, but half of it is not: the studio needs both
+    // sides to build an artboard.
+    const width = formData.widthMm ?? null
+    const height = formData.heightMm ?? null
+    if (width !== null && width < 1) {
+      found.widthMm = 'Trim width must be at least 1 mm.'
+    } else if (width === null && height !== null) {
+      found.widthMm = 'Enter the trim width too, or clear the height.'
+    }
+    if (height !== null && height < 1) {
+      found.heightMm = 'Trim height must be at least 1 mm.'
+    } else if (height === null && width !== null) {
+      found.heightMm = 'Enter the trim height too, or clear the width.'
+    }
+
+    setErrors(found)
+    if (Object.values(found).some(Boolean)) return
 
     const selectedCat = categories.find((c) => c.id === formData.categoryId)
 
@@ -265,6 +347,7 @@ export function ProductEditModal({
 
           {/* Form Content */}
           <form
+            noValidate
             onSubmit={handleSubmit}
             style={{
               padding: '20px',
@@ -298,6 +381,7 @@ export function ProductEditModal({
             >
               <div>
                 <label
+                  htmlFor="product-name"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -309,27 +393,35 @@ export function ProductEditModal({
                   Product Name *
                 </label>
                 <input
+                  id="product-name"
                   type="text"
-                  required
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
+                  aria-invalid={errors.name ? true : undefined}
+                  aria-describedby={
+                    errors.name ? 'product-name-error' : undefined
                   }
+                  onChange={(e) => {
+                    clearError('name')
+                    setFormData({ ...formData, name: e.target.value })
+                  }}
                   placeholder="e.g. Validated Cold-Chain Thermal Tote 12L"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
                     fontSize: '0.84rem',
-                    backgroundColor: '#FFFFFF',
                     color: '#2B253E',
+                    ...fieldOutline(Boolean(errors.name)),
                   }}
                 />
+                {errors.name && (
+                  <FieldError id="product-name-error">{errors.name}</FieldError>
+                )}
               </div>
 
               <div>
                 <label
+                  htmlFor="product-sku"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -341,24 +433,31 @@ export function ProductEditModal({
                   Master SKU *
                 </label>
                 <input
+                  id="product-sku"
                   type="text"
-                  required
                   value={formData.sku}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sku: e.target.value })
+                  aria-invalid={errors.sku ? true : undefined}
+                  aria-describedby={
+                    errors.sku ? 'product-sku-error' : undefined
                   }
-                  placeholder="e.g. PKG-COLD-TOTE-03"
+                  onChange={(e) => {
+                    clearError('sku')
+                    setFormData({ ...formData, sku: e.target.value })
+                  }}
+                  placeholder={`e.g. ${SKU_EXAMPLE}`}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
                     fontSize: '0.84rem',
-                    backgroundColor: '#FFFFFF',
                     color: '#2B253E',
                     fontFamily: 'monospace',
+                    ...fieldOutline(Boolean(errors.sku)),
                   }}
                 />
+                {errors.sku && (
+                  <FieldError id="product-sku-error">{errors.sku}</FieldError>
+                )}
               </div>
             </div>
 
@@ -380,7 +479,7 @@ export function ProductEditModal({
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
                 }
-                placeholder="Detailed marketing and regulatory specifications..."
+                placeholder="e.g. 400gsm uncoated stock, printed both sides, rounded corners"
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -702,6 +801,141 @@ export function ProductEditModal({
               </div>
             </div>
 
+            {/* Print size (SOW AD-3). The template studio builds its artboard
+                from these millimetres: without them a business card opens as
+                the template's default A4 sheet, and the designer draws the
+                wrong thing. Optional, because a design service has no trim. */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                paddingTop: '14px',
+                borderTop: '1px solid #F5EEF2',
+              }}
+            >
+              <div>
+                <span style={{ ...fieldLabel, marginBottom: '2px' }}>
+                  Print size
+                </span>
+                <span style={fieldHint}>
+                  The finished trim, in millimetres. A business card is 90 × 55;
+                  make the height the larger number for a portrait card. The
+                  design studio sizes its artboard from this. Leave empty for
+                  something with no fixed size, like a design service.
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '12px',
+                }}
+              >
+                <div>
+                  <label htmlFor="product-widthMm" style={fieldLabel}>
+                    Trim width (mm)
+                  </label>
+                  <input
+                    id="product-widthMm"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="e.g. 90"
+                    value={formData.widthMm ?? ''}
+                    aria-invalid={errors.widthMm ? true : undefined}
+                    aria-describedby={
+                      errors.widthMm ? 'product-widthMm-error' : undefined
+                    }
+                    onChange={(e) => setMm('widthMm', e.target.value)}
+                    style={{
+                      ...fieldInput,
+                      ...fieldOutline(Boolean(errors.widthMm)),
+                    }}
+                  />
+                  {errors.widthMm && (
+                    <FieldError id="product-widthMm-error">
+                      {errors.widthMm}
+                    </FieldError>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="product-heightMm" style={fieldLabel}>
+                    Trim height (mm)
+                  </label>
+                  <input
+                    id="product-heightMm"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="e.g. 55"
+                    value={formData.heightMm ?? ''}
+                    aria-invalid={errors.heightMm ? true : undefined}
+                    aria-describedby={
+                      errors.heightMm ? 'product-heightMm-error' : undefined
+                    }
+                    onChange={(e) => setMm('heightMm', e.target.value)}
+                    style={{
+                      ...fieldInput,
+                      ...fieldOutline(Boolean(errors.heightMm)),
+                    }}
+                  />
+                  {errors.heightMm && (
+                    <FieldError id="product-heightMm-error">
+                      {errors.heightMm}
+                    </FieldError>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="product-bleedMm" style={fieldLabel}>
+                    Bleed (mm)
+                  </label>
+                  <input
+                    id="product-bleedMm"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="e.g. 3"
+                    value={formData.bleedMm ?? ''}
+                    onChange={(e) => setMm('bleedMm', e.target.value)}
+                    style={fieldInput}
+                  />
+                  <span style={fieldHint}>
+                    How far artwork runs past the trim.
+                  </span>
+                </div>
+
+                <div>
+                  <label htmlFor="product-safeMarginMm" style={fieldLabel}>
+                    Safe margin (mm)
+                  </label>
+                  <input
+                    id="product-safeMarginMm"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="e.g. 4"
+                    value={formData.safeMarginMm ?? ''}
+                    onChange={(e) => setMm('safeMarginMm', e.target.value)}
+                    style={fieldInput}
+                  />
+                  <span style={fieldHint}>
+                    Nothing important crosses this inset.
+                  </span>
+                </div>
+              </div>
+
+              {trimOrientation && (
+                <span style={{ ...fieldHint, marginTop: 0 }}>
+                  {formData.widthMm} × {formData.heightMm} mm ·{' '}
+                  {trimOrientation} artboard in the design studio.
+                </span>
+              )}
+            </div>
+
             {/* Stock and lead time (SOW AD-3). Pictures and artwork are
                 attached in the product's Assets panel, not typed as URLs. */}
             <div
@@ -755,8 +989,8 @@ export function ProductEditModal({
                     id="product-lowStockThreshold"
                     type="number"
                     min="0"
+                    placeholder="e.g. 50"
                     value={formData.lowStockThreshold ?? ''}
-                    placeholder="0"
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -776,14 +1010,14 @@ export function ProductEditModal({
 
                 <div>
                   <label htmlFor="product-reorderQuantity" style={fieldLabel}>
-                    Reorder quantity
+                    Reorder quantity (optional)
                   </label>
                   <input
                     id="product-reorderQuantity"
                     type="number"
                     min="1"
+                    placeholder="e.g. 500"
                     value={formData.reorderQuantity ?? ''}
-                    placeholder="Optional"
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -799,14 +1033,14 @@ export function ProductEditModal({
 
                 <div>
                   <label htmlFor="product-turnaroundDays" style={fieldLabel}>
-                    Lead time (days)
+                    Lead time in days (optional)
                   </label>
                   <input
                     id="product-turnaroundDays"
                     type="number"
                     min="0"
+                    placeholder="e.g. 5"
                     value={formData.turnaroundDays ?? ''}
-                    placeholder="Optional"
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -853,9 +1087,10 @@ export function ProductEditModal({
                   type="text"
                   value={tagsText}
                   onChange={(e) => setTagsText(e.target.value)}
-                  placeholder="Comma separated, e.g. personalisable, retail"
+                  placeholder="e.g. personalisable, retail"
                   style={fieldInput}
                 />
+                <span style={fieldHint}>Separate tags with commas.</span>
               </div>
 
               <p style={{ ...fieldHint, margin: 0 }}>

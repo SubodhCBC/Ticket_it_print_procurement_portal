@@ -5,12 +5,10 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { PortalLogo } from '../ui/PortalLogo'
+import { TextField } from '../ui/FormField'
 import {
   AUTH_ACCENT,
   FONT_STACK,
-  authLabelStyle,
-  authInputStyle,
-  authHintStyle,
   authLinkStyle,
   authBodyTextStyle,
 } from './publicAuthShell.styles'
@@ -131,8 +129,13 @@ export function PublicAuthShell({
 }
 
 /**
- * The in-place error. `role="alert"` so a screen reader hears a rejected
- * submit — nothing else on the page moves focus to announce it.
+ * The banner above the submit button, for what the *server* said: a wrong or
+ * expired token, a rate limit, a network failure. Anything a field can be
+ * blamed for belongs under that field instead — see `PasswordField`'s `error`
+ * — so that the user's eye lands on the box they have to fix.
+ *
+ * `role="alert"` so a screen reader hears a rejected submit — nothing else on
+ * the page moves focus to announce it.
  */
 export function AuthAlert({ message }: { message: string | null }) {
   return (
@@ -231,13 +234,31 @@ interface PasswordFieldProps {
   label: string
   value: string
   onChange: (value: string) => void
-  placeholder?: string
-  hint?: string
+  /**
+   * The message under the field, and the red border that goes with it. Set on
+   * a rejected submit, cleared by the caller as soon as the value changes.
+   */
+  error?: string | null
+  /** The rule, said quietly before submit. Replaced by `error` after one. */
+  hint?: React.ReactNode
   autoFocus?: boolean
 }
 
 /**
  * A password input with its own show/hide toggle.
+ *
+ * Built on `TextField`, so a wrong password box looks and reads exactly like a
+ * wrong box anywhere else in the portal: red border, the message underneath,
+ * `aria-invalid` and `aria-describedby` carrying the same to a screen reader.
+ *
+ * No `required` and no `minLength` — those hand the field back to the browser,
+ * which answers with a grey "Please fill out this field" bubble, stops at the
+ * first offending box and says nothing about the 12-character rule until after
+ * it has already refused the submit. The forms here set `noValidate` and check
+ * every field themselves, in one pass.
+ *
+ * No placeholder either: the label already says which box this is, and the
+ * rule lives in `hint`.
  *
  * `autoComplete="new-password"` on both the new and the confirm field: these
  * screens only ever set a password, never verify an existing one, and the
@@ -248,41 +269,34 @@ export function PasswordField({
   label,
   value,
   onChange,
-  placeholder,
+  error,
   hint,
   autoFocus,
 }: PasswordFieldProps) {
   const [isVisible, setIsVisible] = React.useState(false)
 
   return (
-    <div>
-      <label htmlFor={id} style={authLabelStyle}>
-        {label}
-      </label>
-      <div style={{ position: 'relative' }}>
-        <input
-          id={id}
-          name={id}
-          type={isVisible ? 'text' : 'password'}
-          autoComplete="new-password"
-          autoFocus={autoFocus}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          required
-          minLength={12}
-          maxLength={256}
-          style={{ ...authInputStyle, padding: '8px 40px 8px 12px' }}
-        />
+    <TextField
+      id={id}
+      name={id}
+      label={label}
+      type={isVisible ? 'text' : 'password'}
+      autoComplete="new-password"
+      autoFocus={autoFocus}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      maxLength={256}
+      error={error}
+      hint={hint}
+      // An input is a flex item here; without this its intrinsic width wins
+      // over `width: 100%` and the card scrolls sideways on a 400px screen.
+      style={{ boxSizing: 'border-box' }}
+      rightSlot={
         <button
           type="button"
           onClick={() => setIsVisible(!isVisible)}
           aria-label={isVisible ? `Hide ${label}` : `Show ${label}`}
           style={{
-            position: 'absolute',
-            right: '8px',
-            top: '50%',
-            transform: 'translateY(-50%)',
             color: '#A39BB3',
             background: 'none',
             border: 'none',
@@ -294,9 +308,8 @@ export function PasswordField({
         >
           {isVisible ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
-      </div>
-      {hint && <p style={authHintStyle}>{hint}</p>}
-    </div>
+      }
+    />
   )
 }
 

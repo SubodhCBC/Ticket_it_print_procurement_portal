@@ -27,6 +27,7 @@ import {
 } from '@/hooks/usePricing'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useAuth } from '@/hooks/useAuth'
+import { FieldError, fieldOutline } from '@/components/ui/FormField'
 import { toApiError } from '@/services'
 import type { RateCard } from '@/types'
 
@@ -124,7 +125,13 @@ export default function RateCardsPage() {
   const [accountId, setAccountId] = useState('')
   const [discountPct, setDiscountPct] = useState(15)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  /** Server refusals only. Anything the form can see lands on its field. */
   const [formError, setFormError] = useState<string | null>(null)
+  const [createErrors, setCreateErrors] = useState<{
+    name?: string
+    accountId?: string
+    discountPct?: string
+  }>({})
 
   const [editingCard, setEditingCard] = useState<RateCard | null>(null)
   const [statusChange, setStatusChange] = useState<{
@@ -140,7 +147,18 @@ export default function RateCardsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !accountId) return
+
+    // Every field is checked in one pass, so an empty form names all of its
+    // gaps at once rather than one refusal at a time.
+    const found: typeof createErrors = {}
+    if (!name.trim()) found.name = 'Enter a name for this rate card.'
+    if (!accountId)
+      found.accountId = 'Choose the client account this card prices for.'
+    if (!Number.isFinite(discountPct) || discountPct < 0 || discountPct > 100) {
+      found.discountPct = 'Discount must be between 0 and 100.'
+    }
+    setCreateErrors(found)
+    if (Object.keys(found).length > 0) return
 
     const acc = accountsData?.items.find((a) => a.id === accountId)
 
@@ -171,6 +189,7 @@ export default function RateCardsPage() {
 
     // From here the card exists, so the form closes whatever activation says.
     setName('')
+    setCreateErrors({})
     setIsAdding(false)
     setSearchInput('')
     setSearchQuery('')
@@ -220,7 +239,11 @@ export default function RateCardsPage() {
           canManage ? (
             <button
               type="button"
-              onClick={() => setIsAdding(!isAdding)}
+              onClick={() => {
+                setCreateErrors({})
+                setFormError(null)
+                setIsAdding(!isAdding)
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -252,6 +275,7 @@ export default function RateCardsPage() {
         {canManage && isAdding && (
           <form
             onSubmit={handleCreate}
+            noValidate
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '14px',
@@ -282,6 +306,7 @@ export default function RateCardsPage() {
             >
               <div>
                 <label
+                  htmlFor="rc-new-name"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -293,24 +318,36 @@ export default function RateCardsPage() {
                   Rate Card Agreement Name *
                 </label>
                 <input
+                  id="rc-new-name"
                   type="text"
-                  required
-                  placeholder="e.g. Apex 2026 Enterprise Tier A"
+                  placeholder="2026 Standard Print Rates"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  aria-invalid={createErrors.name ? true : undefined}
+                  aria-describedby={
+                    createErrors.name ? 'rc-new-name-error' : undefined
+                  }
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    setCreateErrors((prev) => ({ ...prev, name: undefined }))
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
                     fontSize: '0.84rem',
-                    backgroundColor: '#FFFFFF',
                     color: '#2B253E',
+                    ...fieldOutline(Boolean(createErrors.name)),
                   }}
                 />
+                {createErrors.name && (
+                  <FieldError id="rc-new-name-error">
+                    {createErrors.name}
+                  </FieldError>
+                )}
               </div>
               <div>
                 <label
+                  htmlFor="rc-new-account"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -322,17 +359,26 @@ export default function RateCardsPage() {
                   Target Client Account *
                 </label>
                 <select
-                  required
+                  id="rc-new-account"
                   value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
+                  aria-invalid={createErrors.accountId ? true : undefined}
+                  aria-describedby={
+                    createErrors.accountId ? 'rc-new-account-error' : undefined
+                  }
+                  onChange={(e) => {
+                    setAccountId(e.target.value)
+                    setCreateErrors((prev) => ({
+                      ...prev,
+                      accountId: undefined,
+                    }))
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
                     fontSize: '0.84rem',
-                    backgroundColor: '#FFFFFF',
                     color: '#2B253E',
+                    ...fieldOutline(Boolean(createErrors.accountId)),
                   }}
                 >
                   <option value="">Select Account...</option>
@@ -342,9 +388,15 @@ export default function RateCardsPage() {
                     </option>
                   ))}
                 </select>
+                {createErrors.accountId && (
+                  <FieldError id="rc-new-account-error">
+                    {createErrors.accountId}
+                  </FieldError>
+                )}
               </div>
               <div>
                 <label
+                  htmlFor="rc-new-discount"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -356,23 +408,37 @@ export default function RateCardsPage() {
                   Master Discount (%)
                 </label>
                 <input
+                  id="rc-new-discount"
                   type="number"
-                  min="0"
-                  max="100"
+                  step="0.01"
                   value={discountPct}
-                  onChange={(e) =>
-                    setDiscountPct(parseFloat(e.target.value) || 0)
+                  aria-invalid={createErrors.discountPct ? true : undefined}
+                  aria-describedby={
+                    createErrors.discountPct
+                      ? 'rc-new-discount-error'
+                      : undefined
                   }
+                  onChange={(e) => {
+                    setDiscountPct(parseFloat(e.target.value) || 0)
+                    setCreateErrors((prev) => ({
+                      ...prev,
+                      discountPct: undefined,
+                    }))
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    border: '1px solid #F0E6EC',
                     fontSize: '0.84rem',
-                    backgroundColor: '#FFFFFF',
                     color: '#2B253E',
+                    ...fieldOutline(Boolean(createErrors.discountPct)),
                   }}
                 />
+                {createErrors.discountPct && (
+                  <FieldError id="rc-new-discount-error">
+                    {createErrors.discountPct}
+                  </FieldError>
+                )}
               </div>
             </div>
             {formError && (
@@ -400,7 +466,11 @@ export default function RateCardsPage() {
             >
               <button
                 type="button"
-                onClick={() => setIsAdding(false)}
+                onClick={() => {
+                  setCreateErrors({})
+                  setFormError(null)
+                  setIsAdding(false)
+                }}
                 style={{
                   padding: '8px 14px',
                   borderRadius: '10px',

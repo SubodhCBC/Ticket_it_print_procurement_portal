@@ -3,6 +3,7 @@
 import React from 'react'
 import { Check, ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { FieldError } from '@/components/ui/FormField'
 import {
   buttonStyle,
   errorMessage,
@@ -206,15 +207,24 @@ export function StateMessage({ children }: { children: React.ReactNode }) {
 
 // --- Forms ------------------------------------------------------------------------
 
+/**
+ * One labelled control.
+ *
+ * `error` puts the message under this field instead of in the drawer's banner
+ * at the top, where a reader had to work out which of six boxes it meant. The
+ * hint stands down while an error is showing, so the two never stack.
+ */
 export function Field({
   label,
   htmlFor,
   hint,
+  error,
   children,
 }: {
   label: string
   htmlFor?: string
   hint?: React.ReactNode
+  error?: string | null
   children: React.ReactNode
 }) {
   return (
@@ -223,7 +233,13 @@ export function Field({
         {label}
       </label>
       {children}
-      {hint && <div style={hintStyle}>{hint}</div>}
+      {error ? (
+        <FieldError id={htmlFor ? `${htmlFor}-error` : undefined}>
+          {error}
+        </FieldError>
+      ) : hint ? (
+        <div style={hintStyle}>{hint}</div>
+      ) : null}
     </div>
   )
 }

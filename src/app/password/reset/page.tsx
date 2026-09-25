@@ -22,6 +22,38 @@ import {
 /** How long the confirmation sits before it takes the user to sign in. */
 const REDIRECT_DELAY_MS = 5000
 
+interface PasswordErrors {
+  password: string | null
+  confirmPassword: string | null
+}
+
+const NO_ERRORS: PasswordErrors = { password: null, confirmPassword: null }
+
+/**
+ * Both boxes, checked in one pass.
+ *
+ * One pass rather than one refusal at a time: someone who left the form empty
+ * should be told about both boxes at once, which is precisely what the
+ * browser's own validation would not do.
+ */
+function validatePasswords(
+  password: string,
+  confirmPassword: string
+): PasswordErrors {
+  const errors: PasswordErrors = { ...NO_ERRORS }
+
+  if (!password) errors.password = 'Enter a new password.'
+  else if (password.length < PASSWORD_MIN_LENGTH)
+    errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters — this one has ${password.length}.`
+
+  if (!confirmPassword)
+    errors.confirmPassword = 'Type the new password again to confirm it.'
+  else if (password !== confirmPassword)
+    errors.confirmPassword = 'Passwords do not match.'
+
+  return errors
+}
+
 /**
  * Where a password-reset email lands.
  *
@@ -40,7 +72,10 @@ function ResetPasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDone, setIsDone] = useState(false)
+  /** The banner: only ever what the server said — an expired token, a 500. */
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  /** Each box's own complaint, under that box. */
+  const [fieldErrors, setFieldErrors] = useState<PasswordErrors>(NO_ERRORS)
 
   // A courtesy, not the only way out: the link below works immediately, and
   // the timer is cleared if the user takes it first.
@@ -114,12 +149,10 @@ function ResetPasswordForm() {
 
     // Caught here rather than at the endpoint, which is rate-limited: a typo in
     // the confirm box should not cost the user one of their few attempts.
-    if (password.length < PASSWORD_MIN_LENGTH) {
-      setErrorMessage('Your password must be at least 12 characters.')
-      return
-    }
-    if (password !== confirmPassword) {
-      setErrorMessage('The two passwords do not match.')
+    const found = validatePasswords(password, confirmPassword)
+    setFieldErrors(found)
+    if (found.password || found.confirmPassword) {
+      setErrorMessage(null)
       return
     }
 
@@ -140,13 +173,25 @@ function ResetPasswordForm() {
       title="Set a new password"
       description="Choose a new password for your Print Procurement Portal account."
     >
-      <form onSubmit={handleSubmit} style={authStackStyle}>
+      <form
+        onSubmit={handleSubmit}
+        // Both boxes are checked below, together. Without this the browser
+        // refuses the submit first, one box at a time, in its own bubble.
+        noValidate
+        style={authStackStyle}
+      >
         <PasswordField
           id="password"
           label="New password"
           value={password}
-          onChange={setPassword}
-          placeholder="At least 12 characters"
+          onChange={(value) => {
+            setPassword(value)
+            // The confirm box's complaint is about this value too, so a change
+            // here retires both rather than leaving a stale "do not match".
+            if (fieldErrors.password || fieldErrors.confirmPassword)
+              setFieldErrors(NO_ERRORS)
+          }}
+          error={fieldErrors.password}
           hint={PASSWORD_HINT}
           autoFocus
         />
@@ -155,8 +200,13 @@ function ResetPasswordForm() {
           id="confirmPassword"
           label="Confirm new password"
           value={confirmPassword}
-          onChange={setConfirmPassword}
-          placeholder="Repeat your password"
+          onChange={(value) => {
+            setConfirmPassword(value)
+            if (fieldErrors.confirmPassword)
+              setFieldErrors({ ...fieldErrors, confirmPassword: null })
+          }}
+          error={fieldErrors.confirmPassword}
+          hint="Both boxes must match."
         />
 
         <AuthAlert message={errorMessage} />

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { MailPlus, Users } from 'lucide-react'
+import { fieldOutline } from '@/components/ui/FormField'
 import { useCreateInvitation, useSiteRecords } from '@/hooks/useAccounts'
 import type { Account, UserRole } from '@/types'
 import type { Invitation, InvitationUserType } from '@/types/customers-admin'
@@ -19,6 +20,17 @@ import {
   formatDateTime,
   palette,
 } from './customerAdmin.shared'
+
+/** Enough to catch a typo — the address is proved by the invitation itself. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+type FormErrors = {
+  firstName?: string
+  lastName?: string
+  email?: string
+  role?: string
+  siteId?: string
+}
 
 interface UserInviteFormProps {
   /** An administrator may invite into any account; everyone else into their own. */
@@ -57,7 +69,8 @@ export function UserInviteForm({
     isAdmin ? (defaultAccountId ?? '') : ''
   )
   const [siteId, setSiteId] = useState('')
-  const [localError, setLocalError] = useState<string | null>(null)
+  // Per-field, under the field it belongs to. The banner below is the API's.
+  const [errors, setErrors] = useState<FormErrors>({})
   const [created, setCreated] = useState<Invitation | null>(null)
 
   const sitesQuery = useSiteRecords({
@@ -72,29 +85,31 @@ export function UserInviteForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLocalError(null)
 
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setLocalError('First name, last name and email are required.')
-      return
-    }
-    // The option is not offered; checked again so a stale form cannot send it.
-    if (role === 'ADMIN' && !isAdmin) {
-      setLocalError('Only an administrator can invite an administrator.')
-      return
-    }
-    if (userType === 'EXTERNAL' && role === 'ADMIN') {
-      setLocalError('An external user cannot be an administrator.')
-      return
-    }
-    if (siteRequired && !siteId) {
-      setLocalError(
+    // Every field in one pass, so an empty form is not discovered one refusal
+    // at a time — which is what the browser's own validation did.
+    const found: FormErrors = {}
+    if (!firstName.trim()) found.firstName = 'Enter a first name.'
+    if (!lastName.trim()) found.lastName = 'Enter a last name.'
+    if (!email.trim()) found.email = 'Enter the work email to invite.'
+    else if (!EMAIL_PATTERN.test(email.trim()))
+      found.email = 'Use a valid email address, like name@company.co.nz.'
+
+    // Neither option is offered; checked again so a stale form cannot send it.
+    if (role === 'ADMIN' && !isAdmin)
+      found.role = 'Only an administrator can invite an administrator.'
+    else if (userType === 'EXTERNAL' && role === 'ADMIN')
+      found.role =
+        'An external collaborator cannot be an administrator. Choose site user or head office.'
+
+    if (siteRequired && !siteId)
+      found.siteId =
         userType === 'EXTERNAL'
-          ? 'An external user must be attached to a site.'
-          : 'A site user must be attached to a site.'
-      )
-      return
-    }
+          ? 'An external user must be attached to a site. Choose one.'
+          : 'A site user must be attached to a site. Choose one.'
+
+    setErrors(found)
+    if (Object.values(found).some(Boolean)) return
 
     try {
       const invitation = await create.mutateAsync({
@@ -231,6 +246,7 @@ export function UserInviteForm({
 
   return (
     <form
+      noValidate
       onSubmit={handleSubmit}
       style={{
         ...cardStyle,
@@ -249,41 +265,74 @@ export function UserInviteForm({
           gap: '14px',
         }}
       >
-        <Field label="First name *" htmlFor="invite-first-name">
+        <Field
+          label="First name *"
+          htmlFor="invite-first-name"
+          error={errors.firstName}
+        >
           <input
             id="invite-first-name"
             type="text"
-            required
             maxLength={100}
             value={firstName}
             disabled={locked}
-            onChange={(e) => setFirstName(e.target.value)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.firstName ? true : undefined}
+            onChange={(e) => {
+              setFirstName(e.target.value)
+              setErrors((current) => ({ ...current, firstName: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.firstName ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
-        <Field label="Last name *" htmlFor="invite-last-name">
+        <Field
+          label="Last name *"
+          htmlFor="invite-last-name"
+          error={errors.lastName}
+        >
           <input
             id="invite-last-name"
             type="text"
-            required
             maxLength={100}
             value={lastName}
             disabled={locked}
-            onChange={(e) => setLastName(e.target.value)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.lastName ? true : undefined}
+            onChange={(e) => {
+              setLastName(e.target.value)
+              setErrors((current) => ({ ...current, lastName: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.lastName ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
-        <Field label="Work email *" htmlFor="invite-email">
+        <Field
+          label="Work email *"
+          htmlFor="invite-email"
+          hint="Where the invitation is sent."
+          error={errors.email}
+        >
           <input
             id="invite-email"
-            type="email"
-            required
+            type="text"
+            inputMode="email"
+            autoComplete="email"
             maxLength={254}
-            placeholder="name@organisation.com"
+            placeholder="e.g. jane.smith@company.co.nz"
             value={email}
             disabled={locked}
-            onChange={(e) => setEmail(e.target.value)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.email ? true : undefined}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              setErrors((current) => ({ ...current, email: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.email ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
       </div>
@@ -304,6 +353,7 @@ export function UserInviteForm({
               onChange={(e) => {
                 setAccountId(e.target.value)
                 setSiteId('')
+                setErrors((current) => ({ ...current, siteId: undefined }))
               }}
               style={fieldStyle(locked)}
             >
@@ -318,13 +368,26 @@ export function UserInviteForm({
             </select>
           </Field>
         )}
-        <Field label="Role *" htmlFor="invite-role">
+        <Field label="Role *" htmlFor="invite-role" error={errors.role}>
           <select
             id="invite-role"
             value={role}
             disabled={locked}
-            onChange={(e) => setRole(e.target.value as UserRole)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.role ? true : undefined}
+            onChange={(e) => {
+              setRole(e.target.value as UserRole)
+              // Whether a site is needed follows the role, so its message goes
+              // too rather than standing over a rule that no longer applies.
+              setErrors((current) => ({
+                ...current,
+                role: undefined,
+                siteId: undefined,
+              }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.role ? fieldOutline(true) : {}),
+            }}
           >
             <option value="SITE_USER">Site user</option>
             <option value="HEAD_OFFICE">Head office</option>
@@ -354,6 +417,12 @@ export function UserInviteForm({
               const next = e.target.value as InvitationUserType
               setUserType(next)
               if (next === 'EXTERNAL' && role === 'ADMIN') setRole('SITE_USER')
+              // Both rules this box takes part in are about other fields.
+              setErrors((current) => ({
+                ...current,
+                role: undefined,
+                siteId: undefined,
+              }))
             }}
             style={fieldStyle(locked)}
           >
@@ -371,14 +440,21 @@ export function UserInviteForm({
                 ? undefined
                 : 'Leave empty for an account-wide user.'
           }
+          error={errors.siteId}
         >
           <select
             id="invite-site"
             value={siteId}
-            required={siteRequired}
             disabled={locked || sitesQuery.isLoading}
-            onChange={(e) => setSiteId(e.target.value)}
-            style={fieldStyle(locked || sitesQuery.isLoading)}
+            aria-invalid={errors.siteId ? true : undefined}
+            onChange={(e) => {
+              setSiteId(e.target.value)
+              setErrors((current) => ({ ...current, siteId: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked || sitesQuery.isLoading),
+              ...(errors.siteId ? fieldOutline(true) : {}),
+            }}
           >
             <option value="">
               {sitesQuery.isLoading
@@ -396,7 +472,6 @@ export function UserInviteForm({
         </Field>
       </div>
 
-      <ErrorNote message={localError} />
       <ErrorNote error={create.error} />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>

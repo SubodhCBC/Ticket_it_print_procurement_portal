@@ -27,10 +27,23 @@ import {
   Th,
   TextInput,
 } from './ProductAdminUi'
+import { FIELD_RED } from '@/components/ui/FormField'
 import { errorMessage, formatMoney, MONEY_PATTERN } from './ProductAdminUtils'
 import { ProductOptionAxesEditor } from './ProductOptionAxesEditor'
 
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
+
+/** What the add-variant form can refuse on its own, field by field. */
+type AddVariantField = 'sku' | 'combination' | 'priceOverride' | 'sortOrder'
+interface AddVariantErrors {
+  sku?: string
+  /** The combination as a whole is taken, rather than one axis being wrong. */
+  combination?: string
+  priceOverride?: string
+  sortOrder?: string
+  /** Keyed by axis name, so each select carries its own message. */
+  axes: Record<string, string>
+}
 
 function sameAttributes(
   a: Record<string, string>,
@@ -249,42 +262,62 @@ function AddVariantDialog({
   const [attributes, setAttributes] = useState<Record<string, string>>({})
   const [priceOverride, setPriceOverride] = useState('')
   const [sortOrder, setSortOrder] = useState('0')
+  /** The server's refusal; everything this form can see belongs to its field. */
   const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<AddVariantErrors>({ axes: {} })
   const pending = createVariant.isPending
+
+  const clearError = (key: AddVariantField) =>
+    setErrors((previous) => ({ ...previous, [key]: undefined }))
+
+  /** An axis stops being wrong — and so does the combination — when it changes. */
+  const clearAxisError = (name: string) =>
+    setErrors((previous) => {
+      const axes = { ...previous.axes }
+      delete axes[name]
+      return { ...previous, axes, combination: undefined }
+    })
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
+    // Everything is checked in one pass, so a variant is not refused a field
+    // at a time.
+    const found: AddVariantErrors = { axes: {} }
     const code = sku.trim().toUpperCase()
     if (code.length < 2 || code.length > 64 || !SKU_PATTERN.test(code)) {
-      setError(
-        'SKU must be 2–64 characters: letters, digits, dot, dash, slash or underscore.'
-      )
-      return
+      found.sku =
+        'A SKU is 2 to 64 characters of letters, digits, dots, dashes, slashes or underscores.'
     }
-    const missing = axes.filter((axis) => !attributes[axis.name])
-    if (missing.length > 0) {
-      setError(
-        `Choose a value for ${missing.map((axis) => axis.name).join(', ')}.`
-      )
-      return
+    for (const axis of axes) {
+      if (!attributes[axis.name]) {
+        found.axes[axis.name] = `Choose a ${axis.name.toLowerCase()}.`
+      }
     }
     const clash = view.variants.find((variant) =>
       sameAttributes(variant.attributes, attributes)
     )
-    if (clash) {
-      setError(`Variant ${clash.sku} already covers that combination.`)
-      return
+    if (clash && Object.keys(found.axes).length === 0) {
+      found.combination = `Variant ${clash.sku} already covers that combination.`
     }
     const price = priceOverride.trim()
     if (price && !MONEY_PATTERN.test(price)) {
-      setError('Price override must be an amount such as "12.50".')
-      return
+      found.priceOverride = 'Enter an amount such as 12.50.'
     }
     const order = Number(sortOrder || 0)
     if (!Number.isInteger(order) || order < 0 || order > 9999) {
-      setError('Sort order must be a whole number from 0 to 9999.')
+      found.sortOrder = 'Sort order must be a whole number from 0 to 9999.'
+    }
+
+    setErrors(found)
+    if (
+      found.sku ||
+      found.combination ||
+      found.priceOverride ||
+      found.sortOrder ||
+      Object.keys(found.axes).length > 0
+    ) {
       return
     }
 
@@ -309,16 +342,24 @@ function AddVariantDialog({
       maxWidth="560px"
     >
       <form
+        noValidate
         onSubmit={submit}
         style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
       >
-        <Field label="Variant SKU *">
+        <Field label="Variant SKU *" htmlFor="variant-sku" error={errors.sku}>
           <TextInput
+            id="variant-sku"
             value={sku}
             maxLength={64}
+            placeholder="BC-SOFT-90X55"
             disabled={pending}
+            invalid={Boolean(errors.sku)}
+            aria-describedby={errors.sku ? 'variant-sku-error' : undefined}
             style={{ fontFamily: 'monospace' }}
-            onChange={(e) => setSku(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              clearError('sku')
+              setSku(e.target.value.toUpperCase())
+            }}
           />
         </Field>
 
@@ -330,16 +371,34 @@ function AddVariantDialog({
           }}
         >
           {axes.map((axis) => (
-            <Field key={axis.id} label={`${axis.name} *`}>
+            <Field
+              key={axis.id}
+              label={`${axis.name} *`}
+              htmlFor={`variant-axis-${axis.id}`}
+              error={errors.axes[axis.name]}
+            >
               <SelectInput
+                id={`variant-axis-${axis.id}`}
                 value={attributes[axis.name] ?? ''}
                 disabled={pending}
-                onChange={(e) =>
+                aria-invalid={errors.axes[axis.name] ? true : undefined}
+                aria-describedby={
+                  errors.axes[axis.name]
+                    ? `variant-axis-${axis.id}-error`
+                    : undefined
+                }
+                style={
+                  errors.axes[axis.name]
+                    ? { borderColor: FIELD_RED, backgroundColor: '#FEF5F6' }
+                    : undefined
+                }
+                onChange={(e) => {
+                  clearAxisError(axis.name)
                   setAttributes((prev) => ({
                     ...prev,
                     [axis.name]: e.target.value,
                   }))
-                }
+                }}
               >
                 <option value="">Select…</option>
                 {axis.values.map((value) => (
@@ -352,6 +411,10 @@ function AddVariantDialog({
           ))}
         </div>
 
+        {errors.combination && (
+          <Notice tone="error">{errors.combination}</Notice>
+        )}
+
         <div
           style={{
             display: 'grid',
@@ -361,25 +424,47 @@ function AddVariantDialog({
         >
           <Field
             label="Price override"
+            htmlFor="variant-price"
             hint={`Leave blank to sell at the base price (${formatMoney(view.basePrice)}).`}
+            error={errors.priceOverride}
           >
             <TextInput
+              id="variant-price"
               inputMode="decimal"
-              placeholder="e.g. 18.50"
+              placeholder="48.00"
               value={priceOverride}
               disabled={pending}
-              onChange={(e) => setPriceOverride(e.target.value)}
+              invalid={Boolean(errors.priceOverride)}
+              aria-describedby={
+                errors.priceOverride ? 'variant-price-error' : undefined
+              }
+              onChange={(e) => {
+                clearError('priceOverride')
+                setPriceOverride(e.target.value)
+              }}
             />
           </Field>
-          <Field label="Sort order">
+          <Field
+            label="Sort order"
+            htmlFor="variant-sort-order"
+            hint="Lower numbers are listed first."
+            error={errors.sortOrder}
+          >
             <TextInput
+              id="variant-sort-order"
               type="number"
-              min={0}
-              max={9999}
               step={1}
+              placeholder="10"
               value={sortOrder}
               disabled={pending}
-              onChange={(e) => setSortOrder(e.target.value)}
+              invalid={Boolean(errors.sortOrder)}
+              aria-describedby={
+                errors.sortOrder ? 'variant-sort-order-error' : undefined
+              }
+              onChange={(e) => {
+                clearError('sortOrder')
+                setSortOrder(e.target.value)
+              }}
             />
           </Field>
         </div>
@@ -423,31 +508,41 @@ function EditVariantDialog({
     variant.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'
   )
   const [sortOrder, setSortOrder] = useState('')
+  /** The server's refusal; everything this form can see belongs to its field. */
   const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<{
+    priceOverride?: string
+    sortOrder?: string
+  }>({})
   const pending = updateVariant.isPending
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    const input: UpdateVariantInput = {}
+    // Both boxes are checked together, not one refusal at a time.
+    const found: typeof errors = {}
     const price = priceOverride.trim()
+    if (price && !MONEY_PATTERN.test(price)) {
+      found.priceOverride = 'Enter an amount such as 12.50.'
+    }
+    const trimmedOrder = sortOrder.trim()
+    const order = Number(trimmedOrder)
+    if (
+      trimmedOrder !== '' &&
+      (!Number.isInteger(order) || order < 0 || order > 9999)
+    ) {
+      found.sortOrder = 'Sort order must be a whole number from 0 to 9999.'
+    }
+    setErrors(found)
+    if (Object.values(found).some(Boolean)) return
+
+    const input: UpdateVariantInput = {}
     if (price !== (variant.priceOverride ?? '')) {
-      if (price && !MONEY_PATTERN.test(price)) {
-        setError('Price override must be an amount such as "12.50".')
-        return
-      }
       input.priceOverride = price ? price : null
     }
     if (status !== variant.status) input.status = status
-    if (sortOrder.trim() !== '') {
-      const order = Number(sortOrder)
-      if (!Number.isInteger(order) || order < 0 || order > 9999) {
-        setError('Sort order must be a whole number from 0 to 9999.')
-        return
-      }
-      input.sortOrder = order
-    }
+    if (trimmedOrder !== '') input.sortOrder = order
 
     if (Object.keys(input).length === 0) {
       setError('Nothing has changed.')
@@ -470,6 +565,7 @@ function EditVariantDialog({
       maxWidth="520px"
     >
       <form
+        noValidate
         onSubmit={submit}
         style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
       >
@@ -483,14 +579,27 @@ function EditVariantDialog({
 
         <Field
           label="Price override"
+          htmlFor="edit-variant-price"
           hint="Clear it to sell at the product's base price."
+          error={errors.priceOverride}
         >
           <TextInput
+            id="edit-variant-price"
             inputMode="decimal"
-            placeholder="Base price"
+            placeholder="48.00"
             value={priceOverride}
             disabled={pending}
-            onChange={(e) => setPriceOverride(e.target.value)}
+            invalid={Boolean(errors.priceOverride)}
+            aria-describedby={
+              errors.priceOverride ? 'edit-variant-price-error' : undefined
+            }
+            onChange={(e) => {
+              setErrors((previous) => ({
+                ...previous,
+                priceOverride: undefined,
+              }))
+              setPriceOverride(e.target.value)
+            }}
           />
         </Field>
 
@@ -515,17 +624,28 @@ function EditVariantDialog({
           </Field>
           <Field
             label="Sort order"
+            htmlFor="edit-variant-sort-order"
             hint="The API does not report the current value; leave blank to keep it."
+            error={errors.sortOrder}
           >
             <TextInput
+              id="edit-variant-sort-order"
               type="number"
-              min={0}
-              max={9999}
               step={1}
-              placeholder="Unchanged"
+              placeholder="10"
               value={sortOrder}
               disabled={pending}
-              onChange={(e) => setSortOrder(e.target.value)}
+              invalid={Boolean(errors.sortOrder)}
+              aria-describedby={
+                errors.sortOrder ? 'edit-variant-sort-order-error' : undefined
+              }
+              onChange={(e) => {
+                setErrors((previous) => ({
+                  ...previous,
+                  sortOrder: undefined,
+                }))
+                setSortOrder(e.target.value)
+              }}
             />
           </Field>
         </div>

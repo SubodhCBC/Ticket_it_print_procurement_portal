@@ -11,11 +11,9 @@ import {
 } from '@/components/auth/PublicAuthShell'
 import {
   authBodyTextStyle,
-  authHintStyle,
-  authInputStyle,
-  authLabelStyle,
   authStackStyle,
 } from '@/components/auth/publicAuthShell.styles'
+import { TextField } from '@/components/ui/FormField'
 
 /**
  * Asks for a password reset link.
@@ -33,16 +31,23 @@ export default function ForgotPasswordPage() {
   const [identifier, setIdentifier] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSent, setIsSent] = useState(false)
+  /** The banner: only ever what the server said. */
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  /** The field's own complaint, under the field, in red. */
+  const [identifierError, setIdentifierError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const trimmed = identifier.trim()
     if (!trimmed) {
-      setErrorMessage('Enter your username or email address.')
+      // Under the box rather than in the banner: there is one box, and the
+      // user's eye should land on it and not on a strip of text above a button.
+      setIdentifierError('Enter your username or email address.')
+      setErrorMessage(null)
       return
     }
+    setIdentifierError(null)
 
     setIsSubmitting(true)
     setErrorMessage(null)
@@ -98,6 +103,7 @@ export default function ForgotPasswordPage() {
               onClick={() => {
                 setIsSent(false)
                 setErrorMessage(null)
+                setIdentifierError(null)
               }}
               style={{
                 background: 'none',
@@ -123,28 +129,33 @@ export default function ForgotPasswordPage() {
       title="Reset your password"
       description="Tell us who you are and we'll email you a link to set a new password."
     >
-      <form onSubmit={handleSubmit} style={authStackStyle}>
-        <div>
-          <label htmlFor="identifier" style={authLabelStyle}>
-            Username or email address
-          </label>
-          <input
-            id="identifier"
-            name="identifier"
-            type="text"
-            autoComplete="username"
-            autoFocus
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="your.username or you@example.com"
-            required
-            maxLength={254}
-            style={authInputStyle}
-          />
-          <p style={authHintStyle}>
-            Either will do. We never say whether an account was found.
-          </p>
-        </div>
+      <form
+        onSubmit={handleSubmit}
+        // The form checks itself; without this the browser gets there first
+        // with its own bubble.
+        noValidate
+        style={authStackStyle}
+      >
+        {/* `type="text"`, not `type="email"`: an email is only one of the two
+            things accepted here, and the email type would have the browser
+            reject a perfectly good username. */}
+        <TextField
+          id="identifier"
+          name="identifier"
+          label="Username or email address"
+          type="text"
+          autoComplete="username"
+          autoFocus
+          value={identifier}
+          onChange={(e) => {
+            setIdentifier(e.target.value)
+            if (identifierError) setIdentifierError(null)
+          }}
+          error={identifierError}
+          hint="Either will do. We never say whether an account was found."
+          maxLength={254}
+          style={{ boxSizing: 'border-box' }}
+        />
 
         <AuthAlert message={errorMessage} />
 

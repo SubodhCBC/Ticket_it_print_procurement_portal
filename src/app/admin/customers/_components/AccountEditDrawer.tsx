@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { Drawer } from '@/components/ui/Drawer'
+import { fieldOutline } from '@/components/ui/FormField'
 import { useUpdateAccount } from '@/hooks/useAccounts'
 import { PO_FORMAT_LEGEND_TEXT, previewPoFormat } from '@/lib/po-format'
 import type { Account } from '@/types'
@@ -58,6 +59,15 @@ const STATUS_OPTIONS: Array<{ value: AccountStatus; label: string }> = [
   { value: 'INACTIVE', label: 'Inactive' },
 ]
 
+/** Enough to catch a typo — the address is proved by the mail that follows. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+type FormErrors = {
+  name?: string
+  contactEmail?: string
+  threshold?: string
+}
+
 function AccountEditForm({
   account,
   canManage,
@@ -81,7 +91,14 @@ function AccountEditForm({
   const [poFormat, setPoFormat] = useState(account.poFormat ?? '')
   // Blank clears the format, so it is not an error to preview.
   const poFormatPreview = poFormat.trim() ? previewPoFormat(poFormat) : null
-  const [localError, setLocalError] = useState<string | null>(null)
+  // Checked as it is typed, so it needs no entry in `errors`: rewriting the
+  // format is what clears it.
+  const poFormatError =
+    poFormatPreview?.ok === false
+      ? `${poFormatPreview.message} PO format uses # for a digit, @ for a letter and YY for the year.`
+      : null
+  // Per-field, under the field it belongs to. The banner below is the API's.
+  const [errors, setErrors] = useState<FormErrors>({})
 
   // Only what changed is sent: PATCH treats an omitted field as "leave alone"
   // and an explicit null as "clear", and a blanked-out field means the latter.
@@ -106,16 +123,20 @@ function AccountEditForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLocalError(null)
 
-    if (!name.trim()) {
-      setLocalError('Account name is required.')
-      return
-    }
-    if (threshold.trim() && !MONEY_PATTERN.test(threshold.trim())) {
-      setLocalError('Approval threshold must be an amount such as 1500.00.')
-      return
-    }
+    // Every field in one pass, so an account with three things wrong is not
+    // discovered one refusal at a time.
+    const found: FormErrors = {}
+    if (!name.trim()) found.name = 'Enter an account name.'
+    if (contactEmail.trim() && !EMAIL_PATTERN.test(contactEmail.trim()))
+      found.contactEmail = 'Use a valid email address, like name@company.co.nz.'
+    if (threshold.trim() && !MONEY_PATTERN.test(threshold.trim()))
+      found.threshold =
+        'Approval threshold must be an amount like 1500.00, or leave it empty for no threshold.'
+
+    setErrors(found)
+    if (Object.values(found).some(Boolean) || poFormatError) return
+
     if (!hasChanges) return
 
     try {
@@ -128,6 +149,7 @@ function AccountEditForm({
 
   return (
     <form
+      noValidate
       onSubmit={handleSubmit}
       style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
     >
@@ -150,16 +172,27 @@ function AccountEditForm({
         </div>
       </Field>
 
-      <Field label="Account name *" htmlFor="account-edit-name">
+      <Field
+        label="Account name *"
+        htmlFor="account-edit-name"
+        error={errors.name}
+      >
         <input
           id="account-edit-name"
           type="text"
-          required
           maxLength={200}
+          placeholder="e.g. Northbridge Health Group"
           value={name}
           disabled={locked}
-          onChange={(e) => setName(e.target.value)}
-          style={fieldStyle(locked)}
+          aria-invalid={errors.name ? true : undefined}
+          onChange={(e) => {
+            setName(e.target.value)
+            setErrors((current) => ({ ...current, name: undefined }))
+          }}
+          style={{
+            ...fieldStyle(locked),
+            ...(errors.name ? fieldOutline(true) : {}),
+          }}
         />
       </Field>
 
@@ -190,15 +223,29 @@ function AccountEditForm({
           gap: '12px',
         }}
       >
-        <Field label="Contact email" htmlFor="account-edit-email">
+        <Field
+          label="Contact email"
+          htmlFor="account-edit-email"
+          error={errors.contactEmail}
+        >
           <input
             id="account-edit-email"
-            type="email"
+            type="text"
+            inputMode="email"
+            autoComplete="email"
             maxLength={254}
+            placeholder="e.g. procurement@company.co.nz"
             value={contactEmail}
             disabled={locked}
-            onChange={(e) => setContactEmail(e.target.value)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.contactEmail ? true : undefined}
+            onChange={(e) => {
+              setContactEmail(e.target.value)
+              setErrors((current) => ({ ...current, contactEmail: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.contactEmail ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
         <Field label="Contact phone" htmlFor="account-edit-phone">
@@ -218,6 +265,7 @@ function AccountEditForm({
         label="Approval threshold"
         htmlFor="account-edit-threshold"
         hint="Orders above this total need approval. Leave blank for no threshold."
+        error={errors.threshold}
       >
         <input
           id="account-edit-threshold"
@@ -226,8 +274,15 @@ function AccountEditForm({
           placeholder="e.g. 1500.00"
           value={threshold}
           disabled={locked}
-          onChange={(e) => setThreshold(e.target.value)}
-          style={fieldStyle(locked)}
+          aria-invalid={errors.threshold ? true : undefined}
+          onChange={(e) => {
+            setThreshold(e.target.value)
+            setErrors((current) => ({ ...current, threshold: undefined }))
+          }}
+          style={{
+            ...fieldStyle(locked),
+            ...(errors.threshold ? fieldOutline(true) : {}),
+          }}
         />
       </Field>
 
@@ -239,11 +294,16 @@ function AccountEditForm({
         onChange={setRequirePo}
       />
 
-      <Field label="PO prefix" htmlFor="account-edit-po-prefix">
+      <Field
+        label="PO prefix"
+        htmlFor="account-edit-po-prefix"
+        hint="Put in front of every purchase order this account raises."
+      >
         <input
           id="account-edit-po-prefix"
           type="text"
           maxLength={32}
+          placeholder="e.g. PO-STJ"
           value={poPrefix}
           disabled={locked}
           onChange={(e) => setPoPrefix(e.target.value)}
@@ -255,12 +315,11 @@ function AccountEditForm({
         label="PO format"
         htmlFor="account-edit-po-format"
         hint={
-          poFormatPreview === null
-            ? `Optional, e.g. PO-####-YY. ${PO_FORMAT_LEGEND_TEXT}. A site may set its own.`
-            : poFormatPreview.ok
-              ? `A valid reference looks like ${poFormatPreview.example}. ${PO_FORMAT_LEGEND_TEXT}.`
-              : poFormatPreview.message
+          poFormatPreview?.ok
+            ? `A valid reference looks like ${poFormatPreview.example}. ${PO_FORMAT_LEGEND_TEXT}.`
+            : `Optional — a mask such as PO-####-YY. ${PO_FORMAT_LEGEND_TEXT}. A site may set its own.`
         }
+        error={poFormatError}
       >
         <input
           id="account-edit-po-format"
@@ -269,19 +328,16 @@ function AccountEditForm({
           placeholder="e.g. PO-####-YY"
           value={poFormat}
           disabled={locked}
-          aria-invalid={poFormatPreview?.ok === false || undefined}
+          aria-invalid={poFormatError ? true : undefined}
           onChange={(e) => setPoFormat(e.target.value)}
           style={{
             ...fieldStyle(locked),
             fontFamily: 'monospace',
-            ...(poFormatPreview?.ok === false
-              ? { borderColor: '#DC2626' }
-              : {}),
+            ...(poFormatError ? fieldOutline(true) : {}),
           }}
         />
       </Field>
 
-      <ErrorNote message={localError} />
       <ErrorNote error={update.error} />
 
       <div

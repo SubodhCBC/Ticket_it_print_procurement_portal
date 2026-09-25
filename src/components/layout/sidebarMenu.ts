@@ -6,6 +6,7 @@ import {
   Building2,
   ChartColumn,
   CheckCircle2,
+  Clock,
   ClipboardCheck,
   ClipboardList,
   FileSpreadsheet,
@@ -320,6 +321,22 @@ export const SITE_USER_MENU: readonly SidebarEntry[] = [
         title: 'Order History',
         href: '/shop/orders/history',
         icon: History,
+      },
+    ],
+  },
+  {
+    title: 'Reports',
+    icon: ChartColumn,
+    children: [
+      {
+        title: 'Reports & Exports',
+        href: '/shop/reports/analytics',
+        icon: ChartColumn,
+      },
+      {
+        title: 'Open Orders',
+        href: '/shop/reports/order-ageing',
+        icon: Clock,
       },
     ],
   },

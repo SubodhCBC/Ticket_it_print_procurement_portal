@@ -16,6 +16,7 @@ import {
   Power,
 } from 'lucide-react'
 import { AdminHeader } from '@/components/admin/AdminHeader'
+import { fieldOutline } from '@/components/ui/FormField'
 import {
   useAccounts,
   useSiteRecords,
@@ -78,6 +79,27 @@ function parseTab(value: string | null): AccountsTab {
 const PAGE_SIZE = 20
 
 const NO_PERMISSION = 'Your role does not include this permission.'
+
+/** Enough to catch a typo — the address is proved by the mail that follows. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+/**
+ * The new-account and new-site forms, which are never on screen together, so
+ * one bag of messages serves both.
+ */
+type CreateErrors = {
+  accName?: string
+  accCode?: string
+  accContactEmail?: string
+  accApprovalThreshold?: string
+  siteAccountId?: string
+  siteName?: string
+  siteCode?: string
+  siteStreet?: string
+  siteCity?: string
+  sitePostalCode?: string
+  siteMonthlyBudget?: string
+}
 
 const headerCell: React.CSSProperties = {
   padding: '10px 14px',
@@ -224,7 +246,24 @@ function CustomerAccountsContent() {
   // Add item states
   const [isAdding, setIsAdding] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // The API's refusal, in the banner. What the fields themselves are missing
+  // goes under the field, in `createErrors`.
   const [createError, setCreateError] = useState<unknown>(null)
+  const [createErrors, setCreateErrors] = useState<CreateErrors>({})
+
+  /** Clears one field's message as soon as that field is changed. */
+  const clearCreateError = (field: keyof CreateErrors) =>
+    setCreateErrors((current) => ({ ...current, [field]: undefined }))
+
+  // The three address boxes stand or fall together, so any of them being
+  // changed retires all three messages.
+  const clearAddressErrors = () =>
+    setCreateErrors((current) => ({
+      ...current,
+      siteStreet: undefined,
+      siteCity: undefined,
+      sitePostalCode: undefined,
+    }))
 
   // New account form state
   const [accName, setAccName] = useState('')
@@ -250,6 +289,7 @@ function CustomerAccountsContent() {
   const setTab = (tab: AccountsTab) => {
     setIsAdding(false)
     setCreateError(null)
+    setCreateErrors({})
     router.replace(`/admin/customers/accounts?tab=${tab}`)
   }
 
@@ -262,14 +302,25 @@ function CustomerAccountsContent() {
   // Handlers
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!accName || !accCode || !accContactEmail) return
+
+    // Every field in one pass, so an empty form is not discovered one refusal
+    // at a time — which is what the browser's own validation did.
     const threshold = accApprovalThreshold.trim()
-    if (threshold && !MONEY_PATTERN.test(threshold)) {
-      setCreateError(
-        new Error('Approval threshold must be an amount such as 1500.00.')
-      )
-      return
-    }
+    const found: CreateErrors = {}
+    if (!accName.trim()) found.accName = 'Enter the organisation name.'
+    if (!accCode.trim()) found.accCode = 'Enter an account code.'
+    if (!accContactEmail.trim())
+      found.accContactEmail = 'Enter a procurement contact email.'
+    else if (!EMAIL_PATTERN.test(accContactEmail.trim()))
+      found.accContactEmail =
+        'Use a valid email address, like name@company.co.nz.'
+    if (threshold && !MONEY_PATTERN.test(threshold))
+      found.accApprovalThreshold =
+        'Approval threshold must be an amount like 1500.00, or leave it empty for no threshold.'
+
+    setCreateErrors(found)
+    if (Object.values(found).some(Boolean)) return
+
     setIsSubmitting(true)
     setCreateError(null)
     try {
@@ -300,14 +351,38 @@ function CustomerAccountsContent() {
 
   const handleCreateSite = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!siteName || !siteCode || (isAdmin && !siteAccountId)) return
+
     const budget = siteMonthlyBudget.trim()
-    if (budget && !MONEY_PATTERN.test(budget)) {
-      setCreateError(
-        new Error('Monthly budget must be an amount such as 1500.00.')
-      )
-      return
+    const street = siteStreet.trim()
+    const city = siteCity.trim()
+    const postcode = sitePostalCode.trim()
+    // Every field in one pass, so an empty form is not discovered one refusal
+    // at a time — which is what the browser's own validation did.
+    const found: CreateErrors = {}
+    if (isAdmin && !siteAccountId)
+      found.siteAccountId = 'Choose the account this branch belongs to.'
+    if (!siteName.trim()) found.siteName = 'Enter a branch name.'
+    if (!siteCode.trim()) found.siteCode = 'Enter a site code.'
+    // A part address is dropped rather than saved, so it is not left to be
+    // discovered from the branch having no address afterwards.
+    if ((street || city || postcode) && !(street && city && postcode)) {
+      if (!street)
+        found.siteStreet =
+          'Add the street, or clear the address — a part address is not saved.'
+      if (!city)
+        found.siteCity =
+          'Add the city, or clear the address — a part address is not saved.'
+      if (!postcode)
+        found.sitePostalCode =
+          'Add the postcode, or clear the address — a part address is not saved.'
     }
+    if (budget && !MONEY_PATTERN.test(budget))
+      found.siteMonthlyBudget =
+        'Monthly budget must be a number, or leave it empty for no limit.'
+
+    setCreateErrors(found)
+    if (Object.values(found).some(Boolean)) return
+
     const acc = accountChoices.find((a) => a.id === siteAccountId)
     // Only a complete address is sent (the adapter drops a partial one); more,
     // and billing addresses, can be added from the branch drawer afterwards.
@@ -390,6 +465,7 @@ function CustomerAccountsContent() {
             type="button"
             onClick={() => {
               setCreateError(null)
+              setCreateErrors({})
               setIsAdding(!isAdding)
             }}
             disabled={addButtonDisabled}
@@ -494,6 +570,7 @@ function CustomerAccountsContent() {
         {/* Dynamic Add Form based on Active Tab */}
         {isAdding && activeTab === 'accounts' && (
           <form
+            noValidate
             onSubmit={handleCreateAccount}
             style={{
               ...cardStyle,
@@ -526,47 +603,75 @@ function CustomerAccountsContent() {
               <Field
                 label="Account / Organization Name *"
                 htmlFor="new-acc-name"
+                error={createErrors.accName}
               >
                 <input
                   id="new-acc-name"
                   type="text"
-                  required
                   placeholder="e.g. St. Jude Healthcare Network"
                   value={accName}
-                  onChange={(e) => setAccName(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={createErrors.accName ? true : undefined}
+                  onChange={(e) => {
+                    setAccName(e.target.value)
+                    clearCreateError('accName')
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.accName ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
-              <Field label="Account Code *" htmlFor="new-acc-code">
+              <Field
+                label="Account Code *"
+                htmlFor="new-acc-code"
+                hint="Appears on invoices and purchase orders, and cannot be changed later."
+                error={createErrors.accCode}
+              >
                 <input
                   id="new-acc-code"
                   type="text"
-                  required
-                  placeholder="e.g. STJUDE-005"
+                  placeholder="e.g. STJUDE"
                   value={accCode}
-                  onChange={(e) => setAccCode(e.target.value.toUpperCase())}
-                  style={{ ...fieldStyle(), fontFamily: 'monospace' }}
+                  aria-invalid={createErrors.accCode ? true : undefined}
+                  onChange={(e) => {
+                    setAccCode(e.target.value.toUpperCase())
+                    clearCreateError('accCode')
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    fontFamily: 'monospace',
+                    ...(createErrors.accCode ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
               <Field
                 label="Procurement Contact Email *"
                 htmlFor="new-acc-email"
+                hint="Where order and approval mail for this account goes."
+                error={createErrors.accContactEmail}
               >
                 <input
                   id="new-acc-email"
-                  type="email"
-                  required
-                  placeholder="procurement@organization.org"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="e.g. procurement@company.co.nz"
                   value={accContactEmail}
-                  onChange={(e) => setAccContactEmail(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={createErrors.accContactEmail ? true : undefined}
+                  onChange={(e) => {
+                    setAccContactEmail(e.target.value)
+                    clearCreateError('accContactEmail')
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.accContactEmail ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
               <Field label="Contact Phone" htmlFor="new-acc-phone">
                 <input
                   id="new-acc-phone"
                   type="tel"
-                  placeholder="+64 9 000 0000"
                   value={accContactPhone}
                   onChange={(e) => setAccContactPhone(e.target.value)}
                   style={fieldStyle()}
@@ -576,6 +681,7 @@ function CustomerAccountsContent() {
                 label="Approval Threshold"
                 htmlFor="new-acc-approval-threshold"
                 hint="Orders above this total need approval. Leave blank to approve automatically."
+                error={createErrors.accApprovalThreshold}
               >
                 <input
                   id="new-acc-approval-threshold"
@@ -583,8 +689,19 @@ function CustomerAccountsContent() {
                   inputMode="decimal"
                   placeholder="e.g. 1500.00"
                   value={accApprovalThreshold}
-                  onChange={(e) => setAccApprovalThreshold(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={
+                    createErrors.accApprovalThreshold ? true : undefined
+                  }
+                  onChange={(e) => {
+                    setAccApprovalThreshold(e.target.value)
+                    clearCreateError('accApprovalThreshold')
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.accApprovalThreshold
+                      ? fieldOutline(true)
+                      : {}),
+                  }}
                 />
               </Field>
               <Field label="PO Prefix" htmlFor="new-acc-po-prefix">
@@ -616,7 +733,10 @@ function CustomerAccountsContent() {
             >
               <button
                 type="button"
-                onClick={() => setIsAdding(false)}
+                onClick={() => {
+                  setCreateErrors({})
+                  setIsAdding(false)
+                }}
                 style={buttonStyle('secondary')}
               >
                 Cancel
@@ -634,6 +754,7 @@ function CustomerAccountsContent() {
 
         {isAdding && activeTab === 'sites' && (
           <form
+            noValidate
             onSubmit={handleCreateSite}
             style={{
               ...cardStyle,
@@ -667,13 +788,20 @@ function CustomerAccountsContent() {
                 <Field
                   label="Parent Account Organization *"
                   htmlFor="new-site-account"
+                  error={createErrors.siteAccountId}
                 >
                   <select
                     id="new-site-account"
-                    required
                     value={siteAccountId}
-                    onChange={(e) => setSiteAccountId(e.target.value)}
-                    style={fieldStyle()}
+                    aria-invalid={createErrors.siteAccountId ? true : undefined}
+                    onChange={(e) => {
+                      setSiteAccountId(e.target.value)
+                      clearCreateError('siteAccountId')
+                    }}
+                    style={{
+                      ...fieldStyle(),
+                      ...(createErrors.siteAccountId ? fieldOutline(true) : {}),
+                    }}
                   >
                     <option value="">Select Account...</option>
                     {accountChoices.map((acc) => (
@@ -684,26 +812,48 @@ function CustomerAccountsContent() {
                   </select>
                 </Field>
               )}
-              <Field label="Branch Site Name *" htmlFor="new-site-name">
+              <Field
+                label="Branch Site Name *"
+                htmlFor="new-site-name"
+                error={createErrors.siteName}
+              >
                 <input
                   id="new-site-name"
                   type="text"
-                  required
                   placeholder="e.g. Apex Queens Infusion Center"
                   value={siteName}
-                  onChange={(e) => setSiteName(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={createErrors.siteName ? true : undefined}
+                  onChange={(e) => {
+                    setSiteName(e.target.value)
+                    clearCreateError('siteName')
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.siteName ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
-              <Field label="Site Code *" htmlFor="new-site-code">
+              <Field
+                label="Site Code *"
+                htmlFor="new-site-code"
+                hint="Unique within the account; it appears on this branch's purchase orders."
+                error={createErrors.siteCode}
+              >
                 <input
                   id="new-site-code"
                   type="text"
-                  required
-                  placeholder="e.g. APX-QN-106"
+                  placeholder="e.g. APX-QUEENS"
                   value={siteCode}
-                  onChange={(e) => setSiteCode(e.target.value.toUpperCase())}
-                  style={{ ...fieldStyle(), fontFamily: 'monospace' }}
+                  aria-invalid={createErrors.siteCode ? true : undefined}
+                  onChange={(e) => {
+                    setSiteCode(e.target.value.toUpperCase())
+                    clearCreateError('siteCode')
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    fontFamily: 'monospace',
+                    ...(createErrors.siteCode ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
             </div>
@@ -714,38 +864,69 @@ function CustomerAccountsContent() {
                 gap: '12px',
               }}
             >
-              <Field label="Street Address" htmlFor="new-site-street">
+              <Field
+                label="Street Address"
+                htmlFor="new-site-street"
+                error={createErrors.siteStreet}
+              >
                 <input
                   id="new-site-street"
                   type="text"
                   placeholder="e.g. 100 Queen Street"
                   value={siteStreet}
-                  onChange={(e) => setSiteStreet(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={createErrors.siteStreet ? true : undefined}
+                  onChange={(e) => {
+                    setSiteStreet(e.target.value)
+                    clearAddressErrors()
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.siteStreet ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
-              <Field label="City" htmlFor="new-site-city">
+              <Field
+                label="City"
+                htmlFor="new-site-city"
+                error={createErrors.siteCity}
+              >
                 <input
                   id="new-site-city"
                   type="text"
                   placeholder="e.g. Auckland"
                   value={siteCity}
-                  onChange={(e) => setSiteCity(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={createErrors.siteCity ? true : undefined}
+                  onChange={(e) => {
+                    setSiteCity(e.target.value)
+                    clearAddressErrors()
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.siteCity ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
               <Field
                 label="Postal Code"
                 htmlFor="new-site-postcode"
                 hint="Street, city and postcode together add a default billing and shipping address (NZ)."
+                error={createErrors.sitePostalCode}
               >
                 <input
                   id="new-site-postcode"
                   type="text"
-                  placeholder="1010"
+                  inputMode="numeric"
+                  placeholder="e.g. 1010"
                   value={sitePostalCode}
-                  onChange={(e) => setSitePostalCode(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={createErrors.sitePostalCode ? true : undefined}
+                  onChange={(e) => {
+                    setSitePostalCode(e.target.value)
+                    clearAddressErrors()
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.sitePostalCode ? fieldOutline(true) : {}),
+                  }}
                 />
               </Field>
             </div>
@@ -760,6 +941,7 @@ function CustomerAccountsContent() {
                 label="Monthly Budget"
                 htmlFor="new-site-budget"
                 hint="Leave blank for no cap."
+                error={createErrors.siteMonthlyBudget}
               >
                 <input
                   id="new-site-budget"
@@ -767,25 +949,46 @@ function CustomerAccountsContent() {
                   inputMode="decimal"
                   placeholder="e.g. 2500.00"
                   value={siteMonthlyBudget}
-                  onChange={(e) => setSiteMonthlyBudget(e.target.value)}
-                  style={fieldStyle()}
+                  aria-invalid={
+                    createErrors.siteMonthlyBudget ? true : undefined
+                  }
+                  onChange={(e) => {
+                    setSiteMonthlyBudget(e.target.value)
+                    clearCreateError('siteMonthlyBudget')
+                  }}
+                  style={{
+                    ...fieldStyle(),
+                    ...(createErrors.siteMonthlyBudget
+                      ? fieldOutline(true)
+                      : {}),
+                  }}
                 />
               </Field>
-              <Field label="Cost Centre" htmlFor="new-site-cost-centre">
+              <Field
+                label="Cost Centre"
+                htmlFor="new-site-cost-centre"
+                hint="Carried onto this branch's orders for your finance system."
+              >
                 <input
                   id="new-site-cost-centre"
                   type="text"
                   maxLength={64}
+                  placeholder="e.g. CC-4420"
                   value={siteCostCentre}
                   onChange={(e) => setSiteCostCentre(e.target.value)}
                   style={fieldStyle()}
                 />
               </Field>
-              <Field label="PO Prefix" htmlFor="new-site-po-prefix">
+              <Field
+                label="PO Prefix"
+                htmlFor="new-site-po-prefix"
+                hint="Overrides the account's prefix. Blank to use theirs."
+              >
                 <input
                   id="new-site-po-prefix"
                   type="text"
                   maxLength={32}
+                  placeholder="e.g. PO-AKL"
                   value={sitePoPrefix}
                   onChange={(e) => setSitePoPrefix(e.target.value)}
                   style={{ ...fieldStyle(), fontFamily: 'monospace' }}
@@ -809,7 +1012,10 @@ function CustomerAccountsContent() {
             >
               <button
                 type="button"
-                onClick={() => setIsAdding(false)}
+                onClick={() => {
+                  setCreateErrors({})
+                  setIsAdding(false)
+                }}
                 style={buttonStyle('secondary')}
               >
                 Cancel

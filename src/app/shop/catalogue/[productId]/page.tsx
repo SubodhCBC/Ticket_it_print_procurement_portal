@@ -75,13 +75,14 @@ export default function ProductDetailPage() {
   const [chosenOptions, setChosenOptions] = useState<Record<string, string>>({})
   const [imageFailed, setImageFailed] = useState(false)
 
-  // Dynamic Personalization state
+  // What the buyer types onto the preview. Empty to begin with: these were
+  // seeded with a New York phone number and a campaign nobody is running, and
+  // because they are values rather than placeholders they read as the branch's
+  // own details on a portal that ships with NZ Post.
   const [customBranchHeadline, setCustomBranchHeadline] = useState('')
-  const [customPromoTag, setCustomPromoTag] = useState(
-    'Spring Health & Wellness Campaign'
-  )
-  const [customPhone, setCustomPhone] = useState('+1 (212) 555-0199')
-  const [customHours, setCustomHours] = useState('Mon-Sat 8AM-9PM')
+  const [customPromoTag, setCustomPromoTag] = useState('')
+  const [customPhone, setCustomPhone] = useState('')
+  const [customHours, setCustomHours] = useState('')
 
   useEffect(() => {
     async function loadProduct() {
@@ -636,45 +637,57 @@ export default function ProductDetailPage() {
                 }}
               >
                 <div>
-                  <label style={fieldLabel}>Branch / Location Headline</label>
+                  <label htmlFor="personalise-headline" style={fieldLabel}>
+                    Branch or location
+                  </label>
                   <input
+                    id="personalise-headline"
                     type="text"
                     value={customBranchHeadline}
                     onChange={(e) => setCustomBranchHeadline(e.target.value)}
-                    placeholder="e.g. Apex Midtown Central"
+                    placeholder="Queen Street Branch"
                     style={fieldInput}
                   />
                 </div>
 
                 <div>
-                  <label style={fieldLabel}>Campaign Promo Tagline</label>
+                  <label htmlFor="personalise-tagline" style={fieldLabel}>
+                    Campaign tagline
+                  </label>
                   <input
+                    id="personalise-tagline"
                     type="text"
                     value={customPromoTag}
                     onChange={(e) => setCustomPromoTag(e.target.value)}
-                    placeholder="e.g. Spring Health & Wellness Expo"
+                    placeholder="Winter wellness check"
                     style={fieldInput}
                   />
                 </div>
 
                 <div>
-                  <label style={fieldLabel}>Local Branch Phone</label>
+                  <label htmlFor="personalise-phone" style={fieldLabel}>
+                    Branch phone
+                  </label>
                   <input
-                    type="text"
+                    id="personalise-phone"
+                    type="tel"
                     value={customPhone}
                     onChange={(e) => setCustomPhone(e.target.value)}
-                    placeholder="e.g. +1 (212) 555-0199"
+                    placeholder="09 123 4567"
                     style={fieldInput}
                   />
                 </div>
 
                 <div>
-                  <label style={fieldLabel}>Operating Hours / Date Note</label>
+                  <label htmlFor="personalise-hours" style={fieldLabel}>
+                    Opening hours
+                  </label>
                   <input
+                    id="personalise-hours"
                     type="text"
                     value={customHours}
                     onChange={(e) => setCustomHours(e.target.value)}
-                    placeholder="e.g. Mon-Sat 8AM-9PM"
+                    placeholder="Mon–Sat, 8am–6pm"
                     style={fieldInput}
                   />
                 </div>

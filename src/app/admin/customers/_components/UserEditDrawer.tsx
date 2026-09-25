@@ -3,6 +3,7 @@
 import { SkeletonForm } from '@/components/ui/Skeleton'
 import React, { useState } from 'react'
 import { Drawer } from '@/components/ui/Drawer'
+import { fieldOutline } from '@/components/ui/FormField'
 import {
   useManagedUser,
   useSiteRecords,
@@ -41,6 +42,13 @@ import {
 
 /** Sites offered in the pickers. The API caps a page at 100. */
 const SITE_PICKER_LIMIT = 100
+
+type FormErrors = {
+  role?: string
+  status?: string
+  siteId?: string
+  budgetCap?: string
+}
 
 interface UserEditDrawerProps {
   /** The user as listed; null closes the drawer. */
@@ -155,7 +163,8 @@ function UserEditForm({
     toMoneyInput(user.monthlyBudgetCap)
   )
   const [poPrefix, setPoPrefix] = useState(user.poPrefix ?? '')
-  const [localError, setLocalError] = useState<string | null>(null)
+  // Per-field, under the control it is about. The banner below is the API's.
+  const [errors, setErrors] = useState<FormErrors>({})
   const [saved, setSaved] = useState(false)
 
   const isExternal = user.userType === 'EXTERNAL'
@@ -211,40 +220,36 @@ function UserEditForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLocalError(null)
     setSaved(false)
 
-    // The controls already prevent these; checked again so a stale form cannot
+    // Every rule in one pass, each beside the control it is about. The first
+    // four the controls already prevent; checked again so a stale form cannot
     // send them. The API refuses them regardless.
-    if (!isAdmin && changes.role === 'ADMIN') {
-      setLocalError('Only an administrator can grant the Admin role.')
-      return
-    }
-    if (
-      adminProtected &&
-      (changes.role !== undefined || changes.status !== undefined)
-    ) {
-      setLocalError(
-        "Only an administrator can change an administrator's role or status."
-      )
-      return
-    }
-    if (isSelf && changes.role !== undefined) {
-      setLocalError('You cannot change your own role.')
-      return
-    }
-    if (isSelf && changes.status === 'DISABLED') {
-      setLocalError('You cannot deactivate your own account.')
-      return
-    }
-    if (isExternal && changes.siteId === null) {
-      setLocalError('An external user must stay attached to a site.')
-      return
-    }
-    if (budgetCap.trim() && !MONEY_PATTERN.test(budgetCap.trim())) {
-      setLocalError('Monthly spend limit must be an amount such as 500.00.')
-      return
-    }
+    const found: FormErrors = {}
+    if (!isAdmin && changes.role === 'ADMIN')
+      found.role = 'Only an administrator can grant the Admin role.'
+    else if (adminProtected && changes.role !== undefined)
+      found.role = "Only an administrator can change an administrator's role."
+    else if (isSelf && changes.role !== undefined)
+      found.role = 'You cannot change your own role.'
+
+    if (adminProtected && changes.status !== undefined)
+      found.status =
+        "Only an administrator can change an administrator's status."
+    else if (isSelf && changes.status === 'DISABLED')
+      found.status = 'You cannot deactivate your own account.'
+
+    if (isExternal && changes.siteId === null)
+      found.siteId =
+        'An external user must stay attached to a site. Choose one.'
+
+    if (budgetCap.trim() && !MONEY_PATTERN.test(budgetCap.trim()))
+      found.budgetCap =
+        'Monthly spend limit must be a number, or leave it empty for no limit.'
+
+    setErrors(found)
+    if (Object.values(found).some(Boolean)) return
+
     if (!hasChanges) return
 
     try {
@@ -267,6 +272,7 @@ function UserEditForm({
 
   return (
     <form
+      noValidate
       onSubmit={handleSubmit}
       style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
     >
@@ -318,13 +324,21 @@ function UserEditForm({
                   ? 'External users stay site users; grant individual permissions instead.'
                   : undefined
           }
+          error={errors.role}
         >
           <select
             id="user-edit-role"
             value={role}
             disabled={locked || isSelf || adminProtected}
-            onChange={(e) => setRole(e.target.value as UserRole)}
-            style={fieldStyle(locked || isSelf || adminProtected)}
+            aria-invalid={errors.role ? true : undefined}
+            onChange={(e) => {
+              setRole(e.target.value as UserRole)
+              setErrors((current) => ({ ...current, role: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked || isSelf || adminProtected),
+              ...(errors.role ? fieldOutline(true) : {}),
+            }}
           >
             {(Object.keys(ROLE_LABELS) as UserRole[])
               // Admin is offered to an administrator only. It stays listed
@@ -354,13 +368,21 @@ function UserEditForm({
                 ? "Only an administrator can change an administrator's status."
                 : 'Disabling signs the user out of every session.'
           }
+          error={errors.status}
         >
           <select
             id="user-edit-status"
             value={status}
             disabled={locked || adminProtected}
-            onChange={(e) => setStatus(e.target.value as ManagedUserStatus)}
-            style={fieldStyle(locked || adminProtected)}
+            aria-invalid={errors.status ? true : undefined}
+            onChange={(e) => {
+              setStatus(e.target.value as ManagedUserStatus)
+              setErrors((current) => ({ ...current, status: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked || adminProtected),
+              ...(errors.status ? fieldOutline(true) : {}),
+            }}
           >
             {user.status === 'PENDING' && (
               <option value="PENDING" disabled>
@@ -383,13 +405,21 @@ function UserEditForm({
             ? 'An external user must stay attached to a site.'
             : 'No primary site makes the user account-wide.'
         }
+        error={errors.siteId}
       >
         <select
           id="user-edit-site"
           value={siteId}
           disabled={locked}
-          onChange={(e) => setSiteId(e.target.value)}
-          style={fieldStyle(locked)}
+          aria-invalid={errors.siteId ? true : undefined}
+          onChange={(e) => {
+            setSiteId(e.target.value)
+            setErrors((current) => ({ ...current, siteId: undefined }))
+          }}
+          style={{
+            ...fieldStyle(locked),
+            ...(errors.siteId ? fieldOutline(true) : {}),
+          }}
         >
           <option value="" disabled={isExternal}>
             No primary site (account-wide)
@@ -496,16 +526,24 @@ function UserEditForm({
               ? 'Zero stops this user placing orders at all.'
               : "Checked at checkout alongside the branch's budget, against everything this user places in the month. Blank for no personal limit."
           }
+          error={errors.budgetCap}
         >
           <input
             id="user-edit-budget-cap"
             type="text"
             inputMode="decimal"
-            placeholder="No limit"
+            placeholder="e.g. 500.00"
             value={budgetCap}
             disabled={locked}
-            onChange={(e) => setBudgetCap(e.target.value)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.budgetCap ? true : undefined}
+            onChange={(e) => {
+              setBudgetCap(e.target.value)
+              setErrors((current) => ({ ...current, budgetCap: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.budgetCap ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
 
@@ -518,7 +556,7 @@ function UserEditForm({
             id="user-edit-po-prefix"
             type="text"
             maxLength={32}
-            placeholder="Branch prefix"
+            placeholder="e.g. PO-AKL"
             value={poPrefix}
             disabled={locked}
             onChange={(e) => setPoPrefix(e.target.value)}
@@ -527,7 +565,6 @@ function UserEditForm({
         </Field>
       </div>
 
-      <ErrorNote message={localError} />
       <ErrorNote error={update.error} />
       {saved && !hasChanges && (
         <SuccessNote>

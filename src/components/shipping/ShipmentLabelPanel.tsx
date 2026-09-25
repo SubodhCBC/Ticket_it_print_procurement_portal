@@ -34,6 +34,7 @@ import {
   trackingReferencesOf,
 } from './shipping-format'
 import { StatusChip } from './StatusChip'
+import { FieldError, fieldOutline } from '@/components/ui/FormField'
 
 /**
  * The NZ Post label for one order (decisions D1 and D2).
@@ -80,7 +81,9 @@ function asField(value: number | undefined): string {
 
 function initialParcels(order: Order | null): ParcelRow[] {
   const estimate = order?.nzPostDelivery?.parcelEstimate
-  if (!estimate) return [{ ...EMPTY_PARCEL }]
+  // Named, not merely hinted at: the box carries this description onto the
+  // label whether or not the packer changes it.
+  if (!estimate) return [{ ...EMPTY_PARCEL, description: 'Box 1' }]
   return [
     {
       weightKg: asField(estimate.weightKg),
@@ -629,7 +632,17 @@ function CreateLabelForm({
   )
   const [serviceCode, setServiceCode] = useState('')
   const [instructions, setInstructions] = useState('')
-  const [formError, setFormError] = useState<string | null>(null)
+  /**
+   * Which box field, and which address field, is wrong. Every one of them is
+   * decided in a single pass, so a packer who left four boxes half-measured
+   * sees all of it at once instead of one complaint per press.
+   */
+  const [parcelErrors, setParcelErrors] = useState<
+    Record<number, Partial<Record<keyof ParcelRow, string>>>
+  >({})
+  const [addressErrors, setAddressErrors] = useState<
+    Partial<Record<keyof AddressForm, string>>
+  >({})
   // One key per attempt: a lost response retried with it returns the same
   // shipment instead of a second label.
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
@@ -640,7 +653,23 @@ function CreateLabelForm({
     setParcels((rows) =>
       rows.map((row, i) => (i === index ? { ...row, ...patch } : row))
     )
+    setParcelErrors((current) => {
+      const row = current[index]
+      if (!row) return current
+      const next = { ...row }
+      for (const key of Object.keys(patch)) delete next[key as keyof ParcelRow]
+      return { ...current, [index]: next }
+    })
     setIdempotencyKey(newIdempotencyKey('label'))
+  }
+
+  const setAddressField = (field: keyof AddressForm, value: string) => {
+    setAddress((a) => ({ ...a, [field]: value }))
+    setAddressErrors((current) =>
+      current[field] === undefined
+        ? current
+        : { ...current, [field]: undefined }
+    )
   }
 
   if (!open) {
@@ -654,7 +683,11 @@ function CreateLabelForm({
   }
 
   const submit = async () => {
-    setFormError(null)
+    const foundParcels: Record<
+      number,
+      Partial<Record<keyof ParcelRow, string>>
+    > = {}
+    const foundAddress: Partial<Record<keyof AddressForm, string>> = {}
 
     const parsed: CreateShipmentInput['parcels'] = []
     for (const [index, row] of parcels.entries()) {
@@ -662,37 +695,50 @@ function CreateLabelForm({
       const lengthCm = positive(row.lengthCm)
       const widthCm = positive(row.widthCm)
       const heightCm = positive(row.heightCm)
-      if (!weightKg || !lengthCm || !widthCm || !heightCm) {
-        setFormError(
-          `Box ${index + 1}: enter its weight and all three sizes as numbers above zero.`
-        )
-        return
+      const rowErrors: Partial<Record<keyof ParcelRow, string>> = {}
+      if (!weightKg) {
+        rowErrors.weightKg = 'Weigh this box: kilograms above 0, up to 1000.'
       }
+      if (!lengthCm) {
+        rowErrors.lengthCm = 'Enter the length in cm, above 0.'
+      }
+      if (!widthCm) rowErrors.widthCm = 'Enter the width in cm, above 0.'
+      if (!heightCm) rowErrors.heightCm = 'Enter the height in cm, above 0.'
+      if (Object.keys(rowErrors).length > 0) foundParcels[index] = rowErrors
+
       parsed.push({
-        weightKg,
-        lengthCm,
-        widthCm,
-        heightCm,
+        weightKg: weightKg ?? 0,
+        lengthCm: lengthCm ?? 0,
+        widthCm: widthCm ?? 0,
+        heightCm: heightCm ?? 0,
         description: row.description,
       })
     }
 
+    if (needsAddress) {
+      if (!address.streetNumber.trim()) {
+        foundAddress.streetNumber = 'Enter the street number.'
+      }
+      if (!address.street.trim()) {
+        foundAddress.street = 'Enter the street name.'
+      }
+      if (!address.city.trim()) foundAddress.city = 'Enter the city.'
+      if (!/^\d{4}$/.test(address.postcode.trim())) {
+        foundAddress.postcode = 'A New Zealand postcode is four digits.'
+      }
+    }
+
+    setParcelErrors(foundParcels)
+    setAddressErrors(foundAddress)
+    if (
+      Object.keys(foundParcels).length > 0 ||
+      Object.keys(foundAddress).length > 0
+    ) {
+      return
+    }
+
     let deliveryAddress: CreateShipmentInput['deliveryAddress']
     if (needsAddress) {
-      if (!address.streetNumber.trim() || !address.street.trim()) {
-        setFormError(
-          'Enter the street number and street of the delivery address.'
-        )
-        return
-      }
-      if (!address.city.trim()) {
-        setFormError('Enter the city of the delivery address.')
-        return
-      }
-      if (!/^\d{4}$/.test(address.postcode.trim())) {
-        setFormError('A New Zealand postcode is four digits.')
-        return
-      }
       deliveryAddress = {
         streetNumber: address.streetNumber.trim(),
         street: address.street.trim(),
@@ -718,23 +764,36 @@ function CreateLabelForm({
     if (created) setIdempotencyKey(newIdempotencyKey('label'))
   }
 
+  /**
+   * One measurement cell. The column heading above it already says what the
+   * number is, so the ghost text inside is never a second label — only an
+   * example measurement — beside the spoken name a screen reader needs and
+   * the cell's own error underneath.
+   */
   const numberInput = (
     index: number,
     field: keyof ParcelRow,
-    placeholder: string
-  ) => (
-    <input
-      type="number"
-      inputMode="decimal"
-      min="0"
-      step="0.01"
-      value={parcels[index]![field]}
-      placeholder={placeholder}
-      aria-label={`Box ${index + 1} ${placeholder}`}
-      onChange={(e) => setParcel(index, { [field]: e.target.value })}
-      style={s.input}
-    />
-  )
+    name: string,
+    example: string
+  ) => {
+    const error = parcelErrors[index]?.[field]
+    return (
+      <div>
+        <input
+          type="number"
+          inputMode="decimal"
+          step="0.01"
+          value={parcels[index]![field]}
+          placeholder={example}
+          aria-label={`Box ${index + 1} ${name}`}
+          aria-invalid={error ? true : undefined}
+          onChange={(e) => setParcel(index, { [field]: e.target.value })}
+          style={{ ...s.input, ...fieldOutline(Boolean(error)) }}
+        />
+        {error && <FieldError>{error}</FieldError>}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -790,23 +849,22 @@ function CreateLabelForm({
               display: 'grid',
               gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.8fr 0.8fr 32px',
               gap: '6px',
-              alignItems: 'center',
+              alignItems: 'start',
             }}
           >
             <input
               value={row.description}
               maxLength={100}
-              placeholder={`Box ${index + 1}`}
               aria-label={`Box ${index + 1} description`}
               onChange={(e) =>
                 setParcel(index, { description: e.target.value })
               }
               style={s.input}
             />
-            {numberInput(index, 'weightKg', 'kg')}
-            {numberInput(index, 'lengthCm', 'L')}
-            {numberInput(index, 'widthCm', 'W')}
-            {numberInput(index, 'heightCm', 'H')}
+            {numberInput(index, 'weightKg', 'weight in kilograms', '2.5')}
+            {numberInput(index, 'lengthCm', 'length in centimetres', '40')}
+            {numberInput(index, 'widthCm', 'width in centimetres', '30')}
+            {numberInput(index, 'heightCm', 'height in centimetres', '20')}
             <button
               type="button"
               aria-label={`Remove box ${index + 1}`}
@@ -863,36 +921,41 @@ function CreateLabelForm({
             <AddressField
               label="Street number"
               value={address.streetNumber}
-              onChange={(streetNumber) =>
-                setAddress((a) => ({ ...a, streetNumber }))
-              }
+              error={addressErrors.streetNumber}
+              example="12"
+              onChange={(v) => setAddressField('streetNumber', v)}
             />
             <AddressField
               label="Street"
               value={address.street}
-              onChange={(street) => setAddress((a) => ({ ...a, street }))}
+              error={addressErrors.street}
+              example="Queen Street"
+              onChange={(v) => setAddressField('street', v)}
             />
             <AddressField
               label="Suburb"
               value={address.suburb}
-              onChange={(suburb) => setAddress((a) => ({ ...a, suburb }))}
+              example="Grafton"
+              onChange={(v) => setAddressField('suburb', v)}
             />
             <AddressField
               label="City"
               value={address.city}
-              onChange={(city) => setAddress((a) => ({ ...a, city }))}
+              error={addressErrors.city}
+              example="Auckland"
+              onChange={(v) => setAddressField('city', v)}
             />
             <AddressField
               label="Postcode"
               value={address.postcode}
-              onChange={(postcode) => setAddress((a) => ({ ...a, postcode }))}
+              error={addressErrors.postcode}
+              example="1010"
+              onChange={(v) => setAddressField('postcode', v)}
             />
             <AddressField
               label="Company (optional)"
               value={address.companyName}
-              onChange={(companyName) =>
-                setAddress((a) => ({ ...a, companyName }))
-              }
+              onChange={(v) => setAddressField('companyName', v)}
             />
           </div>
         </div>
@@ -909,10 +972,18 @@ function CreateLabelForm({
             id="label-service"
             value={serviceCode}
             maxLength={32}
-            placeholder={delivery?.serviceCode ?? 'Default service'}
+            aria-describedby="label-service-hint"
             onChange={(e) => setServiceCode(e.target.value)}
             style={{ ...s.input, fontFamily: 'monospace' }}
           />
+          {/* What a blank box does is a fact about the field, so it is said in
+              a hint that stays put — not as ghost text inside the box that
+              vanishes the moment anyone types. */}
+          <p id="label-service-hint" style={{ ...s.muted, marginTop: '4px' }}>
+            {delivery?.serviceCode
+              ? `Leave blank to use ${delivery.serviceCode}.`
+              : 'Leave blank to use the account’s default service.'}
+          </p>
         </div>
         <div>
           <label style={s.label} htmlFor="label-instructions">
@@ -922,18 +993,20 @@ function CreateLabelForm({
             id="label-instructions"
             value={instructions}
             maxLength={500}
-            placeholder={
-              order?.deliveryNotes
-                ? `Defaults to: ${order.deliveryNotes}`
-                : 'Defaults to the order’s delivery instructions'
-            }
+            aria-describedby="label-instructions-hint"
             onChange={(e) => setInstructions(e.target.value)}
             style={s.input}
           />
+          <p
+            id="label-instructions-hint"
+            style={{ ...s.muted, marginTop: '4px' }}
+          >
+            {order?.deliveryNotes
+              ? `Leave blank to print the order’s own instructions: ${order.deliveryNotes}`
+              : 'Leave blank to print the order’s delivery instructions.'}
+          </p>
         </div>
       </div>
-
-      {formError && <p style={s.error}>{formError}</p>}
 
       <div style={{ display: 'flex', gap: '8px' }}>
         <button
@@ -969,10 +1042,15 @@ function CreateLabelForm({
 function AddressField({
   label,
   value,
+  error,
+  example,
   onChange,
 }: {
   label: string
   value: string
+  error?: string
+  /** An example of the value, shown as the placeholder. */
+  example?: string
   onChange: (value: string) => void
 }) {
   return (
@@ -981,9 +1059,13 @@ function AddressField({
       <input
         value={value}
         maxLength={120}
+        placeholder={example}
+        aria-label={label}
+        aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
-        style={s.input}
+        style={{ ...s.input, ...fieldOutline(Boolean(error)) }}
       />
+      {error && <FieldError>{error}</FieldError>}
     </div>
   )
 }

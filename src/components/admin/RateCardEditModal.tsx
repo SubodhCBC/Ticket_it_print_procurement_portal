@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
+import { FieldError, fieldOutline } from '@/components/ui/FormField'
 import { useRateCardAdminMutations } from '@/hooks/usePricing'
 import { toApiError } from '@/services'
 import type { RateCardDetailsPatch } from '@/services/pricing.service'
@@ -50,6 +51,18 @@ const inputStyle: React.CSSProperties = {
   color: '#2B253E',
 }
 
+/** The base box, wearing the red border when its own field is wrong. */
+function controlStyle(hasError: boolean): React.CSSProperties {
+  return { ...inputStyle, ...fieldOutline(hasError) }
+}
+
+interface FormErrors {
+  name?: string
+  effectiveFrom?: string
+  effectiveTo?: string
+  discount?: string
+}
+
 const hintStyle: React.CSSProperties = {
   fontSize: '0.72rem',
   color: '#A39BB3',
@@ -79,6 +92,11 @@ export function RateCardEditModal({
   const [effectiveFrom, setEffectiveFrom] = useState(initialFrom)
   const [effectiveTo, setEffectiveTo] = useState(initialTo)
   const [discount, setDiscount] = useState(initialDiscount)
+  const [errors, setErrors] = useState<FormErrors>({})
+  /**
+   * Server refusals only - the 409 for overlapping active cards, say. What the
+   * form can check itself is said under the field that is wrong.
+   */
   const [formError, setFormError] = useState<string | null>(null)
 
   const isPending = updateDetails.isPending
@@ -88,28 +106,25 @@ export function RateCardEditModal({
     setFormError(null)
 
     const trimmedName = name.trim()
-    if (!trimmedName) {
-      setFormError('A rate card name is required.')
-      return
-    }
-    if (!effectiveFrom) {
-      setFormError('A start date is required.')
-      return
-    }
-    if (effectiveTo && effectiveTo <= effectiveFrom) {
-      setFormError('The card must end after it starts.')
-      return
-    }
     const trimmedDiscount = discount.trim()
+
+    // Checked in one pass: a form with three gaps names all three at once.
+    const found: FormErrors = {}
+    if (!trimmedName) found.name = 'Enter a name for this rate card.'
+    if (!effectiveFrom) {
+      found.effectiveFrom = 'Choose the date this card starts.'
+    }
+    if (effectiveTo && effectiveFrom && effectiveTo <= effectiveFrom) {
+      found.effectiveTo = 'The end date must be after the start date.'
+    }
     if (
       !PERCENT_PATTERN.test(trimmedDiscount) ||
       Number(trimmedDiscount) > 100
     ) {
-      setFormError(
-        'Default discount must be between 0 and 100, with at most two decimals.'
-      )
-      return
+      found.discount = 'Discount must be between 0 and 100.'
     }
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
 
     const patch: RateCardDetailsPatch = {}
     if (trimmedName !== rateCard.name) patch.name = trimmedName
@@ -151,6 +166,7 @@ export function RateCardEditModal({
     >
       <form
         onSubmit={handleSubmit}
+        noValidate
         style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
       >
         <div style={{ fontSize: '0.78rem', color: '#6E6781' }}>
@@ -165,12 +181,20 @@ export function RateCardEditModal({
           <input
             id="rc-edit-name"
             type="text"
-            required
             maxLength={200}
+            placeholder="2026 Standard Print Rates"
             value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={inputStyle}
+            aria-invalid={errors.name ? true : undefined}
+            aria-describedby={errors.name ? 'rc-edit-name-error' : undefined}
+            onChange={(e) => {
+              setName(e.target.value)
+              setErrors((prev) => ({ ...prev, name: undefined }))
+            }}
+            style={controlStyle(Boolean(errors.name))}
           />
+          {errors.name && (
+            <FieldError id="rc-edit-name-error">{errors.name}</FieldError>
+          )}
         </div>
 
         <div
@@ -187,11 +211,28 @@ export function RateCardEditModal({
             <input
               id="rc-edit-from"
               type="date"
-              required
               value={effectiveFrom}
-              onChange={(e) => setEffectiveFrom(e.target.value)}
-              style={inputStyle}
+              aria-invalid={errors.effectiveFrom ? true : undefined}
+              aria-describedby={
+                errors.effectiveFrom ? 'rc-edit-from-error' : undefined
+              }
+              onChange={(e) => {
+                setEffectiveFrom(e.target.value)
+                // The pair is judged together, so moving the start also clears
+                // a now-stale complaint about the end.
+                setErrors((prev) => ({
+                  ...prev,
+                  effectiveFrom: undefined,
+                  effectiveTo: undefined,
+                }))
+              }}
+              style={controlStyle(Boolean(errors.effectiveFrom))}
             />
+            {errors.effectiveFrom && (
+              <FieldError id="rc-edit-from-error">
+                {errors.effectiveFrom}
+              </FieldError>
+            )}
           </div>
           <div>
             <label htmlFor="rc-edit-to" style={labelStyle}>
@@ -201,17 +242,31 @@ export function RateCardEditModal({
               id="rc-edit-to"
               type="date"
               value={effectiveTo}
-              min={effectiveFrom || undefined}
-              onChange={(e) => setEffectiveTo(e.target.value)}
-              style={inputStyle}
+              aria-invalid={errors.effectiveTo ? true : undefined}
+              aria-describedby={
+                errors.effectiveTo ? 'rc-edit-to-error' : undefined
+              }
+              onChange={(e) => {
+                setEffectiveTo(e.target.value)
+                setErrors((prev) => ({ ...prev, effectiveTo: undefined }))
+              }}
+              style={controlStyle(Boolean(errors.effectiveTo))}
             />
+            {errors.effectiveTo && (
+              <FieldError id="rc-edit-to-error">
+                {errors.effectiveTo}
+              </FieldError>
+            )}
             <div style={hintStyle}>
               {effectiveTo ? (
                 <>
                   Ends at the start of this day.{' '}
                   <button
                     type="button"
-                    onClick={() => setEffectiveTo('')}
+                    onClick={() => {
+                      setEffectiveTo('')
+                      setErrors((prev) => ({ ...prev, effectiveTo: undefined }))
+                    }}
                     style={{
                       border: 'none',
                       background: 'none',
@@ -237,14 +292,30 @@ export function RateCardEditModal({
             <input
               id="rc-edit-discount"
               type="number"
-              min="0"
-              max="100"
               step="0.01"
+              placeholder="12.5"
               value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-              style={inputStyle}
+              aria-invalid={errors.discount ? true : undefined}
+              aria-describedby={
+                errors.discount
+                  ? 'rc-edit-discount-error'
+                  : 'rc-edit-discount-hint'
+              }
+              onChange={(e) => {
+                setDiscount(e.target.value)
+                setErrors((prev) => ({ ...prev, discount: undefined }))
+              }}
+              style={controlStyle(Boolean(errors.discount))}
             />
-            <div style={hintStyle}>Applies to products with no line.</div>
+            {errors.discount ? (
+              <FieldError id="rc-edit-discount-error">
+                {errors.discount}
+              </FieldError>
+            ) : (
+              <div id="rc-edit-discount-hint" style={hintStyle}>
+                Applies to products with no line. At most two decimals.
+              </div>
+            )}
           </div>
         </div>
 

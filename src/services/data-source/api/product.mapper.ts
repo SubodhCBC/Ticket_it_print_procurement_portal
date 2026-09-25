@@ -599,6 +599,14 @@ export function toUpdateBody(input: Partial<Product>): Record<string, unknown> {
   if (input.uom !== undefined) body.uom = toApiUom(input.uom)
   if (input.widthMm !== undefined) body.widthMm = input.widthMm
   if (input.heightMm !== undefined) body.heightMm = input.heightMm
+  // Sent as strings, as on create: these are NUMERIC columns and the API
+  // validates them as decimals. Without these two an edit to the bleed or the
+  // safe margin was accepted by the form and silently dropped here.
+  if (input.bleedMm !== undefined)
+    body.bleedMm = input.bleedMm == null ? null : String(input.bleedMm)
+  if (input.safeMarginMm !== undefined)
+    body.safeMarginMm =
+      input.safeMarginMm == null ? null : String(input.safeMarginMm)
   if (input.trackInventory !== undefined)
     body.trackInventory = input.trackInventory
   if (input.lowStockThreshold !== undefined)

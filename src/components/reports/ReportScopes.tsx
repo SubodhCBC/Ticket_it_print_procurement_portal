@@ -71,6 +71,79 @@ export function AdminReportScope({
 }
 
 /**
+ * The shop portal's frame for a report.
+ *
+ * A site user reports on the branches they belong to. The scope is the API's
+ * to decide — it reads their order permissions — so this frame, like the head
+ * office one, offers nothing to pick.
+ */
+export function SiteReportScope({
+  title,
+  subtitle,
+  permission,
+  children,
+}: {
+  title: string
+  subtitle: string
+  permission: Permission
+  children: ReactNode
+}) {
+  const { hasPermission, status } = useAuth()
+  const allowed = hasPermission(permission)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            marginBottom: '6px',
+            fontSize: '0.76rem',
+            color: '#A39BB3',
+          }}
+        >
+          <Link
+            href="/shop/orders"
+            style={{
+              color: '#A39BB3',
+              textDecoration: 'none',
+              fontWeight: 500,
+            }}
+          >
+            Orders
+          </Link>
+          <ChevronRight size={12} />
+          <span style={{ color: '#6E6781', fontWeight: 500 }}>{title}</span>
+        </div>
+        <h1
+          style={{
+            fontSize: '1.25rem',
+            fontWeight: 700,
+            color: '#2B253E',
+            letterSpacing: '-0.01em',
+            margin: 0,
+          }}
+        >
+          {title}
+        </h1>
+        <p style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}>
+          {subtitle}
+        </p>
+      </div>
+      {allowed ? (
+        children
+      ) : status === 'ready' ? (
+        <ReadOnlyNotice>
+          This report needs the {permission} permission.
+        </ReadOnlyNotice>
+      ) : null}
+    </div>
+  )
+}
+
+/**
  * The head-office portal's frame for a governance report. A head office
  * reports on its own account only — the API refuses any other — so there is
  * no account to choose.

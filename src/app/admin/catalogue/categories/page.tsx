@@ -44,6 +44,26 @@ function parseSortOrder(text: string): number | null {
   return value <= 9999 ? value : null
 }
 
+/** The message for a sort order the API would refuse, or null when it is fine. */
+function sortOrderError(text: string): string | null {
+  const trimmed = text.trim()
+  if (trimmed === '') return 'Sort order must be 0 or higher.'
+  if (!/^\d+$/.test(trimmed)) return 'Sort order must be 0 or higher.'
+  return Number(trimmed) > 9999 ? 'Sort order must be 9999 or lower.' : null
+}
+
+/** The message for a category code the API would refuse, or null when it is fine. */
+function codeError(text: string): string | null {
+  const trimmed = text.trim()
+  if (!trimmed) return 'Enter a category code.'
+  if (trimmed.length < 2 || trimmed.length > 48) {
+    return 'A code is 2 to 48 characters long.'
+  }
+  return CODE_PATTERN.test(trimmed)
+    ? null
+    : 'Category code uses capitals, digits and dashes, like POS-SIGNS.'
+}
+
 export default function CategoriesPage() {
   const { hasPermission } = useAuth()
   const canManage = hasPermission('CATALOG_MANAGE')
@@ -68,7 +88,13 @@ export default function CategoriesPage() {
   const [code, setCode] = useState('')
   const [description, setDescription] = useState('')
   const [sortOrder, setSortOrder] = useState('0')
+  /** The server's refusal; everything this form can see belongs to its field. */
   const [createError, setCreateError] = useState<string | null>(null)
+  const [createErrors, setCreateErrors] = useState<{
+    name?: string
+    code?: string
+    sortOrder?: string
+  }>({})
 
   const [editing, setEditing] = useState<CatalogCategory | null>(null)
   const [restricting, setRestricting] = useState<CatalogCategory | null>(null)
@@ -80,25 +106,19 @@ export default function CategoriesPage() {
     e.preventDefault()
     setCreateError(null)
     const trimmedCode = code.trim()
-    if (!name.trim()) {
-      setCreateError('Category name is required.')
-      return
-    }
-    if (
-      trimmedCode.length < 2 ||
-      trimmedCode.length > 48 ||
-      !CODE_PATTERN.test(trimmedCode)
-    ) {
-      setCreateError(
-        'Code must be 2–48 characters: letters, digits, dash or underscore.'
-      )
-      return
-    }
-    const order = parseSortOrder(sortOrder || '0')
-    if (order === null) {
-      setCreateError('Sort order must be a whole number from 0 to 9999.')
-      return
-    }
+
+    // Checked in one pass: three empty boxes are reported together, not one
+    // refusal at a time.
+    const found: typeof createErrors = {}
+    if (!name.trim()) found.name = 'Enter a category name.'
+    const codeProblem = codeError(trimmedCode)
+    if (codeProblem) found.code = codeProblem
+    const orderProblem = sortOrderError(sortOrder || '0')
+    if (orderProblem) found.sortOrder = orderProblem
+    setCreateErrors(found)
+    if (Object.values(found).some(Boolean)) return
+
+    const order = parseSortOrder(sortOrder || '0') ?? 0
 
     try {
       await create.mutateAsync({
@@ -111,6 +131,7 @@ export default function CategoriesPage() {
       setCode('')
       setDescription('')
       setSortOrder('0')
+      setCreateErrors({})
       setIsAdding(false)
       setNotice(`Category ${trimmedCode.toUpperCase()} created.`)
     } catch (err) {
@@ -145,6 +166,7 @@ export default function CategoriesPage() {
               onClick={() => {
                 setIsAdding(!isAdding)
                 setCreateError(null)
+                setCreateErrors({})
               }}
             >
               {isAdding ? 'Cancel' : 'New Category'}
@@ -170,7 +192,7 @@ export default function CategoriesPage() {
         {notice && <Notice tone="success">{notice}</Notice>}
 
         {canManage && isAdding && (
-          <form onSubmit={handleCreate}>
+          <form noValidate onSubmit={handleCreate}>
             <AdminCard>
               <div
                 style={{
@@ -188,39 +210,82 @@ export default function CategoriesPage() {
                   gap: '14px',
                 }}
               >
-                <Field label="Category Name *">
+                <Field
+                  label="Category Name *"
+                  htmlFor="category-name"
+                  error={createErrors.name}
+                >
                   <TextInput
-                    required
+                    id="category-name"
                     maxLength={120}
                     placeholder="e.g. Clinical Infusion Supplies"
                     value={name}
                     disabled={create.isPending}
-                    onChange={(e) => setName(e.target.value)}
+                    invalid={Boolean(createErrors.name)}
+                    aria-describedby={
+                      createErrors.name ? 'category-name-error' : undefined
+                    }
+                    onChange={(e) => {
+                      setName(e.target.value)
+                      setCreateErrors((previous) => ({
+                        ...previous,
+                        name: undefined,
+                      }))
+                    }}
                   />
                 </Field>
                 <Field
                   label="Category Code *"
+                  htmlFor="category-code"
                   hint="Used in import files; cannot be changed later."
+                  error={createErrors.code}
                 >
                   <TextInput
-                    required
+                    id="category-code"
                     maxLength={48}
-                    placeholder="e.g. INF"
+                    placeholder="e.g. POS-SIGNS"
                     value={code}
                     disabled={create.isPending}
+                    invalid={Boolean(createErrors.code)}
+                    aria-describedby={
+                      createErrors.code ? 'category-code-error' : undefined
+                    }
                     style={{ fontFamily: 'monospace' }}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      setCode(e.target.value.toUpperCase())
+                      setCreateErrors((previous) => ({
+                        ...previous,
+                        code: undefined,
+                      }))
+                    }}
                   />
                 </Field>
-                <Field label="Sort Order">
+                <Field
+                  label="Sort Order"
+                  htmlFor="category-sort-order"
+                  hint="Lower numbers come first in the catalogue."
+                  error={createErrors.sortOrder}
+                >
                   <TextInput
+                    id="category-sort-order"
                     type="number"
-                    min={0}
-                    max={9999}
                     step={1}
+                    placeholder="e.g. 10"
                     value={sortOrder}
                     disabled={create.isPending}
-                    onChange={(e) => setSortOrder(e.target.value)}
+                    invalid={Boolean(createErrors.sortOrder)}
+                    aria-describedby={
+                      createErrors.sortOrder
+                        ? 'category-sort-order-error'
+                        : undefined
+                    }
+                    onChange={(e) => {
+                      setSortOrder(e.target.value)
+                      setCreateErrors((previous) => ({
+                        ...previous,
+                        sortOrder: undefined,
+                      }))
+                    }}
                   />
                 </Field>
               </div>
@@ -228,7 +293,7 @@ export default function CategoriesPage() {
                 <TextArea
                   rows={2}
                   maxLength={1000}
-                  placeholder="Category scope and application..."
+                  placeholder="e.g. Printed signage and posters for in-store campaigns"
                   value={description}
                   disabled={create.isPending}
                   onChange={(e) => setDescription(e.target.value)}
@@ -602,19 +667,26 @@ function EditCategoryDialog({
   const [description, setDescription] = useState(category.description ?? '')
   const [sortOrder, setSortOrder] = useState(String(category.sortOrder))
   const [status, setStatus] = useState<CatalogCategoryStatus>(category.status)
+  /** The server's refusal; everything this form can see belongs to its field. */
   const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<{ name?: string; sortOrder?: string }>(
+    {}
+  )
   const pending = update.isPending
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    const input: UpdateCategoryInput = {}
     const trimmedName = name.trim()
-    if (!trimmedName) {
-      setError('Category name is required.')
-      return
-    }
+    const found: typeof errors = {}
+    if (!trimmedName) found.name = 'Enter a category name.'
+    const orderProblem = sortOrderError(sortOrder)
+    if (orderProblem) found.sortOrder = orderProblem
+    setErrors(found)
+    if (Object.values(found).some(Boolean)) return
+
+    const input: UpdateCategoryInput = {}
     if (trimmedName !== category.name) input.name = trimmedName
 
     const trimmedDescription = description.trim()
@@ -623,11 +695,7 @@ function EditCategoryDialog({
       input.description = trimmedDescription ? trimmedDescription : null
     }
 
-    const order = parseSortOrder(sortOrder)
-    if (order === null) {
-      setError('Sort order must be a whole number from 0 to 9999.')
-      return
-    }
+    const order = parseSortOrder(sortOrder) ?? category.sortOrder
     if (order !== category.sortOrder) input.sortOrder = order
     if (status !== category.status) input.status = status
 
@@ -652,21 +720,31 @@ function EditCategoryDialog({
       maxWidth="520px"
     >
       <form
+        noValidate
         onSubmit={submit}
         style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
       >
-        <Field label="Name *">
+        <Field label="Name *" htmlFor="edit-category-name" error={errors.name}>
           <TextInput
+            id="edit-category-name"
             maxLength={120}
             value={name}
             disabled={pending}
-            onChange={(e) => setName(e.target.value)}
+            invalid={Boolean(errors.name)}
+            aria-describedby={
+              errors.name ? 'edit-category-name-error' : undefined
+            }
+            onChange={(e) => {
+              setName(e.target.value)
+              setErrors((previous) => ({ ...previous, name: undefined }))
+            }}
           />
         </Field>
         <Field label="Description" hint="Leave empty to clear it.">
           <TextArea
             rows={3}
             maxLength={1000}
+            placeholder="e.g. Printed signage and posters for in-store campaigns"
             value={description}
             disabled={pending}
             onChange={(e) => setDescription(e.target.value)}
@@ -679,15 +757,30 @@ function EditCategoryDialog({
             gap: '12px',
           }}
         >
-          <Field label="Sort order">
+          <Field
+            label="Sort order"
+            htmlFor="edit-category-sort-order"
+            hint="Lower numbers come first in the catalogue."
+            error={errors.sortOrder}
+          >
             <TextInput
+              id="edit-category-sort-order"
               type="number"
-              min={0}
-              max={9999}
               step={1}
+              placeholder="e.g. 10"
               value={sortOrder}
               disabled={pending}
-              onChange={(e) => setSortOrder(e.target.value)}
+              invalid={Boolean(errors.sortOrder)}
+              aria-describedby={
+                errors.sortOrder ? 'edit-category-sort-order-error' : undefined
+              }
+              onChange={(e) => {
+                setSortOrder(e.target.value)
+                setErrors((previous) => ({
+                  ...previous,
+                  sortOrder: undefined,
+                }))
+              }}
             />
           </Field>
           <Field

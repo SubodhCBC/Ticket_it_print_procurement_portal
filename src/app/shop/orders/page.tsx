@@ -21,6 +21,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { getOrders } from '@/services/orders.service'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { Pager } from '@/components/ui/Pager'
 import type { Order, OrderStatus } from '@/types'
 
 // These labels are this page's own wording, so the pill stays local rather than
@@ -103,66 +105,72 @@ const card: React.CSSProperties = {
 
 export default function SiteUserOrdersPage() {
   const { user } = useAuth()
-  const siteId = user?.siteId || 'site-101'
+  // No branch means "everything this user may see"; a made-up branch id
+  // would only ever return nothing.
+  const siteId = user?.siteId || undefined
 
-  const [orders, setOrders] = useState<Order[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'ALL'>(
     'ALL'
   )
+  const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [activeProofOrder, setActiveProofOrder] = useState<Order | null>(null)
 
+  // Searching asks the API, so it waits for the typing to stop.
   useEffect(() => {
-    async function loadSiteOrders() {
-      setIsLoading(true)
-      try {
-        const res = await getOrders({
-          siteId,
-          pageSize: 100,
-        })
-        setOrders(res.items)
-      } catch (err) {
-        console.error('Failed to load site orders', err)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
-    loadSiteOrders()
-  }, [siteId])
+  const filters = { siteId, search: searchQuery || undefined }
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesStatus =
-      selectedStatus === 'ALL' || order.status === selectedStatus
-    const matchesSearch =
-      searchQuery.trim() === '' ||
-      order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (order.poReference &&
-        order.poReference.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (order.customerReference &&
-        order.customerReference
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase())) ||
-      order.lineItems.some((li) =>
-        li.productName.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-
-    return matchesStatus && matchesSearch
+  const ordersQuery = useQuery({
+    queryKey: [
+      'orders',
+      'pipeline',
+      { ...filters, status: selectedStatus, page },
+    ],
+    queryFn: () =>
+      getOrders({ ...filters, status: selectedStatus, page, pageSize: 25 }),
+    placeholderData: keepPreviousData,
+    enabled: Boolean(user),
   })
+  const filteredOrders = ordersQuery.data?.items ?? []
+  const isLoading = ordersQuery.isPending
+  const totalPages = ordersQuery.data?.totalPages ?? 1
 
-  const pendingApprovalsCount = orders.filter(
-    (o) => o.status === 'PENDING_APPROVAL'
-  ).length
-  const inProductionCount = orders.filter(
-    (o) =>
-      o.status === 'IN_PRODUCTION' ||
-      o.status === 'APPROVED' ||
-      o.status === 'PAID'
-  ).length
-  const shippedCount = orders.filter(
-    (o) => o.status === 'DISPATCHED' || o.status === 'DELIVERED'
-  ).length
+  // The pipeline figures are the API's totals: a page of 25 cannot be counted
+  // to say how many orders are waiting on Head Office.
+  const counts = useQuery({
+    queryKey: ['orders', 'pipeline', 'counts', filters],
+    queryFn: async () => {
+      const ask = (status: OrderStatus | 'ALL') =>
+        getOrders({ ...filters, status, page: 1, pageSize: 1 }).then(
+          (result) => result.total
+        )
+      const [pending, production, dispatched, delivered] = await Promise.all([
+        ask('PENDING_APPROVAL'),
+        ask('IN_PRODUCTION'),
+        ask('DISPATCHED'),
+        ask('DELIVERED'),
+      ])
+      return {
+        pending,
+        production,
+        shipped: dispatched + delivered,
+      }
+    },
+    placeholderData: keepPreviousData,
+    enabled: Boolean(user),
+  }).data
+
+  const pendingApprovalsCount = counts?.pending ?? 0
+  const inProductionCount = counts?.production ?? 0
+  const shippedCount = counts?.shipped ?? 0
 
   return (
     <div
@@ -215,8 +223,9 @@ export default function SiteUserOrdersPage() {
           >
             <Building2 size={14} />
             <span>
-              {user?.siteName || 'Apex Midtown Central Pharmacy'} (
-              {user?.siteCode || 'APX-MID-101'})
+              {user?.siteName
+                ? `${user.siteName}${user.siteCode ? ` (${user.siteCode})` : ''}`
+                : 'All branches you can see'}
             </span>
           </div>
         </div>
@@ -315,9 +324,10 @@ export default function SiteUserOrdersPage() {
             />
             <input
               type="text"
-              placeholder="Search by PO or your reference, order #, or product name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by order #, PO or your reference..."
+              aria-label="Search purchase orders"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               style={{
                 width: '100%',
                 paddingLeft: '36px',
@@ -342,7 +352,11 @@ export default function SiteUserOrdersPage() {
             </span>
             <select
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as any)}
+              aria-label="Filter by status"
+              onChange={(e) => {
+                setSelectedStatus(e.target.value as OrderStatus | 'ALL')
+                setPage(1)
+              }}
               style={{
                 padding: '8px 12px',
                 borderRadius: '10px',
@@ -625,6 +639,15 @@ export default function SiteUserOrdersPage() {
             </table>
           </div>
         )}
+
+        <Pager
+          page={page}
+          totalPages={totalPages}
+          total={ordersQuery.data?.total}
+          isFetching={ordersQuery.isFetching}
+          onChange={setPage}
+          style={{ borderTop: '1px solid #F5EEF2' }}
+        />
       </div>
 
       {/* 5. Artwork Proof Inspection Modal */}

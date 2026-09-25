@@ -98,8 +98,9 @@ export default function ShopTemplateGalleryPage() {
             }}
           >
             <span style={{ fontWeight: 600, color: '#2B253E' }}>
-              {user?.siteName || 'Apex Midtown Central Pharmacy'} (
-              {user?.siteCode || 'APX-MID-101'})
+              {user?.siteName
+                ? `${user.siteName}${user.siteCode ? ` (${user.siteCode})` : ''}`
+                : 'Your account'}
             </span>
             {' · '}
             Choose a pre-approved professional master template. Personalize your

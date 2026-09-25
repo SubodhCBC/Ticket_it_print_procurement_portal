@@ -10,6 +10,7 @@ import type {
   TextareaHTMLAttributes,
 } from 'react'
 import { AlertTriangle, Check, Info, Lock } from 'lucide-react'
+import { FieldError } from '@/components/ui/FormField'
 import { Modal } from '@/components/ui/Modal'
 
 /**
@@ -259,15 +260,23 @@ export function ActionButton({
   )
 }
 
+/**
+ * One labelled control.
+ *
+ * `error` belongs to the field, not to the page: the message sits under the
+ * box it is about, and the hint steps aside while it shows.
+ */
 export function Field({
   label,
   hint,
+  error,
   htmlFor,
   children,
   style,
 }: {
   label: string
   hint?: ReactNode
+  error?: string | null
   htmlFor?: string
   children: ReactNode
   style?: CSSProperties
@@ -287,7 +296,11 @@ export function Field({
         {label}
       </label>
       {children}
-      {hint && (
+      {error ? (
+        <FieldError id={htmlFor ? `${htmlFor}-error` : undefined}>
+          {error}
+        </FieldError>
+      ) : hint ? (
         <div
           style={{
             fontSize: '0.74rem',
@@ -298,7 +311,7 @@ export function Field({
         >
           {hint}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

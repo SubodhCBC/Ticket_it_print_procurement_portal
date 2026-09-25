@@ -27,7 +27,7 @@ const CARD_FOR_PRICING = Prisma.validator<Prisma.RateCardSelect>()({
 export type PricingRateCard = Prisma.RateCardGetPayload<{
   select: typeof CARD_FOR_PRICING
 }>
-console.log('')
+
 export interface QuotedLine {
   readonly productId: string
   readonly sku: string

@@ -1,7 +1,7 @@
 // src/app/admin/catalogue/products/images/page.tsx
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Images, Upload } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -19,6 +19,7 @@ import {
   Th,
 } from '@/components/admin/ProductAdminUi'
 import { errorMessage, formatBytes } from '@/components/admin/ProductAdminUtils'
+import { FieldError } from '@/components/ui/FormField'
 import { useAuth } from '@/hooks/useAuth'
 import { useDamAccess } from '@/hooks/useDam'
 import {
@@ -54,8 +55,19 @@ interface Row {
   matching: boolean
   /** The SKU typed for a file whose name did not say, or said wrongly. */
   skuOverride: string
+  /** What is wrong with that typed SKU; shown under the box it belongs to. */
+  skuError?: string | null
   include: boolean
   upload: UploadState
+}
+
+/** The SKU box in each row names itself: its placeholder only shows an example. */
+const rowLabelStyle: CSSProperties = {
+  display: 'block',
+  marginBottom: '4px',
+  fontSize: '0.7rem',
+  fontWeight: 500,
+  color: '#A39BB3',
 }
 
 const fileKey = (file: File) => `${file.name}|${file.size}|${file.lastModified}`
@@ -190,7 +202,15 @@ export default function BulkProductImagesPage() {
 
   const rematch = async (row: Row) => {
     const sku = row.skuOverride.trim()
-    patchRow(row.key, { matching: true })
+    // An empty box re-runs the file-name match, which is only worth doing when
+    // the file name said something in the first place.
+    if (!sku && !row.match?.product) {
+      patchRow(row.key, {
+        skuError: "Enter the product's SKU — the file name did not match one.",
+      })
+      return
+    }
+    patchRow(row.key, { matching: true, skuError: null })
     try {
       const [match] = await matchCatalogImageFilenames([
         { filename: row.file.name, ...(sku ? { sku } : {}) },
@@ -488,7 +508,7 @@ export default function BulkProductImagesPage() {
                   <Th first>Upload</Th>
                   <Th>File</Th>
                   <Th>Product</Th>
-                  <Th>SKU</Th>
+                  <Th>Match by SKU</Th>
                   <Th>Status</Th>
                 </>
               }
@@ -525,29 +545,52 @@ export default function BulkProductImagesPage() {
                   <Td>
                     {row.problem === null && row.upload.kind !== 'done' && (
                       <form
+                        noValidate
                         onSubmit={(e) => {
                           e.preventDefault()
                           void rematch(row)
                         }}
-                        style={{ display: 'flex', gap: '6px' }}
                       >
-                        <TextInput
-                          aria-label={`SKU for ${row.file.name}`}
-                          placeholder={row.match?.product?.sku ?? 'Type a SKU'}
-                          value={row.skuOverride}
-                          disabled={running || row.matching}
-                          onChange={(e) =>
-                            patchRow(row.key, { skuOverride: e.target.value })
-                          }
-                          style={{ width: '140px' }}
-                        />
-                        <ActionButton
-                          type="submit"
-                          size="sm"
-                          disabled={running || row.matching}
+                        <label
+                          htmlFor={`image-sku-${row.key}`}
+                          style={rowLabelStyle}
                         >
-                          Match
-                        </ActionButton>
+                          Product SKU
+                        </label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <TextInput
+                            id={`image-sku-${row.key}`}
+                            aria-label={`Product SKU for ${row.file.name}`}
+                            placeholder="BC-001"
+                            value={row.skuOverride}
+                            disabled={running || row.matching}
+                            invalid={Boolean(row.skuError)}
+                            aria-describedby={
+                              row.skuError
+                                ? `image-sku-${row.key}-error`
+                                : undefined
+                            }
+                            onChange={(e) =>
+                              patchRow(row.key, {
+                                skuOverride: e.target.value,
+                                skuError: null,
+                              })
+                            }
+                            style={{ width: '140px' }}
+                          />
+                          <ActionButton
+                            type="submit"
+                            size="sm"
+                            disabled={running || row.matching}
+                          >
+                            Match
+                          </ActionButton>
+                        </div>
+                        {row.skuError && (
+                          <FieldError id={`image-sku-${row.key}-error`}>
+                            {row.skuError}
+                          </FieldError>
+                        )}
                       </form>
                     )}
                   </Td>

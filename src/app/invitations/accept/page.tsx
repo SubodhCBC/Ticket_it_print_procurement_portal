@@ -21,6 +21,38 @@ import {
   authStackStyle,
 } from '@/components/auth/publicAuthShell.styles'
 
+interface PasswordErrors {
+  password: string | null
+  confirmPassword: string | null
+}
+
+const NO_ERRORS: PasswordErrors = { password: null, confirmPassword: null }
+
+/**
+ * Both boxes, checked in one pass.
+ *
+ * One pass rather than one refusal at a time: someone who left the form empty
+ * should be told about both boxes at once, which is precisely what the
+ * browser's own validation would not do.
+ */
+function validatePasswords(
+  password: string,
+  confirmPassword: string
+): PasswordErrors {
+  const errors: PasswordErrors = { ...NO_ERRORS }
+
+  if (!password) errors.password = 'Choose a password.'
+  else if (password.length < PASSWORD_MIN_LENGTH)
+    errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters — this one has ${password.length}.`
+
+  if (!confirmPassword)
+    errors.confirmPassword = 'Type the password again to confirm it.'
+  else if (password !== confirmPassword)
+    errors.confirmPassword = 'Passwords do not match.'
+
+  return errors
+}
+
 /**
  * Where an invitation email lands.
  *
@@ -47,7 +79,10 @@ function AcceptInvitationForm() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  /** The banner: only ever what the server said — a dead token, a 500. */
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  /** Each box's own complaint, under that box. */
+  const [fieldErrors, setFieldErrors] = useState<PasswordErrors>(NO_ERRORS)
 
   // A link that arrived without its token cannot be repaired from here, and a
   // form that is certain to fail is worse than saying so.
@@ -79,12 +114,10 @@ function AcceptInvitationForm() {
     // Checked here so a typo costs nothing: the endpoint is rate-limited, and
     // spending one of those attempts to be told the two boxes differ is a poor
     // trade.
-    if (password.length < PASSWORD_MIN_LENGTH) {
-      setErrorMessage('Your password must be at least 12 characters.')
-      return
-    }
-    if (password !== confirmPassword) {
-      setErrorMessage('The two passwords do not match.')
+    const found = validatePasswords(password, confirmPassword)
+    setFieldErrors(found)
+    if (found.password || found.confirmPassword) {
+      setErrorMessage(null)
       return
     }
 
@@ -110,13 +143,25 @@ function AcceptInvitationForm() {
       title="Accept your invitation"
       description="Choose a password for your Print Procurement Portal account. We'll sign you in as soon as it's set."
     >
-      <form onSubmit={handleSubmit} style={authStackStyle}>
+      <form
+        onSubmit={handleSubmit}
+        // Both boxes are checked below, together. Without this the browser
+        // refuses the submit first, one box at a time, in its own bubble.
+        noValidate
+        style={authStackStyle}
+      >
         <PasswordField
           id="password"
           label="New password"
           value={password}
-          onChange={setPassword}
-          placeholder="At least 12 characters"
+          onChange={(value) => {
+            setPassword(value)
+            // The confirm box's complaint is about this value too, so a change
+            // here retires both rather than leaving a stale "do not match".
+            if (fieldErrors.password || fieldErrors.confirmPassword)
+              setFieldErrors(NO_ERRORS)
+          }}
+          error={fieldErrors.password}
           hint={PASSWORD_HINT}
           autoFocus
         />
@@ -125,8 +170,13 @@ function AcceptInvitationForm() {
           id="confirmPassword"
           label="Confirm new password"
           value={confirmPassword}
-          onChange={setConfirmPassword}
-          placeholder="Repeat your password"
+          onChange={(value) => {
+            setConfirmPassword(value)
+            if (fieldErrors.confirmPassword)
+              setFieldErrors({ ...fieldErrors, confirmPassword: null })
+          }}
+          error={fieldErrors.confirmPassword}
+          hint="Both boxes must match."
         />
 
         <AuthAlert message={errorMessage} />

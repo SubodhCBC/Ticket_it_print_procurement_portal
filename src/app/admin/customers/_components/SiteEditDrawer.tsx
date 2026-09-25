@@ -4,6 +4,7 @@ import { SkeletonForm } from '@/components/ui/Skeleton'
 import React, { useState } from 'react'
 import { BadgeCheck, MapPin, Plus, Search } from 'lucide-react'
 import { Drawer } from '@/components/ui/Drawer'
+import { fieldOutline } from '@/components/ui/FormField'
 import { PO_FORMAT_LEGEND_TEXT, previewPoFormat } from '@/lib/po-format'
 import {
   useAddSiteAddress,
@@ -151,6 +152,8 @@ export function SiteEditDrawer({
 
 // --- Settings ----------------------------------------------------------------------
 
+type SettingsErrors = { name?: string; budget?: string }
+
 function SiteSettingsForm({
   site,
   canManage,
@@ -168,8 +171,15 @@ function SiteSettingsForm({
   const [poFormat, setPoFormat] = useState(site.poFormat ?? '')
   // Blank clears the format, so it is not an error to preview.
   const poFormatPreview = poFormat.trim() ? previewPoFormat(poFormat) : null
+  // Checked as it is typed, so it needs no entry in `errors`: rewriting the
+  // format is what clears it.
+  const poFormatError =
+    poFormatPreview?.ok === false
+      ? `${poFormatPreview.message} PO format uses # for a digit, @ for a letter and YY for the year.`
+      : null
   const [costCentre, setCostCentre] = useState(site.costCentre ?? '')
-  const [localError, setLocalError] = useState<string | null>(null)
+  // Per-field, under the field it belongs to. The banner below is the API's.
+  const [errors, setErrors] = useState<SettingsErrors>({})
   const [saved, setSaved] = useState(false)
 
   const changes: UpdateSiteInput = {}
@@ -190,17 +200,19 @@ function SiteSettingsForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLocalError(null)
     setSaved(false)
 
-    if (!name.trim()) {
-      setLocalError('Branch name is required.')
-      return
-    }
-    if (budget.trim() && !MONEY_PATTERN.test(budget.trim())) {
-      setLocalError('Monthly budget must be an amount such as 1500.00.')
-      return
-    }
+    // Every field in one pass, so a branch with two things wrong is not
+    // discovered one refusal at a time.
+    const found: SettingsErrors = {}
+    if (!name.trim()) found.name = 'Enter a branch name.'
+    if (budget.trim() && !MONEY_PATTERN.test(budget.trim()))
+      found.budget =
+        'Monthly budget must be a number, or leave it empty for no limit.'
+
+    setErrors(found)
+    if (Object.values(found).some(Boolean) || poFormatError) return
+
     if (!hasChanges) return
 
     try {
@@ -217,6 +229,7 @@ function SiteSettingsForm({
 
   return (
     <form
+      noValidate
       onSubmit={handleSubmit}
       style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
     >
@@ -244,16 +257,27 @@ function SiteSettingsForm({
           gap: '12px',
         }}
       >
-        <Field label="Branch name *" htmlFor="site-edit-name">
+        <Field
+          label="Branch name *"
+          htmlFor="site-edit-name"
+          error={errors.name}
+        >
           <input
             id="site-edit-name"
             type="text"
-            required
             maxLength={200}
+            placeholder="e.g. Queen Street Branch"
             value={name}
             disabled={locked}
-            onChange={(e) => setName(e.target.value)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.name ? true : undefined}
+            onChange={(e) => {
+              setName(e.target.value)
+              setErrors((current) => ({ ...current, name: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.name ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
         <Field label="Status" htmlFor="site-edit-status">
@@ -272,6 +296,7 @@ function SiteSettingsForm({
           label="Monthly budget"
           htmlFor="site-edit-budget"
           hint="Leave blank for no cap."
+          error={errors.budget}
         >
           <input
             id="site-edit-budget"
@@ -280,26 +305,43 @@ function SiteSettingsForm({
             placeholder="e.g. 2500.00"
             value={budget}
             disabled={locked}
-            onChange={(e) => setBudget(e.target.value)}
-            style={fieldStyle(locked)}
+            aria-invalid={errors.budget ? true : undefined}
+            onChange={(e) => {
+              setBudget(e.target.value)
+              setErrors((current) => ({ ...current, budget: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              ...(errors.budget ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
-        <Field label="Cost centre" htmlFor="site-edit-cost-centre">
+        <Field
+          label="Cost centre"
+          htmlFor="site-edit-cost-centre"
+          hint="Carried onto this branch's orders for your finance system."
+        >
           <input
             id="site-edit-cost-centre"
             type="text"
             maxLength={64}
+            placeholder="e.g. CC-4420"
             value={costCentre}
             disabled={locked}
             onChange={(e) => setCostCentre(e.target.value)}
             style={fieldStyle(locked)}
           />
         </Field>
-        <Field label="PO prefix" htmlFor="site-edit-po-prefix">
+        <Field
+          label="PO prefix"
+          htmlFor="site-edit-po-prefix"
+          hint="Overrides the account's prefix. Blank to use theirs."
+        >
           <input
             id="site-edit-po-prefix"
             type="text"
             maxLength={32}
+            placeholder="e.g. PO-AKL"
             value={poPrefix}
             disabled={locked}
             onChange={(e) => setPoPrefix(e.target.value)}
@@ -312,12 +354,11 @@ function SiteSettingsForm({
         label="PO format"
         htmlFor="site-edit-po-format"
         hint={
-          poFormatPreview === null
-            ? `Optional; overrides the account's format. e.g. PO-####-YY. ${PO_FORMAT_LEGEND_TEXT}.`
-            : poFormatPreview.ok
-              ? `A valid reference looks like ${poFormatPreview.example}. ${PO_FORMAT_LEGEND_TEXT}.`
-              : poFormatPreview.message
+          poFormatPreview?.ok
+            ? `A valid reference looks like ${poFormatPreview.example}. ${PO_FORMAT_LEGEND_TEXT}.`
+            : `Optional — a mask such as PO-####-YY, overriding the account's. ${PO_FORMAT_LEGEND_TEXT}.`
         }
+        error={poFormatError}
       >
         <input
           id="site-edit-po-format"
@@ -326,14 +367,12 @@ function SiteSettingsForm({
           placeholder="e.g. PO-####-YY"
           value={poFormat}
           disabled={locked}
-          aria-invalid={poFormatPreview?.ok === false || undefined}
+          aria-invalid={poFormatError ? true : undefined}
           onChange={(e) => setPoFormat(e.target.value)}
           style={{
             ...fieldStyle(locked),
             fontFamily: 'monospace',
-            ...(poFormatPreview?.ok === false
-              ? { borderColor: '#DC2626' }
-              : {}),
+            ...(poFormatError ? fieldOutline(true) : {}),
           }}
         />
       </Field>
@@ -346,7 +385,6 @@ function SiteSettingsForm({
         onChange={setPoRequired}
       />
 
-      <ErrorNote message={localError} />
       <ErrorNote error={update.error} />
       {saved && !hasChanges && (
         <SuccessNote>Branch settings saved.</SuccessNote>
@@ -726,6 +764,13 @@ function AddressCheck({
   )
 }
 
+type AddressErrors = {
+  line1?: string
+  city?: string
+  postcode?: string
+  country?: string
+}
+
 function SiteAddressForm({
   site,
   onCancel,
@@ -752,7 +797,8 @@ function SiteAddressForm({
   // The first address of a kind is the obvious default; after that it is a
   // deliberate choice, because setting it clears the existing default.
   const [isDefault, setIsDefault] = useState(!hasDefault('SHIPPING'))
-  const [localError, setLocalError] = useState<string | null>(null)
+  // Per-field, under the field it belongs to. The banner below is the API's.
+  const [errors, setErrors] = useState<AddressErrors>({})
   // The NZ Post result the address was found as, if it was.
   const [nzPost, setNzPost] = useState<ApiAddressSuggestion | null>(null)
   const locked = add.isPending
@@ -764,6 +810,8 @@ function SiteAddressForm({
    */
   const applyNzPost = (suggestion: ApiAddressSuggestion) => {
     setNzPost(suggestion)
+    // The lines it fills are the ones that can be wrong.
+    setErrors({})
     const parts = suggestion.fullAddress.split(',').map((part) => part.trim())
     const last = parts[parts.length - 1] ?? ''
     const postcodeMatch = last.match(/\s(\d{4})$/)
@@ -776,16 +824,18 @@ function SiteAddressForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLocalError(null)
 
-    if (!line1.trim() || !city.trim() || !postcode.trim()) {
-      setLocalError('Address line 1, city and postcode are required.')
-      return
-    }
-    if (!/^[A-Za-z]{2}$/.test(country.trim())) {
-      setLocalError('Country must be a two-letter code such as NZ or AU.')
-      return
-    }
+    // Every field in one pass, so an empty address is not discovered one
+    // refusal at a time.
+    const found: AddressErrors = {}
+    if (!line1.trim()) found.line1 = 'Enter the street address.'
+    if (!city.trim()) found.city = 'Enter the city or town.'
+    if (!postcode.trim()) found.postcode = 'Enter the postcode.'
+    if (!/^[A-Za-z]{2}$/.test(country.trim()))
+      found.country = 'Use a two-letter country code, like NZ or AU.'
+
+    setErrors(found)
+    if (Object.values(found).some(Boolean)) return
 
     // Optional fields are omitted when blank rather than sent empty: the API
     // accepts them as absent, not as null.
@@ -826,25 +876,44 @@ function SiteAddressForm({
       required?: boolean
       maxLength?: number
       placeholder?: string
+      /** Which of `errors` belongs to this box, when it can be wrong. */
+      errorKey?: keyof AddressErrors
     } = {}
-  ) => (
-    <Field label={`${labelText}${options.required ? ' *' : ''}`} htmlFor={id}>
-      <input
-        id={id}
-        type="text"
-        value={value}
-        required={options.required}
-        maxLength={options.maxLength}
-        placeholder={options.placeholder}
-        disabled={locked}
-        onChange={(e) => onChange(e.target.value)}
-        style={fieldStyle(locked)}
-      />
-    </Field>
-  )
+  ) => {
+    const { errorKey } = options
+    const error = errorKey ? errors[errorKey] : undefined
+
+    return (
+      <Field
+        label={`${labelText}${options.required ? ' *' : ''}`}
+        htmlFor={id}
+        error={error}
+      >
+        <input
+          id={id}
+          type="text"
+          value={value}
+          maxLength={options.maxLength}
+          placeholder={options.placeholder}
+          disabled={locked}
+          aria-invalid={error ? true : undefined}
+          onChange={(e) => {
+            onChange(e.target.value)
+            if (errorKey)
+              setErrors((current) => ({ ...current, [errorKey]: undefined }))
+          }}
+          style={{
+            ...fieldStyle(locked),
+            ...(error ? fieldOutline(true) : {}),
+          }}
+        />
+      </Field>
+    )
+  }
 
   return (
     <form
+      noValidate
       onSubmit={handleSubmit}
       style={{
         display: 'flex',
@@ -935,9 +1004,12 @@ function SiteAddressForm({
       {input('address-line1', 'Address line 1', line1, setLine1, {
         required: true,
         maxLength: 200,
+        placeholder: 'e.g. 12 Queen Street',
+        errorKey: 'line1',
       })}
       {input('address-line2', 'Address line 2', line2, setLine2, {
         maxLength: 200,
+        placeholder: 'e.g. Level 3, Unit B',
       })}
 
       <div
@@ -950,24 +1022,41 @@ function SiteAddressForm({
         {input('address-city', 'City', city, setCity, {
           required: true,
           maxLength: 120,
+          placeholder: 'e.g. Auckland',
+          errorKey: 'city',
         })}
         {input('address-region', 'Region', region, setRegion, {
           maxLength: 120,
+          placeholder: 'e.g. Waikato',
         })}
         {input('address-postcode', 'Postcode', postcode, setPostcode, {
           required: true,
           maxLength: 24,
+          placeholder: 'e.g. 1010',
+          errorKey: 'postcode',
         })}
-        <Field label="Country *" htmlFor="address-country">
+        <Field
+          label="Country *"
+          htmlFor="address-country"
+          error={errors.country}
+        >
           <input
             id="address-country"
             type="text"
-            required
             maxLength={2}
+            placeholder="e.g. NZ"
             value={country}
             disabled={locked}
-            onChange={(e) => setCountry(e.target.value.toUpperCase())}
-            style={{ ...fieldStyle(locked), textTransform: 'uppercase' }}
+            aria-invalid={errors.country ? true : undefined}
+            onChange={(e) => {
+              setCountry(e.target.value.toUpperCase())
+              setErrors((current) => ({ ...current, country: undefined }))
+            }}
+            style={{
+              ...fieldStyle(locked),
+              textTransform: 'uppercase',
+              ...(errors.country ? fieldOutline(true) : {}),
+            }}
           />
         </Field>
       </div>
@@ -984,7 +1073,6 @@ function SiteAddressForm({
         onChange={setIsDefault}
       />
 
-      <ErrorNote message={localError} />
       <ErrorNote error={add.error} />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>

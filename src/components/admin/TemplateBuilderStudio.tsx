@@ -7328,7 +7328,11 @@ export function TemplateBuilderStudio({
     if (!setup) {
       setToast({
         kind: 'err',
-        msg: `"${p.name}" has no print size on it — set the sheet size below.`,
+        // Pointing at a "sheet size" control here was wrong: the Print size
+        // selector only appears for a product carrying a "Size" option axis,
+        // which a business card does not, so the advice named something that
+        // was not on the screen. The trim lives on the product.
+        msg: `"${p.name}" has no trim size, so the artboard is unchanged. Add it in Catalogue → Print Products → Edit (Print size, in mm).`,
       })
       setTimeout(() => setToast(null), 4200)
     }

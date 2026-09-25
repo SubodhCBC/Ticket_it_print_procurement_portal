@@ -186,6 +186,7 @@ export default function CheckoutDetailsPage() {
       >
         <form
           onSubmit={handleNext}
+          noValidate
           style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
         >
           {/* Pre-populated Account & User details. A grey fill rather than a
@@ -485,19 +486,15 @@ export default function CheckoutDetailsPage() {
             <input
               id="poReference"
               type="text"
+              placeholder="PO-1042"
               value={poReference}
               onChange={(e) => {
                 setPoReference(e.target.value)
                 if (poError) setPoError(null)
               }}
               maxLength={64}
-              placeholder={
-                poExample
-                  ? `e.g. ${poExample}`
-                  : poPrefix
-                    ? `e.g. ${poPrefix}-1042`
-                    : 'e.g. PO-1042'
-              }
+              aria-invalid={poError ? true : undefined}
+              aria-describedby={poError ? 'poReference-error' : undefined}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -515,6 +512,8 @@ export default function CheckoutDetailsPage() {
 
             {poError && (
               <div
+                id="poReference-error"
+                role="alert"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -584,12 +583,12 @@ export default function CheckoutDetailsPage() {
             <input
               id="campaignCode"
               type="text"
+              placeholder="SPRING-2026"
               value={campaignCode}
               // Saved with the step, not per keystroke: every save is a round
               // trip that re-prices the whole basket.
               onChange={(e) => setCampaignCode(e.target.value)}
               maxLength={64}
-              placeholder="e.g. CMP-SPRING-2026"
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -644,10 +643,10 @@ export default function CheckoutDetailsPage() {
             <input
               id="projectCode"
               type="text"
+              placeholder="PRJ-0142"
               value={projectCode}
               onChange={(e) => setProjectCode(e.target.value)}
               maxLength={64}
-              placeholder="e.g. PRJ-STORE-REFIT"
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -709,7 +708,6 @@ export default function CheckoutDetailsPage() {
               value={customerReference}
               onChange={(e) => setCustomerReference(e.target.value)}
               maxLength={200}
-              placeholder="e.g. Spring window refit – Level 2"
               style={{
                 width: '100%',
                 padding: '8px 12px',

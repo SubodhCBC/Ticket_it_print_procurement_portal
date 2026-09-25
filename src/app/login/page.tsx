@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { ROLE_DETAILS, toUserRole } from '../../types/auth'
 import { PortalLogo } from '../../components/ui/PortalLogo'
+import { TextField } from '../../components/ui/FormField'
 
 /**
  * The single sign-in surface.
@@ -42,6 +43,11 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  /** Per-field, under the field. The banner is for what the server says. */
+  const [fieldErrors, setFieldErrors] = useState<{
+    login: string | null
+    password: string | null
+  }>({ login: null, password: null })
 
   /**
    * The server has no session to read, so it always renders the signed-out
@@ -65,8 +71,16 @@ function LoginForm() {
     e.preventDefault()
 
     const trimmed = loginId.trim()
-    if (!trimmed || !password) {
-      setErrorMessage('Enter your username and password.')
+    // Both fields are checked in one pass, so someone with an empty form is
+    // told about both at once rather than discovering them one refusal at a
+    // time, which is what the browser's own validation did.
+    const nextErrors = {
+      login: trimmed ? null : 'Enter your username.',
+      password: password ? null : 'Enter your password.',
+    }
+    setFieldErrors(nextErrors)
+    if (nextErrors.login || nextErrors.password) {
+      setErrorMessage(null)
       return
     }
 
@@ -150,86 +164,45 @@ function LoginForm() {
 
         <form
           onSubmit={handleSubmit}
+          // The form validates itself, field by field. Without this the browser
+          // gets there first with its own bubble and stops at one field.
+          noValidate
           style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
         >
-          <div>
-            <label
-              htmlFor="login"
-              style={{
-                display: 'block',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                color: '#5C566E',
-                marginBottom: '6px',
-              }}
-            >
-              Username
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                id="login"
-                name="login"
-                type="text"
-                autoComplete="username"
-                autoFocus
-                value={loginId}
-                onChange={(e) => setLoginId(e.target.value)}
-                placeholder="your.username"
-                required
-                style={{
-                  width: '100%',
-                  padding: '8px 12px 8px 36px',
-                  borderRadius: '10px',
-                  border: '1px solid #F0E6EC',
-                  background: '#FFFFFF',
-                  color: '#2B253E',
-                  fontSize: '0.84rem',
-                  outline: 'none',
-                }}
-              />
-              <UserIcon
-                size={16}
-                color="#A39BB3"
-                style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                }}
-              />
-            </div>
-            <p
-              style={{
-                fontSize: '0.74rem',
-                color: '#A39BB3',
-                margin: '6px 0 0',
-              }}
-            >
-              Not your email address — email is not unique across Ticket-IT
-              accounts.
-            </p>
-          </div>
+          <TextField
+            id="login"
+            name="login"
+            label="Username"
+            type="text"
+            autoComplete="username"
+            autoFocus
+            value={loginId}
+            onChange={(e) => {
+              setLoginId(e.target.value)
+              if (fieldErrors.login) {
+                setFieldErrors({ ...fieldErrors, login: null })
+              }
+            }}
+            error={fieldErrors.login}
+            hint="Not your email address — email is not unique across Ticket-IT accounts."
+            leftIcon={<UserIcon size={16} />}
+          />
 
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                gap: '12px',
-                marginBottom: '6px',
-              }}
-            >
-              <label
-                htmlFor="password"
-                style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  color: '#5C566E',
-                }}
-              >
-                Password
-              </label>
+          <TextField
+            id="password"
+            name="password"
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              if (fieldErrors.password) {
+                setFieldErrors({ ...fieldErrors, password: null })
+              }
+            }}
+            error={fieldErrors.password}
+            labelAside={
               <Link
                 href="/password/forgot"
                 style={{
@@ -241,37 +214,13 @@ function LoginForm() {
               >
                 Forgot password?
               </Link>
-            </div>
-            <div style={{ position: 'relative' }}>
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Your password"
-                required
-                style={{
-                  width: '100%',
-                  padding: '8px 40px 8px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid #F0E6EC',
-                  background: '#FFFFFF',
-                  color: '#2B253E',
-                  fontSize: '0.84rem',
-                  outline: 'none',
-                }}
-              />
+            }
+            rightSlot={
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 style={{
-                  position: 'absolute',
-                  right: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
                   color: '#A39BB3',
                   background: 'none',
                   border: 'none',
@@ -283,8 +232,8 @@ function LoginForm() {
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-            </div>
-          </div>
+            }
+          />
 
           <AnimatePresence>
             {errorMessage && (

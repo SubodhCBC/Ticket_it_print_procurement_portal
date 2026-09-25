@@ -207,7 +207,12 @@ function StockAdjustmentDialog({
   const [direction, setDirection] = useState<'in' | 'out'>('in')
   const [quantity, setQuantity] = useState('')
   const [reason, setReason] = useState('')
+  /** The server's refusal; everything this form can see belongs to its field. */
   const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<{
+    quantity?: string
+    reason?: string
+  }>({})
 
   const variant = view.variants.find((v) => v.id === target)
   const current = variant ? variant.stockOnHand : view.stockOnHand
@@ -230,24 +235,24 @@ function StockAdjustmentDialog({
     e.preventDefault()
     setError(null)
 
+    // Both boxes are checked in one pass: an empty reason is found on the same
+    // attempt as a quantity that would take the shelf below what is reserved.
+    const found: typeof errors = {}
     if (!qtyValid) {
-      setError('Enter a whole quantity of 1 or more.')
-      return
-    }
-    if (next < floor) {
-      setError(
+      found.quantity = 'Enter a whole quantity of 1 or more.'
+    } else if (next < floor) {
+      found.quantity =
         reserved === null
           ? `That would take ${targetSku} to ${next}. Stock cannot go below zero.`
           : `That would take ${targetSku} to ${next} on hand, below the ${reserved} reserved for placed orders ` +
-              `(on hand ${current}, reserved ${reserved}, available ${view.availableStock}). ` +
-              `Remove at most ${Math.max(0, current - reserved)}.`
-      )
-      return
+            `(on hand ${current}, reserved ${reserved}, available ${view.availableStock}). ` +
+            `Remove at most ${Math.max(0, current - reserved)}.`
     }
     if (!reason.trim()) {
-      setError('A reason is required; it is recorded in the audit trail.')
-      return
+      found.reason = 'Say why stock changed — it is written to the audit log.'
     }
+    setErrors(found)
+    if (Object.values(found).some(Boolean)) return
 
     try {
       const result = await adjustStock.mutateAsync({
@@ -271,6 +276,7 @@ function StockAdjustmentDialog({
       maxWidth="520px"
     >
       <form
+        noValidate
         onSubmit={submit}
         style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
       >
@@ -301,38 +307,66 @@ function StockAdjustmentDialog({
             gap: '12px',
           }}
         >
-          <Field label="Movement">
+          <Field label="Movement" htmlFor="stock-direction">
             <SelectInput
+              id="stock-direction"
               value={direction}
               disabled={pending}
-              onChange={(e) => setDirection(e.target.value as 'in' | 'out')}
+              onChange={(e) => {
+                setErrors((previous) => ({ ...previous, quantity: undefined }))
+                setDirection(e.target.value as 'in' | 'out')
+              }}
             >
               <option value="in">Add to stock (+)</option>
               <option value="out">Remove from stock (−)</option>
             </SelectInput>
           </Field>
-          <Field label="Quantity *">
+          <Field
+            label="Quantity *"
+            htmlFor="stock-quantity"
+            error={errors.quantity}
+          >
             <TextInput
+              id="stock-quantity"
               type="number"
-              min={1}
               step={1}
               inputMode="numeric"
+              placeholder="e.g. 250"
               value={quantity}
               disabled={pending}
-              invalid={quantity !== '' && !qtyValid}
-              onChange={(e) => setQuantity(e.target.value)}
+              invalid={
+                Boolean(errors.quantity) || (quantity !== '' && !qtyValid)
+              }
+              aria-describedby={
+                errors.quantity ? 'stock-quantity-error' : undefined
+              }
+              onChange={(e) => {
+                setErrors((previous) => ({ ...previous, quantity: undefined }))
+                setQuantity(e.target.value)
+              }}
             />
           </Field>
         </div>
 
-        <Field label="Reason *" hint="Up to 200 characters.">
+        <Field
+          label="Reason *"
+          htmlFor="stock-reason"
+          hint="Up to 200 characters."
+          error={errors.reason}
+        >
           <TextInput
+            id="stock-reason"
             list="stock-reason-suggestions"
             maxLength={200}
             value={reason}
             disabled={pending}
+            invalid={Boolean(errors.reason)}
+            aria-describedby={errors.reason ? 'stock-reason-error' : undefined}
             placeholder="e.g. Stock received"
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => {
+              setErrors((previous) => ({ ...previous, reason: undefined }))
+              setReason(e.target.value)
+            }}
           />
           <datalist id="stock-reason-suggestions">
             {REASON_SUGGESTIONS.map((suggestion) => (

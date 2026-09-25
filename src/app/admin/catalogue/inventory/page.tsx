@@ -1,7 +1,7 @@
 // src/app/admin/catalogue/inventory/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { ClipboardList, Plus, X } from 'lucide-react'
 import { AdminHeader } from '@/components/admin/AdminHeader'
@@ -26,6 +26,7 @@ import {
   normaliseHeader,
   parseCsv,
 } from '@/components/admin/ProductAdminUtils'
+import { FieldError } from '@/components/ui/FormField'
 import { useAuth } from '@/hooks/useAuth'
 import { useStockReconcile } from '@/hooks/useProducts'
 import type {
@@ -36,6 +37,20 @@ import type {
 
 const MAX_LINES = 1_000
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
+
+/**
+ * Each box in the count table names itself, rather than leaving a placeholder
+ * to stand in for a label — a placeholder is gone the moment anything is typed,
+ * and the row it belonged to is then anonymous.
+ */
+const lineLabelStyle: CSSProperties = {
+  display: 'block',
+  marginBottom: '4px',
+  fontSize: '0.7rem',
+  fontWeight: 500,
+  color: '#A39BB3',
+  whiteSpace: 'nowrap',
+}
 
 interface CountDraft {
   key: number
@@ -105,53 +120,75 @@ function parsePastedCounts(text: string): {
   }
 }
 
-/** The lines as they would be sent, or the first problem found. */
+/** What is wrong with one count line, box by box. */
+interface LineErrors {
+  sku?: string
+  counted?: string
+  note?: string
+}
+
+/**
+ * The lines as they would be sent, with a message against every box that cannot
+ * go — all of them, so a table of typos is corrected in one pass rather than
+ * one refusal at a time. `formError` is only for what no single box owns.
+ */
 function prepareCounts(drafts: CountDraft[]): {
   counts: StockCountInput[]
-  error: string | null
+  formError: string | null
+  lineErrors: Record<number, LineErrors>
 } {
+  const lineErrors: Record<number, LineErrors> = {}
   const filled = drafts.filter(
     (d) => d.sku.trim() || d.counted.trim() || d.note.trim()
   )
   if (filled.length === 0)
-    return { counts: [], error: 'Enter at least one counted SKU.' }
+    return {
+      counts: [],
+      formError: 'Enter at least one counted SKU.',
+      lineErrors,
+    }
   if (filled.length > MAX_LINES)
     return {
       counts: [],
-      error: `Reconcile at most ${MAX_LINES} lines at a time.`,
+      formError: `Reconcile at most ${MAX_LINES} lines at a time.`,
+      lineErrors,
     }
 
   const seen = new Set<string>()
   const counts: StockCountInput[] = []
-  for (const [index, draft] of filled.entries()) {
+  for (const draft of filled) {
+    const errors: LineErrors = {}
     const sku = draft.sku.trim().toUpperCase()
-    const label = `Line ${index + 1}`
-    if (!sku) return { counts: [], error: `${label}: SKU is required.` }
-    if (sku.length < 2 || sku.length > 64 || !SKU_PATTERN.test(sku))
-      return { counts: [], error: `${label}: "${sku}" is not a valid SKU.` }
-    if (seen.has(sku))
-      return {
-        counts: [],
-        error: `${sku} is listed twice. Add the counts together into one line.`,
-      }
-    seen.add(sku)
-    if (!/^\d+$/.test(draft.counted.trim()) || Number(draft.counted) > 1e7)
-      return {
-        counts: [],
-        error: `${label} (${sku}): counted quantity must be a whole number from 0 to 10,000,000.`,
-      }
+
+    if (!sku) errors.sku = 'Enter the SKU counted on this line.'
+    else if (sku.length < 2 || sku.length > 64 || !SKU_PATTERN.test(sku))
+      errors.sku =
+        'A SKU is 2 to 64 characters of letters, digits, dots, dashes and slashes, like FLY-A5-100.'
+    else if (seen.has(sku))
+      errors.sku = 'Already counted on another line — add the counts together.'
+    else seen.add(sku)
+
+    if (!/^\d+$/.test(draft.counted.trim()))
+      errors.counted = 'Enter the number on the shelf, 0 or more.'
+    else if (Number(draft.counted) > 1e7)
+      errors.counted = 'The most that can be counted in one line is 10,000,000.'
+
     if (draft.note.length > 500)
-      return {
-        counts: [],
-        error: `${label} (${sku}): note is longer than 500 characters.`,
-      }
-    counts.push({
-      sku,
-      countedQuantity: Number(draft.counted),
-      ...(draft.note.trim() ? { note: draft.note.trim() } : {}),
-    })
+      errors.note = 'Keep the note to 500 characters.'
+
+    if (Object.keys(errors).length > 0) lineErrors[draft.key] = errors
+    else
+      counts.push({
+        sku,
+        countedQuantity: Number(draft.counted),
+        ...(draft.note.trim() ? { note: draft.note.trim() } : {}),
+      })
   }
-  return { counts, error: null }
+
+  // Nothing is sent while any line is wrong: a partial stocktake would look
+  // like a matched one.
+  const bad = Object.keys(lineErrors).length > 0
+  return { counts: bad ? [] : counts, formError: null, lineErrors }
 }
 
 function signature(counts: StockCountInput[], reason: string): string {
@@ -170,7 +207,10 @@ export default function InventoryReconcilePage() {
   const [reason, setReason] = useState('')
   const [pasteText, setPasteText] = useState('')
   const [pasteError, setPasteError] = useState<string | null>(null)
+  /** Whole-form and server messages only; a box's own message sits under it. */
   const [formError, setFormError] = useState<string | null>(null)
+  const [lineErrors, setLineErrors] = useState<Record<number, LineErrors>>({})
+  const [reasonError, setReasonError] = useState<string | null>(null)
   const [report, setReport] = useState<StockReconciliation | null>(null)
   const [previewSignature, setPreviewSignature] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -184,6 +224,18 @@ export default function InventoryReconcilePage() {
 
   const change = (key: number, patch: Partial<CountDraft>) => {
     setFormError(null)
+    // Each box stops being wrong as soon as it is edited.
+    setLineErrors((prev) => {
+      const line = prev[key]
+      if (!line) return prev
+      const next = { ...line }
+      for (const field of Object.keys(patch) as (keyof CountDraft)[]) {
+        if (field === 'sku' || field === 'counted' || field === 'note') {
+          delete next[field]
+        }
+      }
+      return { ...prev, [key]: next }
+    })
     setDrafts((prev) =>
       prev.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft))
     )
@@ -222,22 +274,22 @@ export default function InventoryReconcilePage() {
   }
 
   const validateForm = (): boolean => {
-    if (prepared.error) {
-      setFormError(prepared.error)
-      return false
-    }
-    if (!reason.trim()) {
-      setFormError(
-        'Say what this stocktake was, e.g. "Quarterly count, Bay 3".'
-      )
-      return false
-    }
-    if (reason.trim().length > 500) {
-      setFormError('The reason is longer than 500 characters.')
-      return false
-    }
-    setFormError(null)
-    return true
+    // One pass over everything: every wrong box is marked at once.
+    setLineErrors(prepared.lineErrors)
+    setFormError(prepared.formError)
+
+    const reasonProblem = !reason.trim()
+      ? 'Say what this stocktake was, e.g. "Quarterly count, Bay 3".'
+      : reason.trim().length > 500
+        ? 'Keep the reason to 500 characters.'
+        : null
+    setReasonError(reasonProblem)
+
+    return (
+      !prepared.formError &&
+      Object.keys(prepared.lineErrors).length === 0 &&
+      !reasonProblem
+    )
   }
 
   const runDryRun = async () => {
@@ -337,67 +389,114 @@ export default function InventoryReconcilePage() {
               </>
             }
           >
-            {drafts.map((draft) => (
-              <tr key={draft.key} style={{ borderTop: '1px solid #F5EEF2' }}>
-                <Td first>
-                  <TextInput
-                    value={draft.sku}
-                    maxLength={64}
-                    placeholder="SKU"
-                    aria-label="SKU"
-                    disabled={reconcile.isPending}
-                    style={{ fontFamily: 'monospace', minWidth: '160px' }}
-                    onChange={(e) =>
-                      change(draft.key, { sku: e.target.value.toUpperCase() })
-                    }
-                  />
-                </Td>
-                <Td>
-                  <TextInput
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={draft.counted}
-                    placeholder="0"
-                    aria-label="Counted quantity"
-                    disabled={reconcile.isPending}
-                    style={{ maxWidth: '140px' }}
-                    onChange={(e) =>
-                      change(draft.key, { counted: e.target.value })
-                    }
-                  />
-                </Td>
-                <Td>
-                  <TextInput
-                    value={draft.note}
-                    maxLength={500}
-                    placeholder="Optional"
-                    aria-label="Note"
-                    disabled={reconcile.isPending}
-                    style={{ minWidth: '180px' }}
-                    onChange={(e) =>
-                      change(draft.key, { note: e.target.value })
-                    }
-                  />
-                </Td>
-                <Td align="right">
-                  <ActionButton
-                    size="sm"
-                    variant="ghost"
-                    aria-label="Remove line"
-                    icon={<X size={14} />}
-                    disabled={reconcile.isPending || drafts.length === 1}
-                    onClick={() =>
-                      setDrafts((prev) =>
-                        prev.filter((d) => d.key !== draft.key)
-                      )
-                    }
-                  >
-                    Remove
-                  </ActionButton>
-                </Td>
-              </tr>
-            ))}
+            {drafts.map((draft, index) => {
+              const line = lineErrors[draft.key] ?? {}
+              const lineNumber = index + 1
+              return (
+                <tr key={draft.key} style={{ borderTop: '1px solid #F5EEF2' }}>
+                  <Td first>
+                    <label
+                      htmlFor={`count-sku-${draft.key}`}
+                      style={lineLabelStyle}
+                    >
+                      SKU, line {lineNumber}
+                    </label>
+                    <TextInput
+                      id={`count-sku-${draft.key}`}
+                      value={draft.sku}
+                      maxLength={64}
+                      disabled={reconcile.isPending}
+                      invalid={Boolean(line.sku)}
+                      aria-describedby={
+                        line.sku ? `count-sku-${draft.key}-error` : undefined
+                      }
+                      style={{ fontFamily: 'monospace', minWidth: '160px' }}
+                      onChange={(e) =>
+                        change(draft.key, { sku: e.target.value.toUpperCase() })
+                      }
+                    />
+                    {line.sku && (
+                      <FieldError id={`count-sku-${draft.key}-error`}>
+                        {line.sku}
+                      </FieldError>
+                    )}
+                  </Td>
+                  <Td>
+                    <label
+                      htmlFor={`count-qty-${draft.key}`}
+                      style={lineLabelStyle}
+                    >
+                      Counted quantity, line {lineNumber}
+                    </label>
+                    <TextInput
+                      id={`count-qty-${draft.key}`}
+                      type="number"
+                      step={1}
+                      value={draft.counted}
+                      disabled={reconcile.isPending}
+                      invalid={Boolean(line.counted)}
+                      aria-describedby={
+                        line.counted
+                          ? `count-qty-${draft.key}-error`
+                          : undefined
+                      }
+                      style={{ maxWidth: '140px' }}
+                      onChange={(e) =>
+                        change(draft.key, { counted: e.target.value })
+                      }
+                    />
+                    {line.counted && (
+                      <FieldError id={`count-qty-${draft.key}-error`}>
+                        {line.counted}
+                      </FieldError>
+                    )}
+                  </Td>
+                  <Td>
+                    <label
+                      htmlFor={`count-note-${draft.key}`}
+                      style={lineLabelStyle}
+                    >
+                      Note, line {lineNumber} (optional)
+                    </label>
+                    <TextInput
+                      id={`count-note-${draft.key}`}
+                      value={draft.note}
+                      maxLength={500}
+                      disabled={reconcile.isPending}
+                      invalid={Boolean(line.note)}
+                      aria-describedby={
+                        line.note ? `count-note-${draft.key}-error` : undefined
+                      }
+                      style={{ minWidth: '180px' }}
+                      onChange={(e) =>
+                        change(draft.key, { note: e.target.value })
+                      }
+                    />
+                    {line.note && (
+                      <FieldError id={`count-note-${draft.key}-error`}>
+                        {line.note}
+                      </FieldError>
+                    )}
+                  </Td>
+                  <Td align="right">
+                    <ActionButton
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Remove line ${lineNumber}`}
+                      icon={<X size={14} />}
+                      disabled={reconcile.isPending || drafts.length === 1}
+                      onClick={() =>
+                        setDrafts((prev) =>
+                          prev.filter((d) => d.key !== draft.key)
+                        )
+                      }
+                    >
+                      Remove
+                    </ActionButton>
+                  </Td>
+                </tr>
+              )
+            })}
           </AdminTable>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -453,15 +552,26 @@ export default function InventoryReconcilePage() {
             title="2. Preview, then apply"
             description="A dry run reports every variance without writing. Apply is available once the preview matches the counts above."
           />
-          <Field label="Reason *" hint="Recorded against every adjusted line.">
+          <Field
+            label="Reason *"
+            htmlFor="stocktake-reason"
+            hint="Recorded against every adjusted line."
+            error={reasonError}
+          >
             <TextInput
+              id="stocktake-reason"
               value={reason}
               maxLength={500}
               placeholder="e.g. Quarterly stocktake — warehouse A"
               disabled={reconcile.isPending}
+              invalid={Boolean(reasonError)}
+              aria-describedby={
+                reasonError ? 'stocktake-reason-error' : undefined
+              }
               onChange={(e) => {
                 setReason(e.target.value)
                 setFormError(null)
+                setReasonError(null)
               }}
             />
           </Field>

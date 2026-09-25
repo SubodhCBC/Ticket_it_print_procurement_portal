@@ -211,8 +211,8 @@ export default function HeadOfficeApprovalsPage() {
           >
             <Building2 size={14} />
             <span>
-              {user?.organization || 'Apex Healthcare Group'} • Head Office
-              Approvals & Financial Control
+              {user?.organization || 'Your account'} • Head Office Approvals &
+              Financial Control
             </span>
           </div>
 

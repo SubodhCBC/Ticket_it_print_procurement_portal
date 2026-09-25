@@ -3,6 +3,7 @@
 
 import { SkeletonForm } from '@/components/ui/Skeleton'
 import React, { Suspense, useMemo, useState } from 'react'
+import { FieldError, fieldOutline } from '@/components/ui/FormField'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Bell,
@@ -261,6 +262,34 @@ function SwitchRow({
   )
 }
 
+/** The shared box, wearing the red border when its own field is wrong. */
+function control(hasError: boolean): React.CSSProperties {
+  return { ...S.input, ...fieldOutline(hasError) }
+}
+
+/**
+ * Deliberately loose: it catches a missing @ or a stray space, and leaves the
+ * verdict on anything exotic to the server, which is the only thing that can
+ * actually deliver mail.
+ */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Every field the settings page can be wrong about. */
+type ErrorKey =
+  | 'firstName'
+  | 'lastName'
+  | 'email'
+  | 'approvalThreshold'
+  | 'gstRatePercent'
+  | 'notificationEmail'
+  | 'lowStockAlertThreshold'
+  | 'sessionTimeoutMinutes'
+  | 'pwCurrent'
+  | 'pwNext'
+  | 'pwConfirm'
+
+type Errors = Partial<Record<ErrorKey, string>>
+
 /* ── Page ────────────────────────────────────────────────────────── */
 
 function AdminSettingsContent() {
@@ -297,6 +326,14 @@ function AdminSettingsContent() {
   const failure = (err: unknown, fallback: string) =>
     flash('err', err instanceof Error ? err.message : fallback)
 
+  /**
+   * One error per field, for every tab. Each is set on submit and cleared the
+   * moment its own field changes, so a fixed field stops looking wrong at once.
+   */
+  const [errors, setErrors] = useState<Errors>({})
+  const clear = (key: ErrorKey) =>
+    setErrors((e) => (e[key] === undefined ? e : { ...e, [key]: undefined }))
+
   /* ── Profile, seeded from the session ── */
   const [profile, setProfile] = useState({
     firstName: '',
@@ -322,6 +359,11 @@ function AdminSettingsContent() {
 
   /* ── Settings form, seeded from the API ── */
   const [form, setForm] = useState<SettingsPatch>({})
+  // The two amount boxes keep what was actually typed. Held only as numbers,
+  // a half-written "1." or an outright "abc" could not be shown back to the
+  // user, and there would be nothing to say "that is not a number" about.
+  const [thresholdText, setThresholdText] = useState('')
+  const [gstText, setGstText] = useState('')
   const [formSeededFrom, setFormSeededFrom] = useState<typeof settings>(null)
   if (settings && settings !== formSeededFrom) {
     setFormSeededFrom(settings)
@@ -363,6 +405,16 @@ function AdminSettingsContent() {
           ? 15
           : Number(settings.gstRatePercent),
     })
+    setThresholdText(
+      settings.approvalThreshold === null
+        ? ''
+        : String(Number(settings.approvalThreshold))
+    )
+    setGstText(
+      settings.gstRatePercent === undefined
+        ? '15'
+        : String(Number(settings.gstRatePercent))
+    )
   }
 
   const set = <K extends keyof SettingsPatch>(
@@ -389,10 +441,23 @@ function AdminSettingsContent() {
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (pw.next !== pw.confirm) {
-      flash('err', 'The new passwords do not match.')
-      return
+
+    const found: Errors = {}
+    if (!pw.current) found.pwCurrent = 'Enter your current password.'
+    if (pw.next.length < 12) {
+      found.pwNext = 'Use at least 12 characters for the new password.'
     }
+    if (pw.next !== pw.confirm) {
+      found.pwConfirm = 'The two new passwords do not match.'
+    }
+    setErrors((e2) => ({
+      ...e2,
+      pwCurrent: found.pwCurrent,
+      pwNext: found.pwNext,
+      pwConfirm: found.pwConfirm,
+    }))
+    if (Object.keys(found).length > 0) return
+
     try {
       await changePassword(pw.current, pw.next)
       setPw({ current: '', next: '', confirm: '' })
@@ -590,9 +655,33 @@ function AdminSettingsContent() {
             {/* ── My Profile ── */}
             {activeTab === 'profile' && (
               <form
+                noValidate
                 onSubmit={async (e) => {
                   e.preventDefault()
                   if (!user) return
+
+                  // All three checked together: one submit names every gap.
+                  const found: Errors = {}
+                  if (!profile.firstName.trim()) {
+                    found.firstName = 'Enter your first name.'
+                  }
+                  if (!profile.lastName.trim()) {
+                    found.lastName = 'Enter your last name.'
+                  }
+                  if (!profile.email.trim()) {
+                    found.email = 'Enter your work email address.'
+                  } else if (!EMAIL.test(profile.email.trim())) {
+                    found.email =
+                      'That does not look like an email address. Check for a missing @ or a typo.'
+                  }
+                  setErrors((prev) => ({
+                    ...prev,
+                    firstName: found.firstName,
+                    lastName: found.lastName,
+                    email: found.email,
+                  }))
+                  if (Object.keys(found).length > 0) return
+
                   try {
                     await saveProfile(user.id, {
                       firstName: profile.firstName,
@@ -651,44 +740,88 @@ function AdminSettingsContent() {
                     >
                       <div style={S.grid2}>
                         <div>
-                          <label style={S.label}>First Name</label>
+                          <label htmlFor="set-first-name" style={S.label}>
+                            First Name
+                          </label>
                           <input
-                            style={S.input}
+                            id="set-first-name"
+                            style={control(Boolean(errors.firstName))}
+                            aria-invalid={errors.firstName ? true : undefined}
+                            aria-describedby={
+                              errors.firstName
+                                ? 'set-first-name-error'
+                                : undefined
+                            }
                             value={profile.firstName}
-                            onChange={(e) =>
+                            onChange={(e) => {
                               setProfile({
                                 ...profile,
                                 firstName: e.target.value,
                               })
-                            }
+                              clear('firstName')
+                            }}
                           />
+                          {errors.firstName && (
+                            <FieldError id="set-first-name-error">
+                              {errors.firstName}
+                            </FieldError>
+                          )}
                         </div>
                         <div>
-                          <label style={S.label}>Last Name</label>
+                          <label htmlFor="set-last-name" style={S.label}>
+                            Last Name
+                          </label>
                           <input
-                            style={S.input}
+                            id="set-last-name"
+                            style={control(Boolean(errors.lastName))}
+                            aria-invalid={errors.lastName ? true : undefined}
+                            aria-describedby={
+                              errors.lastName
+                                ? 'set-last-name-error'
+                                : undefined
+                            }
                             value={profile.lastName}
-                            onChange={(e) =>
+                            onChange={(e) => {
                               setProfile({
                                 ...profile,
                                 lastName: e.target.value,
                               })
-                            }
+                              clear('lastName')
+                            }}
                           />
+                          {errors.lastName && (
+                            <FieldError id="set-last-name-error">
+                              {errors.lastName}
+                            </FieldError>
+                          )}
                         </div>
                       </div>
 
                       <div style={S.grid2}>
                         <div>
-                          <label style={S.label}>Work Email Address</label>
+                          <label htmlFor="set-email" style={S.label}>
+                            Work Email Address
+                          </label>
                           <input
+                            id="set-email"
                             type="email"
-                            style={S.input}
-                            value={profile.email}
-                            onChange={(e) =>
-                              setProfile({ ...profile, email: e.target.value })
+                            placeholder="jane.smith@company.co.nz"
+                            style={control(Boolean(errors.email))}
+                            aria-invalid={errors.email ? true : undefined}
+                            aria-describedby={
+                              errors.email ? 'set-email-error' : undefined
                             }
+                            value={profile.email}
+                            onChange={(e) => {
+                              setProfile({ ...profile, email: e.target.value })
+                              clear('email')
+                            }}
                           />
+                          {errors.email && (
+                            <FieldError id="set-email-error">
+                              {errors.email}
+                            </FieldError>
+                          )}
                         </div>
                         <div>
                           <label style={S.label}>Direct Phone Number</label>
@@ -708,6 +841,7 @@ function AdminSettingsContent() {
                           <label style={S.label}>Department</label>
                           <input
                             style={S.input}
+                            placeholder="Marketing"
                             value={profile.department}
                             onChange={(e) =>
                               setProfile({
@@ -756,8 +890,37 @@ function AdminSettingsContent() {
             {/* ── Store & Order Rules ── */}
             {activeTab === 'orders' && (
               <form
+                noValidate
                 onSubmit={(e) => {
                   e.preventDefault()
+
+                  const threshold = thresholdText.trim()
+                  const gst = gstText.trim()
+                  const found: Errors = {}
+                  if (threshold !== '') {
+                    const value = Number(threshold)
+                    if (!Number.isFinite(value)) {
+                      found.approvalThreshold =
+                        'Approval threshold must be a number, or leave it empty so no order needs approval.'
+                    } else if (value < 0) {
+                      found.approvalThreshold =
+                        'Approval threshold cannot be negative. Zero means every order needs approval.'
+                    }
+                  }
+                  const gstValue = Number(gst)
+                  if (gst === '' || !Number.isFinite(gstValue)) {
+                    found.gstRatePercent =
+                      'Enter the GST rate as a number. New Zealand GST is 15.'
+                  } else if (gstValue < 0 || gstValue > 100) {
+                    found.gstRatePercent = 'GST rate must be between 0 and 100.'
+                  }
+                  setErrors((prev) => ({
+                    ...prev,
+                    approvalThreshold: found.approvalThreshold,
+                    gstRatePercent: found.gstRatePercent,
+                  }))
+                  if (Object.keys(found).length > 0) return
+
                   void saveTab(
                     [
                       'accountName',
@@ -795,21 +958,29 @@ function AdminSettingsContent() {
                       <input
                         style={S.input}
                         disabled={loading}
+                        placeholder="Northbridge Health Group"
                         value={form.accountName ?? ''}
                         onChange={(e) => set('accountName', e.target.value)}
                       />
                     </div>
                     <div>
-                      <label style={S.label}>Order Number Prefix</label>
+                      <label htmlFor="set-order-prefix" style={S.label}>
+                        Order Number Prefix
+                      </label>
                       <input
+                        id="set-order-prefix"
                         style={S.input}
                         disabled={loading}
-                        placeholder="e.g. TKT-"
+                        placeholder="TKT-"
                         value={form.orderNumberPrefix ?? ''}
                         onChange={(e) =>
                           set('orderNumberPrefix', e.target.value)
                         }
                       />
+                      <div style={S.hint}>
+                        Sits in front of every order number this account raises,
+                        such as TKT-.
+                      </div>
                     </div>
                   </div>
 
@@ -870,17 +1041,21 @@ function AdminSettingsContent() {
                   />
 
                   <div style={{ maxWidth: '320px' }}>
-                    <label style={S.label}>Purchase-order prefix</label>
+                    <label htmlFor="set-po-prefix" style={S.label}>
+                      Purchase-order prefix
+                    </label>
                     <input
+                      id="set-po-prefix"
                       style={S.input}
                       disabled={loading}
-                      placeholder="Optional"
+                      placeholder="PO-NBH"
                       value={form.poPrefix ?? ''}
                       onChange={(e) => set('poPrefix', e.target.value)}
                     />
                     <div style={S.hint}>
-                      The customer&apos;s own PO series — separate from the
-                      order number prefix above. A site may override it.
+                      Optional. The customer&apos;s own PO series — separate
+                      from the order number prefix above. A site may override
+                      it.
                     </div>
                   </div>
 
@@ -916,30 +1091,49 @@ function AdminSettingsContent() {
                   />
 
                   <div style={{ maxWidth: '320px' }}>
-                    <label style={S.label}>
+                    <label htmlFor="set-approval-threshold" style={S.label}>
                       Approval threshold ({form.currency ?? 'USD'})
                     </label>
                     <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      style={S.input}
+                      id="set-approval-threshold"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="1500.00"
+                      style={control(Boolean(errors.approvalThreshold))}
                       disabled={loading}
-                      placeholder="Leave blank for no approvals"
-                      value={form.approvalThreshold ?? ''}
-                      onChange={(e) =>
+                      aria-invalid={errors.approvalThreshold ? true : undefined}
+                      aria-describedby={
+                        errors.approvalThreshold
+                          ? 'set-approval-threshold-error'
+                          : 'set-approval-threshold-hint'
+                      }
+                      value={thresholdText}
+                      onChange={(e) => {
+                        const text = e.target.value
+                        setThresholdText(text)
+                        const trimmed = text.trim()
+                        const value = Number(trimmed)
                         set(
                           'approvalThreshold',
-                          e.target.value === '' ? null : Number(e.target.value)
+                          trimmed === '' || !Number.isFinite(value)
+                            ? null
+                            : value
                         )
-                      }
+                        clear('approvalThreshold')
+                      }}
                     />
-                    <div style={S.hint}>
-                      Orders above this total need head-office approval. Blank
-                      means none do;{' '}
-                      <strong>zero means every order does</strong>, which is a
-                      real setting rather than a way of switching it off.
-                    </div>
+                    {errors.approvalThreshold ? (
+                      <FieldError id="set-approval-threshold-error">
+                        {errors.approvalThreshold}
+                      </FieldError>
+                    ) : (
+                      <div id="set-approval-threshold-hint" style={S.hint}>
+                        Orders above this total need head-office approval. Blank
+                        means none do;{' '}
+                        <strong>zero means every order does</strong>, which is a
+                        real setting rather than a way of switching it off.
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -956,28 +1150,47 @@ function AdminSettingsContent() {
                   />
 
                   <div style={{ maxWidth: '320px' }}>
-                    <label style={S.label}>GST rate (%)</label>
+                    <label htmlFor="set-gst-rate" style={S.label}>
+                      GST rate (%)
+                    </label>
                     <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      style={S.input}
+                      id="set-gst-rate"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="15"
+                      style={control(Boolean(errors.gstRatePercent))}
                       disabled={loading}
-                      value={form.gstRatePercent ?? ''}
-                      onChange={(e) =>
+                      aria-invalid={errors.gstRatePercent ? true : undefined}
+                      aria-describedby={
+                        errors.gstRatePercent
+                          ? 'set-gst-rate-error'
+                          : 'set-gst-rate-hint'
+                      }
+                      value={gstText}
+                      onChange={(e) => {
+                        const text = e.target.value
+                        setGstText(text)
+                        const trimmed = text.trim()
+                        const value = Number(trimmed)
                         set(
                           'gstRatePercent',
-                          e.target.value === ''
+                          trimmed === '' || !Number.isFinite(value)
                             ? undefined
-                            : Number(e.target.value)
+                            : value
                         )
-                      }
+                        clear('gstRatePercent')
+                      }}
                     />
-                    <div style={S.hint}>
-                      New Zealand GST is 15%. Changing it affects invoices
-                      generated after saving, not ones already issued.
-                    </div>
+                    {errors.gstRatePercent ? (
+                      <FieldError id="set-gst-rate-error">
+                        {errors.gstRatePercent}
+                      </FieldError>
+                    ) : (
+                      <div id="set-gst-rate-hint" style={S.hint}>
+                        New Zealand GST is 15%. Changing it affects invoices
+                        generated after saving, not ones already issued.
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1000,8 +1213,28 @@ function AdminSettingsContent() {
             {/* ── Notifications ── */}
             {activeTab === 'notifications' && (
               <form
+                noValidate
                 onSubmit={(e) => {
                   e.preventDefault()
+
+                  const alertEmail = (form.notificationEmail ?? '').trim()
+                  const threshold = form.lowStockAlertThreshold ?? 50
+                  const found: Errors = {}
+                  if (alertEmail && !EMAIL.test(alertEmail)) {
+                    found.notificationEmail =
+                      'That does not look like an email address. Clear the field to use the account contact instead.'
+                  }
+                  if (!Number.isFinite(threshold) || threshold < 0) {
+                    found.lowStockAlertThreshold =
+                      'The low-stock threshold must be zero or more units.'
+                  }
+                  setErrors((prev) => ({
+                    ...prev,
+                    notificationEmail: found.notificationEmail,
+                    lowStockAlertThreshold: found.lowStockAlertThreshold,
+                  }))
+                  if (Object.keys(found).length > 0) return
+
                   void saveTab(
                     [
                       'sendOrderConfirmations',
@@ -1030,11 +1263,23 @@ function AdminSettingsContent() {
                   />
 
                   <div style={{ maxWidth: '440px' }}>
-                    <label style={S.label}>Operational alert address</label>
+                    <label htmlFor="set-alert-email" style={S.label}>
+                      Operational alert address
+                    </label>
                     <input
+                      id="set-alert-email"
                       type="email"
-                      style={S.input}
+                      style={control(Boolean(errors.notificationEmail))}
                       disabled={loading}
+                      aria-invalid={errors.notificationEmail ? true : undefined}
+                      aria-describedby={
+                        errors.notificationEmail
+                          ? 'set-alert-email-error'
+                          : 'set-alert-email-hint'
+                      }
+                      // Not a sample address: this is the real inherited one,
+                      // shown greyed so saving does not turn it into an
+                      // explicit override.
                       placeholder={
                         settings?.notificationEmailInherited
                           ? (settings.notificationEmail ??
@@ -1042,13 +1287,22 @@ function AdminSettingsContent() {
                           : undefined
                       }
                       value={form.notificationEmail ?? ''}
-                      onChange={(e) => set('notificationEmail', e.target.value)}
+                      onChange={(e) => {
+                        set('notificationEmail', e.target.value)
+                        clear('notificationEmail')
+                      }}
                     />
-                    <div style={S.hint}>
-                      {settings?.notificationEmailInherited
-                        ? 'Currently inherited from the account contact. Type an address to override it.'
-                        : 'Clear this field to fall back to the account contact address.'}
-                    </div>
+                    {errors.notificationEmail ? (
+                      <FieldError id="set-alert-email-error">
+                        {errors.notificationEmail}
+                      </FieldError>
+                    ) : (
+                      <div id="set-alert-email-hint" style={S.hint}>
+                        {settings?.notificationEmailInherited
+                          ? 'Currently inherited from the account contact. Type an address to override it.'
+                          : 'Clear this field to fall back to the account contact address.'}
+                      </div>
+                    )}
                   </div>
 
                   <SwitchRow
@@ -1059,17 +1313,34 @@ function AdminSettingsContent() {
                   />
 
                   <div style={{ maxWidth: '240px' }}>
-                    <label style={S.label}>Low-stock threshold (units)</label>
+                    <label htmlFor="set-low-stock" style={S.label}>
+                      Low-stock threshold (units)
+                    </label>
                     <input
+                      id="set-low-stock"
                       type="number"
-                      min={0}
-                      style={S.input}
+                      step={1}
+                      style={control(Boolean(errors.lowStockAlertThreshold))}
                       disabled={loading || !(form.sendLowStockAlerts ?? true)}
-                      value={form.lowStockAlertThreshold ?? 50}
-                      onChange={(e) =>
-                        set('lowStockAlertThreshold', Number(e.target.value))
+                      aria-invalid={
+                        errors.lowStockAlertThreshold ? true : undefined
                       }
+                      aria-describedby={
+                        errors.lowStockAlertThreshold
+                          ? 'set-low-stock-error'
+                          : undefined
+                      }
+                      value={form.lowStockAlertThreshold ?? 50}
+                      onChange={(e) => {
+                        set('lowStockAlertThreshold', Number(e.target.value))
+                        clear('lowStockAlertThreshold')
+                      }}
                     />
+                    {errors.lowStockAlertThreshold && (
+                      <FieldError id="set-low-stock-error">
+                        {errors.lowStockAlertThreshold}
+                      </FieldError>
+                    )}
                   </div>
 
                   <SwitchRow
@@ -1105,7 +1376,7 @@ function AdminSettingsContent() {
                   gap: '20px',
                 }}
               >
-                <form onSubmit={submitPassword} style={S.card}>
+                <form noValidate onSubmit={submitPassword} style={S.card}>
                   <CardTitle icon={Key}>Change Your Password</CardTitle>
 
                   <div
@@ -1125,61 +1396,100 @@ function AdminSettingsContent() {
                   </div>
 
                   <div style={{ maxWidth: '440px' }}>
-                    <label style={S.label}>Current Password</label>
+                    <label htmlFor="set-pw-current" style={S.label}>
+                      Current Password
+                    </label>
                     <input
+                      id="set-pw-current"
                       type="password"
                       autoComplete="current-password"
-                      style={S.input}
-                      value={pw.current}
-                      onChange={(e) =>
-                        setPw({ ...pw, current: e.target.value })
+                      style={control(Boolean(errors.pwCurrent))}
+                      aria-invalid={errors.pwCurrent ? true : undefined}
+                      aria-describedby={
+                        errors.pwCurrent ? 'set-pw-current-error' : undefined
                       }
+                      value={pw.current}
+                      onChange={(e) => {
+                        setPw({ ...pw, current: e.target.value })
+                        clear('pwCurrent')
+                      }}
                     />
+                    {errors.pwCurrent && (
+                      <FieldError id="set-pw-current-error">
+                        {errors.pwCurrent}
+                      </FieldError>
+                    )}
                   </div>
 
                   <div style={{ ...S.grid2, maxWidth: '640px' }}>
                     <div>
-                      <label style={S.label}>New Password</label>
+                      <label htmlFor="set-pw-next" style={S.label}>
+                        New Password
+                      </label>
                       <input
+                        id="set-pw-next"
                         type="password"
                         autoComplete="new-password"
-                        style={S.input}
+                        style={control(Boolean(errors.pwNext))}
+                        aria-invalid={errors.pwNext ? true : undefined}
+                        aria-describedby={
+                          errors.pwNext ? 'set-pw-next-error' : 'set-pw-hint'
+                        }
                         value={pw.next}
-                        onChange={(e) => setPw({ ...pw, next: e.target.value })}
+                        onChange={(e) => {
+                          setPw({ ...pw, next: e.target.value })
+                          clear('pwNext')
+                          clear('pwConfirm')
+                        }}
                       />
-                      <div style={S.hint}>
-                        At least 12 characters. Length matters more than
-                        punctuation.
-                      </div>
+                      {errors.pwNext ? (
+                        <FieldError id="set-pw-next-error">
+                          {errors.pwNext}
+                        </FieldError>
+                      ) : (
+                        <div id="set-pw-hint" style={S.hint}>
+                          At least 12 characters. Length matters more than
+                          punctuation.
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <label style={S.label}>Confirm New Password</label>
+                      <label htmlFor="set-pw-confirm" style={S.label}>
+                        Confirm New Password
+                      </label>
                       <input
+                        id="set-pw-confirm"
                         type="password"
                         autoComplete="new-password"
-                        style={S.input}
-                        value={pw.confirm}
-                        onChange={(e) =>
-                          setPw({ ...pw, confirm: e.target.value })
+                        style={control(Boolean(errors.pwConfirm))}
+                        aria-invalid={errors.pwConfirm ? true : undefined}
+                        aria-describedby={
+                          errors.pwConfirm ? 'set-pw-confirm-error' : undefined
                         }
+                        value={pw.confirm}
+                        onChange={(e) => {
+                          setPw({ ...pw, confirm: e.target.value })
+                          clear('pwConfirm')
+                        }}
                       />
+                      {errors.pwConfirm && (
+                        <FieldError id="set-pw-confirm-error">
+                          {errors.pwConfirm}
+                        </FieldError>
+                      )}
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    {/* Enabled whatever the boxes hold: pressing it is how
+                        the user finds out which one is wrong, and the answer
+                        arrives under that box rather than as a dead button. */}
                     <button
                       type="submit"
-                      disabled={
-                        isChangingPassword || !pw.current || pw.next.length < 12
-                      }
+                      disabled={isChangingPassword}
                       style={{
                         ...S.submit,
-                        opacity:
-                          isChangingPassword ||
-                          !pw.current ||
-                          pw.next.length < 12
-                            ? 0.5
-                            : 1,
+                        opacity: isChangingPassword ? 0.5 : 1,
                       }}
                     >
                       <Save size={14} />
@@ -1191,8 +1501,28 @@ function AdminSettingsContent() {
                 </form>
 
                 <form
+                  noValidate
                   onSubmit={(e) => {
                     e.preventDefault()
+
+                    const minutes = form.sessionTimeoutMinutes ?? 60
+                    if (
+                      !Number.isFinite(minutes) ||
+                      minutes < 5 ||
+                      minutes > 1440
+                    ) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        sessionTimeoutMinutes:
+                          'Sign-out time must be between 5 and 1440 minutes.',
+                      }))
+                      return
+                    }
+                    setErrors((prev) => ({
+                      ...prev,
+                      sessionTimeoutMinutes: undefined,
+                    }))
+
                     void saveTab(
                       ['sessionTimeoutMinutes', 'enforceTwoFactor'],
                       'Session policy saved.'
@@ -1203,24 +1533,39 @@ function AdminSettingsContent() {
                   <CardTitle icon={ShieldCheck}>Session Policy</CardTitle>
 
                   <div style={{ maxWidth: '240px' }}>
-                    <label style={S.label}>
+                    <label htmlFor="set-session-timeout" style={S.label}>
                       Sign out after inactivity (minutes)
                     </label>
                     <input
+                      id="set-session-timeout"
                       type="number"
-                      min={5}
-                      max={1440}
-                      style={S.input}
+                      step={1}
+                      style={control(Boolean(errors.sessionTimeoutMinutes))}
                       disabled={loading}
-                      value={form.sessionTimeoutMinutes ?? 60}
-                      onChange={(e) =>
-                        set('sessionTimeoutMinutes', Number(e.target.value))
+                      aria-invalid={
+                        errors.sessionTimeoutMinutes ? true : undefined
                       }
+                      aria-describedby={
+                        errors.sessionTimeoutMinutes
+                          ? 'set-session-timeout-error'
+                          : 'set-session-timeout-hint'
+                      }
+                      value={form.sessionTimeoutMinutes ?? 60}
+                      onChange={(e) => {
+                        set('sessionTimeoutMinutes', Number(e.target.value))
+                        clear('sessionTimeoutMinutes')
+                      }}
                     />
-                    <div style={S.hint}>
-                      Advisory. The access token lives 15 minutes regardless,
-                      and this cannot extend it.
-                    </div>
+                    {errors.sessionTimeoutMinutes ? (
+                      <FieldError id="set-session-timeout-error">
+                        {errors.sessionTimeoutMinutes}
+                      </FieldError>
+                    ) : (
+                      <div id="set-session-timeout-hint" style={S.hint}>
+                        Between 5 and 1440. Advisory: the access token lives 15
+                        minutes regardless, and this cannot extend it.
+                      </div>
+                    )}
                   </div>
 
                   <SwitchRow
@@ -1322,8 +1667,11 @@ function PoFormatSetting({
   const preview = value.trim() ? previewPoFormat(value) : null
   return (
     <div style={{ maxWidth: '320px' }}>
-      <label style={S.label}>Purchase-order format</label>
+      <label htmlFor="set-po-format" style={S.label}>
+        Purchase-order format
+      </label>
       <input
+        id="set-po-format"
         style={{
           ...S.input,
           fontFamily: 'monospace',
@@ -1331,7 +1679,7 @@ function PoFormatSetting({
         }}
         disabled={disabled}
         maxLength={64}
-        placeholder="Optional, e.g. PO-####-YY"
+        placeholder="PO-####-YY"
         aria-invalid={preview?.ok === false || undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1343,7 +1691,7 @@ function PoFormatSetting({
         }}
       >
         {preview === null
-          ? `Every PO reference must have this shape. ${PO_FORMAT_LEGEND_TEXT}. A site may set its own.`
+          ? `Optional. Set it and every PO reference must have this shape. ${PO_FORMAT_LEGEND_TEXT}. A site may set its own.`
           : preview.ok
             ? `A valid reference looks like ${preview.example}. ${PO_FORMAT_LEGEND_TEXT}.`
             : preview.message}
