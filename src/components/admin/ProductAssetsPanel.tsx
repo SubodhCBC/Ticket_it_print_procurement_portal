@@ -177,20 +177,21 @@ export function ProductAssetsPanel({
 
       {!canManage ? (
         <ReadOnlyNotice>
-          Uploading and removing files needs the Catalog Manage permission.
+          Uploading and removing files needs the Catalogue Manage permission.
         </ReadOnlyNotice>
       ) : (
         <form
           onSubmit={upload}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '12px',
-            padding: '14px',
-            borderRadius: '10px',
-            backgroundColor: '#FCF7FA',
-            alignItems: 'end',
-          }}
+          className="grid-auto"
+          style={
+            {
+              '--min': '190px',
+              padding: '14px',
+              borderRadius: '10px',
+              backgroundColor: '#FCF7FA',
+              alignItems: 'end',
+            } as React.CSSProperties
+          }
         >
           <Field label="Type">
             <SelectInput
@@ -420,12 +421,13 @@ function AssetRow({
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: '6px' }}>
+      <div className="row-wrap" style={{ gap: '6px' }}>
         {asset.url && (
           <a
             href={asset.url}
             target="_blank"
             rel="noreferrer"
+            className="touch-target"
             style={{
               display: 'inline-flex',
               alignItems: 'center',

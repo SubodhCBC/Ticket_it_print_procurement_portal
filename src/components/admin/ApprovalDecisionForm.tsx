@@ -166,6 +166,7 @@ export function ApprovalDecisionForm({
         <div role="alert" style={errorBanner}>
           <span>{serverError}</span>
           <button
+            className="touch-target"
             type="button"
             aria-label="Dismiss"
             onClick={() => setServerError(null)}
@@ -182,15 +183,14 @@ export function ApprovalDecisionForm({
         </div>
       )}
 
+      {/* Reject, Request changes and Approve are each finger targets and must
+          stay reachable when they wrap on a phone. */}
       <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          flexWrap: 'wrap',
-          gap: '8px',
-        }}
+        className="row-wrap"
+        style={{ justifyContent: 'flex-end', gap: '8px' }}
       >
         <button
+          className="touch-target"
           type="button"
           disabled={isPending}
           onClick={() => askToRefuse('REJECTED')}
@@ -200,6 +200,7 @@ export function ApprovalDecisionForm({
           Reject
         </button>
         <button
+          className="touch-target"
           type="button"
           disabled={isPending}
           onClick={() => askToRefuse('CHANGES_REQUESTED')}
@@ -209,6 +210,7 @@ export function ApprovalDecisionForm({
           Request changes
         </button>
         <button
+          className="touch-target"
           type="button"
           disabled={isPending}
           onClick={() => void submit('APPROVED')}

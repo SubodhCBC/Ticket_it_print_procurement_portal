@@ -37,8 +37,11 @@ import type {
   ApiCartValidation,
   ApiShippingMethod,
 } from '@/services/data-source/api/cart.types'
+import { formatMoney, formatNumber, todayInNz } from '@/lib/format'
 import {
-  formatMoney,
+  packCount,
+  packSizeOf,
+  packsAndUnits,
   shippingOptionName,
 } from '@/components/shop/cart/line-format'
 import { calculateItemPrice } from '@/services/pricing.service'
@@ -199,6 +202,13 @@ const FIELD_LABEL: React.CSSProperties = {
   fontWeight: 600,
   color: '#5C566E',
 }
+
+/**
+ * The height a finger needs. `TextField` sizes its box from its padding, which
+ * lands it a few pixels short of a comfortable tap target, so every field on
+ * this form is given the floor explicitly.
+ */
+const FIELD_TOUCH: React.CSSProperties = { minHeight: '40px' }
 
 const FIELD_INPUT: React.CSSProperties = {
   width: '100%',
@@ -505,7 +515,7 @@ export default function CreatePurchaseOrderPage() {
           >
             {customisationState === 'unreadable'
               ? 'The design handed over to this page could not be read, so there is nothing to order. Open the design again from the gallery and personalise it — the proof, product and your details come with it.'
-              : 'This step reviews and submits a design you have personalised, so it starts in the gallery. Choose a template, personalise it, and you will arrive back here with the proof, the product and your details already filled in.'}
+              : 'This step reviews and submits a design you have personalised, so it starts in the gallery. Choose a design, personalise it, and you will arrive back here with the proof, the product and your details already filled in.'}
           </p>
           <Link
             href="/shop/templates"
@@ -527,28 +537,52 @@ export default function CreatePurchaseOrderPage() {
     )
   }
 
-  // Every figure below is the server's. `discountPct` arrives as a percentage
-  // (15 for 15%), not a fraction, which is what the API returns.
-  const discountPct = (quote?.discountPct ?? 0) / 100
-  const discountedUnitPrice = quote?.unitPrice ?? 0
-  const unitBasePrice =
-    discountPct > 0 && discountPct < 1
-      ? Number((discountedUnitPrice / (1 - discountPct)).toFixed(2))
-      : discountedUnitPrice
-  const currentTier = {
-    label: describeDiscount(quote?.discountPct ?? 0, quote?.rateCardName),
-    discountPct,
-  }
-  const totalSaved = Number(
-    ((unitBasePrice - discountedUnitPrice) * quantity).toFixed(2)
-  )
-  const subtotal = Number((quantity * discountedUnitPrice).toFixed(2))
-  // Delivery is a per-order charge the server adds to the total, so the figure
-  // shown here includes the chosen method's price. It used to say free.
+  // ---------------------------------------------------------------------------
+  // Money, and where it comes from
+  // ---------------------------------------------------------------------------
+  // Nothing here multiplies, divides or adds money. This block used to:
+  //
+  //   * it back-computed a catalogue price from the discounted one
+  //     (`price / (1 - discountPct)`), a number no rate card had ever quoted
+  //     and which rounds to a different figure than the one the invoice
+  //     carries;
+  //   * it derived a saving from that invented price;
+  //   * it multiplied a float per-pack price by the quantity for a subtotal,
+  //     and added a delivery fee to it for a "Total PO Value".
+  //
+  // The basket screen takes `subtotal`, `catalogSubtotal`, `saving` and `total`
+  // from the server (`cartSlice`'s `applyValidation`), so two screens showing
+  // the same order could differ by a cent — and did, whenever a rounded
+  // back-computation met the server's exact decimal. The order is priced by
+  // `POST /orders` against the basket, and the confirmation shows that price;
+  // this page therefore states only what the server has actually quoted — the
+  // price of one pack, the quantity, and the chosen delivery charge — and does
+  // not pretend to know the total before the server has said it.
+  //
+  // `discountPct` arrives as a percentage (15 for 15%), not a fraction.
+  const discountPct = quote?.discountPct ?? 0
+  /** What one pack costs this account, as the pricing engine quoted it. */
+  const packPrice = quote?.unitPrice ?? null
+  const rateLabel = describeDiscount(discountPct, quote?.rateCardName)
+
+  // How many pieces a pack holds, when the customiser handed it over. Used
+  // only to SAY what a pack is, never to work out what one costs.
+  const packSize = packSizeOf(poData?.unitsPerPack ?? poData?.packSize)
+  /** "5 packs · 1,250 units", or "5 packs" when the pack size is unknown. */
+  const quantityText =
+    packSize !== null && packSize > 1
+      ? packsAndUnits(quantity, packSize)
+      : packCount(quantity)
+  /** What the quoted price is a price OF — always a pack, on this portal. */
+  const perPack =
+    packSize !== null && packSize > 1
+      ? `per pack of ${formatNumber(packSize)}`
+      : 'per pack'
+
+  // Delivery is a per-order charge the server adds to the total. Its price is
+  // the chosen option's, as the server quoted it; it used to say free.
   const chosenShipping =
     shippingOptions.find((option) => option.code === shippingMethod) ?? null
-  const deliveryFee = chosenShipping ? Number(chosenShipping.price) : 0
-  const totalAmount = subtotal + deliveryFee
 
   const handleQuantityChange = (newQty: number) => {
     const validQty = Math.max(1, Math.min(5000, newQty))
@@ -620,11 +654,9 @@ export default function CreatePurchaseOrderPage() {
         'Enter a phone number the courier can call, or leave it blank.'
     }
 
-    // Compared as UTC calendar days, the way the server compares them.
-    if (
-      requestedDate &&
-      requestedDate < new Date().toISOString().slice(0, 10)
-    ) {
+    // Compared as New Zealand calendar days: the UTC day is still yesterday
+    // in Auckland every morning before noon, which let a past date through.
+    if (requestedDate && requestedDate < todayInNz()) {
       found.requestedDate = 'Choose a delivery date of today or later.'
     }
 
@@ -813,12 +845,9 @@ export default function CreatePurchaseOrderPage() {
       >
         {/* Header */}
         <div
+          className="row-wrap"
           style={{
-            display: 'flex',
-            alignItems: 'flex-end',
             justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
           }}
         >
           <div style={{ minWidth: 0 }}>
@@ -840,7 +869,7 @@ export default function CreatePurchaseOrderPage() {
               }}
             >
               <ArrowLeft size={14} />
-              Back to Template Customizer
+              Back to the design
             </Link>
             <h1
               style={{
@@ -851,7 +880,7 @@ export default function CreatePurchaseOrderPage() {
                 margin: 0,
               }}
             >
-              Step 7 & 8: Review & Submit Purchase Order (PO)
+              Review and submit your purchase order
             </h1>
             <p
               style={{
@@ -860,8 +889,8 @@ export default function CreatePurchaseOrderPage() {
                 margin: '4px 0 0',
               }}
             >
-              Verify customized artwork, configure order units with volume
-              discount, and confirm branch shipping destination.
+              Check the customised artwork, set the quantity and confirm the
+              delivery address for your branch.
             </p>
           </div>
 
@@ -881,17 +910,16 @@ export default function CreatePurchaseOrderPage() {
             }}
           >
             <ShieldCheck size={14} />
-            <span>Head Office Payer • Zero Site Payment</span>
+            <span>Billed to Head Office</span>
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1.2fr 1fr',
-            gap: '20px',
-          }}
-        >
+        {/* The review-and-submit split: artwork and volume on the left, the
+            delivery form and the financial summary on the right. `.grid-2`
+            drops it to a single column at 767px and below, so the summary and
+            its submit button follow the form instead of being squeezed beside
+            it. */}
+        <div className="grid-2">
           {/* LEFT: Customized Artwork Preview & Spec Review & Unit Configuration */}
           <div
             style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
@@ -899,7 +927,7 @@ export default function CreatePurchaseOrderPage() {
             {/* Artwork Proof Card */}
             <div style={CARD}>
               <h3 style={{ ...CARD_TITLE, marginBottom: '14px' }}>
-                Customized Artwork Proof
+                Customised artwork proof
               </h3>
 
               {/* The artwork itself, as the studio drew it.
@@ -979,15 +1007,16 @@ export default function CreatePurchaseOrderPage() {
                         color: '#A39BB3',
                       }}
                     >
-                      Personalized Fields Applied
+                      Personalised fields applied
                     </span>
                     <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: '8px',
-                        fontSize: '0.8rem',
-                      }}
+                      className="grid-auto"
+                      style={
+                        {
+                          ['--min']: '150px',
+                          fontSize: '0.8rem',
+                        } as React.CSSProperties
+                      }
                     >
                       {Object.entries(personalisedFields).map(([key, val]) => (
                         <div
@@ -996,6 +1025,11 @@ export default function CreatePurchaseOrderPage() {
                             backgroundColor: '#FCF7FA',
                             padding: '8px 10px',
                             borderRadius: '10px',
+                            minWidth: 0,
+                            // A pasted value can be one unbroken string; it
+                            // wraps inside its tile rather than widening the
+                            // page on a phone.
+                            overflowWrap: 'anywhere',
                           }}
                         >
                           <span
@@ -1028,13 +1062,8 @@ export default function CreatePurchaseOrderPage() {
               }}
             >
               <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '8px',
-                  flexWrap: 'wrap',
-                }}
+                className="row-wrap"
+                style={{ justifyContent: 'space-between' }}
               >
                 <h3 style={CARD_TITLE}>
                   Specifications & Volume Configuration
@@ -1052,18 +1081,19 @@ export default function CreatePurchaseOrderPage() {
                       fontWeight: 600,
                     }}
                   >
-                    {(discountPct * 100).toFixed(0)}% Tier Discount Active
+                    {rateLabel} applied
                   </span>
                 )}
               </div>
 
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '14px',
-                  fontSize: '0.84rem',
-                }}
+                className="grid-auto"
+                style={
+                  {
+                    ['--min']: '170px',
+                    fontSize: '0.84rem',
+                  } as React.CSSProperties
+                }
               >
                 <div>
                   <label style={SPEC_LABEL}>Print Dimensions</label>
@@ -1095,21 +1125,21 @@ export default function CreatePurchaseOrderPage() {
                   </div>
                 )}
                 <div>
-                  <label style={SPEC_LABEL}>Effective Unit Rate</label>
+                  <label style={SPEC_LABEL}>Your Price</label>
                   <div style={{ fontWeight: 700, color: '#2B253E' }}>
-                    ${discountedUnitPrice.toFixed(2)} / unit{' '}
-                    {discountPct > 0 && (
-                      <span
-                        style={{
-                          fontSize: '0.74rem',
-                          color: '#A39BB3',
-                          textDecoration: 'line-through',
-                          fontWeight: 500,
-                        }}
-                      >
-                        ${unitBasePrice.toFixed(2)}
-                      </span>
-                    )}
+                    {formatMoney(packPrice)}{' '}
+                    <span
+                      style={{
+                        fontSize: '0.74rem',
+                        color: '#A39BB3',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {/* A struck-through "was" price used to sit here. It was
+                          the quoted price divided by (1 - discount) — a
+                          catalogue price nobody had quoted. */}
+                      {perPack}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1127,15 +1157,10 @@ export default function CreatePurchaseOrderPage() {
                 }}
               >
                 <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '12px',
-                    flexWrap: 'wrap',
-                  }}
+                  className="row-wrap"
+                  style={{ justifyContent: 'space-between' }}
                 >
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <label
                       style={{
                         fontSize: '0.84rem',
@@ -1144,10 +1169,12 @@ export default function CreatePurchaseOrderPage() {
                         display: 'block',
                       }}
                     >
-                      Select Order Units (Quantity)
+                      How many packs
                     </label>
                     <span style={{ fontSize: '0.76rem', color: '#A39BB3' }}>
-                      Choose volume preset or enter custom unit quantity
+                      {packSize !== null && packSize > 1
+                        ? `Choose a preset or type a number of packs — each pack holds ${formatNumber(packSize)} units`
+                        : 'Choose a preset or type a number of packs'}
                     </span>
                   </div>
 
@@ -1161,6 +1188,7 @@ export default function CreatePurchaseOrderPage() {
                   >
                     <button
                       type="button"
+                      className="touch-target"
                       onClick={() => handleQuantityChange(quantity - 1)}
                       disabled={quantity <= 1}
                       style={{
@@ -1176,13 +1204,14 @@ export default function CreatePurchaseOrderPage() {
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
-                      title="Decrease by 1 unit"
+                      title="One pack fewer"
                     >
                       <Minus size={14} />
                     </button>
                     <div style={{ position: 'relative' }}>
                       <input
                         type="number"
+                        className="touch-target"
                         min={1}
                         max={5000}
                         value={quantity}
@@ -1207,6 +1236,7 @@ export default function CreatePurchaseOrderPage() {
                     </div>
                     <button
                       type="button"
+                      className="touch-target"
                       onClick={() => handleQuantityChange(quantity + 1)}
                       style={{
                         width: '32px',
@@ -1220,20 +1250,20 @@ export default function CreatePurchaseOrderPage() {
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
-                      title="Increase by 1 unit"
+                      title="One pack more"
                     >
                       <Plus size={14} />
                     </button>
                   </div>
                 </div>
 
-                {/* Preset Volume Pills */}
+                {/* Preset Volume Pills
+                      Five across on a wide card; as many as fit, wrapping to a
+                      second line, once the card is a phone wide — "100 packs"
+                      never has to shrink below its own label. */}
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(5, 1fr)',
-                    gap: '8px',
-                  }}
+                  className="grid-auto"
+                  style={{ ['--min']: '92px' } as React.CSSProperties}
                 >
                   {/* Quantities only. Each pill used to advertise a
                         discount of its own — 10% at five units, 25% at fifty —
@@ -1245,6 +1275,7 @@ export default function CreatePurchaseOrderPage() {
                       <button
                         key={preset}
                         type="button"
+                        className="touch-target"
                         onClick={() => setQuantity(preset)}
                         style={{
                           padding: '8px 6px',
@@ -1265,7 +1296,7 @@ export default function CreatePurchaseOrderPage() {
                         }}
                       >
                         <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                          {preset} Units
+                          {packCount(preset)}
                         </span>
                       </button>
                     )
@@ -1274,12 +1305,9 @@ export default function CreatePurchaseOrderPage() {
 
                 {/* Volume Tier Summary / Savings Banner */}
                 <div
+                  className="row-wrap"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '8px',
-                    flexWrap: 'wrap',
                     padding: '10px 12px',
                     borderRadius: '10px',
                     backgroundColor: '#FCF7FA',
@@ -1292,26 +1320,35 @@ export default function CreatePurchaseOrderPage() {
                       alignItems: 'center',
                       gap: '6px',
                       color: '#6E6781',
+                      minWidth: 0,
                     }}
                   >
-                    <DollarSign size={16} color="#A39BB3" />
+                    <DollarSign
+                      size={16}
+                      color="#A39BB3"
+                      style={{ flexShrink: 0 }}
+                    />
                     <span>
                       Selected:{' '}
                       <strong style={{ color: '#2B253E', fontWeight: 600 }}>
-                        {quantity} Units
+                        {quantityText}
                       </strong>{' '}
-                      @ ${discountedUnitPrice.toFixed(2)} / unit
+                      at {formatMoney(packPrice)} {perPack}
                     </span>
                   </div>
-                  {totalSaved > 0 ? (
-                    <span style={{ color: '#3F9C68', fontWeight: 600 }}>
-                      Savings: -${totalSaved.toFixed(2)} ({currentTier.label})
-                    </span>
-                  ) : (
-                    <span style={{ color: '#A39BB3' }}>
-                      Your account's rate card sets the price at this quantity.
-                    </span>
-                  )}
+                  {/* The saving that used to sit here was this page's own
+                      subtraction of an invented catalogue price. What the
+                      server did say is which rate was applied. */}
+                  <span
+                    style={{
+                      color: discountPct > 0 ? '#3F9C68' : '#A39BB3',
+                      fontWeight: discountPct > 0 ? 600 : 400,
+                    }}
+                  >
+                    {discountPct > 0
+                      ? `${rateLabel} — your account's contract price`
+                      : "Your account's rate card sets the price at this quantity."}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1361,7 +1398,7 @@ export default function CreatePurchaseOrderPage() {
                     setPoReference(e.target.value)
                     clearError('poReference')
                   }}
-                  style={{ fontWeight: 600 }}
+                  style={{ ...FIELD_TOUCH, fontWeight: 600 }}
                 />
 
                 <TextField
@@ -1378,15 +1415,17 @@ export default function CreatePurchaseOrderPage() {
                     setRecipientName(e.target.value)
                     clearError('recipientName')
                   }}
+                  style={FIELD_TOUCH}
                 />
 
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '10px',
-                    alignItems: 'start',
-                  }}
+                  className="grid-auto"
+                  style={
+                    {
+                      ['--min']: '220px',
+                      alignItems: 'start',
+                    } as React.CSSProperties
+                  }
                 >
                   <TextField
                     id="recipientPhone"
@@ -1400,18 +1439,20 @@ export default function CreatePurchaseOrderPage() {
                       setRecipientPhone(e.target.value)
                       clearError('recipientPhone')
                     }}
+                    style={FIELD_TOUCH}
                   />
                   <TextField
                     id="requestedDate"
                     label="Requested Delivery Date"
                     type="date"
                     value={requestedDate}
-                    min={new Date().toISOString().slice(0, 10)}
+                    min={todayInNz()}
                     error={errors.requestedDate}
                     onChange={(e) => {
                       setRequestedDate(e.target.value)
                       clearError('requestedDate')
                     }}
+                    style={FIELD_TOUCH}
                   />
                 </div>
 
@@ -1513,10 +1554,8 @@ export default function CreatePurchaseOrderPage() {
                       return (
                         <label
                           key={option.code}
+                          className="row-wrap touch-target"
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
                             padding: '8px 12px',
                             borderRadius: '10px',
                             border: selected
@@ -1536,9 +1575,13 @@ export default function CreatePurchaseOrderPage() {
                               setShippingMethod(option.code)
                               clearError('shippingMethod')
                             }}
-                            style={{ margin: 0, accentColor: '#F73582' }}
+                            style={{
+                              margin: 0,
+                              accentColor: '#F73582',
+                              flexShrink: 0,
+                            }}
                           />
-                          <span style={{ flex: 1 }}>
+                          <span style={{ flex: 1, minWidth: 0 }}>
                             {shippingOptionName(option)}
                           </span>
                           <strong style={{ fontWeight: 600 }}>
@@ -1635,82 +1678,79 @@ export default function CreatePurchaseOrderPage() {
                   paddingBottom: '14px',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    color: '#6E6781',
-                  }}
-                >
-                  <span>Unit Base Price</span>
-                  <span>${unitBasePrice.toFixed(2)} / unit</span>
-                </div>
+                {/* Three quoted facts and nothing derived from them. A "Unit
+                    Base Price" row and a "Volume Tier Discount (-$X)" row used
+                    to sit above these; both were this page's own arithmetic on
+                    a catalogue price it had reverse-engineered. */}
                 {discountPct > 0 && (
                   <div
+                    className="row-wrap"
                     style={{
-                      display: 'flex',
                       justifyContent: 'space-between',
                       color: '#3F9C68',
                       fontWeight: 600,
                     }}
                   >
-                    <span>
-                      Volume Tier Discount ({(discountPct * 100).toFixed(0)}%)
-                    </span>
-                    <span>-${totalSaved.toFixed(2)}</span>
+                    <span>Contract rate applied</span>
+                    <span>{rateLabel}</span>
                   </div>
                 )}
                 <div
+                  className="row-wrap"
                   style={{
-                    display: 'flex',
                     justifyContent: 'space-between',
                     color: '#6E6781',
                   }}
                 >
-                  <span>Effective Unit Price</span>
+                  <span>Price {perPack}</span>
                   <span style={{ fontWeight: 600, color: '#2B253E' }}>
-                    ${discountedUnitPrice.toFixed(2)} / unit
+                    {formatMoney(packPrice)}
                   </span>
                 </div>
                 <div
+                  className="row-wrap"
                   style={{
-                    display: 'flex',
                     justifyContent: 'space-between',
                     color: '#6E6781',
                   }}
                 >
-                  <span>Quantity Requested</span>
+                  <span>Quantity requested</span>
                   <span style={{ fontWeight: 600, color: '#2B253E' }}>
-                    {quantity} Units
+                    {quantityText}
                   </span>
                 </div>
                 <div
+                  className="row-wrap"
                   style={{
-                    display: 'flex',
                     justifyContent: 'space-between',
                     color: '#6E6781',
                   }}
                 >
-                  <span>
+                  <span style={{ minWidth: 0 }}>
                     {chosenShipping
                       ? shippingOptionName(chosenShipping)
                       : 'Shipping'}
                   </span>
                   <span style={{ color: '#2B253E', fontWeight: 600 }}>
                     {chosenShipping
-                      ? formatMoney(deliveryFee)
+                      ? formatMoney(chosenShipping.price)
                       : 'Choose a method'}
                   </span>
                 </div>
               </div>
 
               <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
+                className="row-wrap"
+                style={{ justifyContent: 'space-between' }}
               >
+                {/* No total is printed here. This order is priced by the
+                    server when it is placed — against the basket, which is
+                    also what `POST /orders` writes, so it includes the lines
+                    listed above as well as this design. The figure that stood
+                    here was `quantity × unit price + delivery`, computed in
+                    the browser from floats: it covered this line only, and it
+                    disagreed with the basket and the confirmation. The
+                    confirmation screen shows the server's price. */}
                 <span
                   style={{
                     fontSize: '0.95rem',
@@ -1718,17 +1758,24 @@ export default function CreatePurchaseOrderPage() {
                     color: '#2B253E',
                   }}
                 >
-                  Total PO Value
+                  Total PO value
                 </span>
                 <span
                   style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 700,
-                    color: '#2B253E',
-                    letterSpacing: '-0.02em',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    color: '#6E6781',
+                    textAlign: 'right',
+                    // Beside the label while there is room for it; a full-width
+                    // line of its own once the row wraps on a phone, rather
+                    // than a narrow ribbon of a fixed percentage.
+                    flex: '1 1 180px',
+                    minWidth: 0,
+                    lineHeight: 1.45,
                   }}
                 >
-                  ${totalAmount.toFixed(2)}
+                  Priced when you submit, from the rates above — confirmed on
+                  the next screen before anything is printed.
                 </span>
               </div>
 
@@ -1836,6 +1883,11 @@ export default function CreatePurchaseOrderPage() {
                   style={{
                     marginTop: '2px',
                     cursor: 'pointer',
+                    flexShrink: 0,
+                    // A finger's worth of box, without stretching the tick
+                    // itself: the whole label is the target around it.
+                    width: '18px',
+                    height: '18px',
                     accentColor: errors.terms ? FIELD_RED : '#F73582',
                   }}
                 />
@@ -1858,6 +1910,7 @@ export default function CreatePurchaseOrderPage() {
 
               <button
                 type="submit"
+                className="touch-target"
                 disabled={isPending}
                 style={{
                   padding: '8px 14px',
@@ -1872,9 +1925,13 @@ export default function CreatePurchaseOrderPage() {
                   transition: 'opacity 0.15s ease',
                 }}
               >
+                {/* The button used to quote a total in its own label. It was
+                    the browser's arithmetic, and it is the last thing read
+                    before committing — so it is the worst place of all for a
+                    figure the invoice might not match. */}
                 {isPending
                   ? 'Submitting PO...'
-                  : `Submit Purchase Order ($${totalAmount.toFixed(2)})`}
+                  : `Submit purchase order for ${quantityText}`}
               </button>
             </div>
           </div>

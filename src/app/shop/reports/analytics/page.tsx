@@ -8,7 +8,7 @@ export default function SiteAnalyticsPage() {
   return (
     <SiteReportScope
       title="Reports & Exports"
-      subtitle="Your branch's spend, orders and most-ordered products, each downloadable as CSV and XLSX"
+      subtitle="Spend, orders and most-ordered products for your site, each downloadable as CSV and XLSX"
       permission="REPORT_VIEW"
     >
       <AnalyticsReports />

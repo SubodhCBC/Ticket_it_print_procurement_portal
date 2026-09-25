@@ -7,8 +7,8 @@ import { HeadOfficeReportScope } from '@/components/reports/ReportScopes'
 export default function HeadOfficeAccessReviewPage() {
   return (
     <HeadOfficeReportScope
-      title="User Access Review"
-      subtitle="Everyone who can sign in to your account — role, branches, permission overrides and last sign-in — for your quarterly attestation"
+      title="User access review"
+      subtitle="Everyone who can sign in to your account — role, sites, permission overrides and last sign-in — for your quarterly attestation"
       permission="USER_MANAGE"
     >
       <AccessReviewReport />

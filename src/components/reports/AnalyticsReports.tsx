@@ -29,12 +29,12 @@ import {
   type ReportDef,
 } from './reportCatalog'
 import {
-  dateInputToIso,
   formatDate,
   formatDateTime,
   formatMoney,
-  ORDER_STATUS_LABELS,
-} from './reportFormat'
+  formatNumber,
+} from '@/lib/format'
+import { dateInputToIso, ORDER_STATUS_LABELS } from './reportFormat'
 
 const HISTORY_PAGE_SIZE = 50
 
@@ -61,11 +61,11 @@ function formatCell(kind: ColumnKind, value: unknown): string {
     case 'money':
       return formatMoney(value as string | number)
     case 'integer':
-      return Number(value).toLocaleString()
+      return formatNumber(value as string | number)
     case 'percent':
       return `${Number(value).toFixed(1)}%`
     case 'decimal':
-      return Number.isFinite(Number(value)) ? Number(value).toFixed(2) : '—'
+      return formatNumber(value as string | number)
     case 'date':
       return formatDate(String(value))
     case 'datetime':
@@ -268,11 +268,8 @@ function ReportPanel({
           }
         />
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-            gap: '12px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '170px', gap: '12px' } as React.CSSProperties}
         >
           {filters.range && (
             <>
@@ -364,11 +361,8 @@ function ReportPanel({
       {report.summary && data !== null && (
         <AdminCard>
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: '12px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '150px', gap: '12px' } as React.CSSProperties}
           >
             {report.summary.map((tile) => (
               <StatTile
@@ -431,23 +425,24 @@ function ReportPanel({
           </AdminTable>
         )}
 
+        {/* The count and both buttons were one unwrapping row, so "Next" left
+            the card on a phone. */}
         {report.paged && pageInfo && (pageInfo.totalPages ?? 0) > 1 && (
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '8px',
               fontSize: '0.8rem',
               color: '#6E6781',
             }}
           >
             <span>
               Page {page} of {pageInfo.totalPages} ·{' '}
-              {(pageInfo.total ?? 0).toLocaleString()} lines
+              {formatNumber(pageInfo.total ?? 0)} lines
             </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="row-wrap">
               <ActionButton
+                className="touch-target"
                 size="sm"
                 disabled={page <= 1 || isFetching}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -455,6 +450,7 @@ function ReportPanel({
                 Previous
               </ActionButton>
               <ActionButton
+                className="touch-target"
                 size="sm"
                 disabled={page >= (pageInfo.totalPages ?? 1) || isFetching}
                 onClick={() => setPage((p) => p + 1)}

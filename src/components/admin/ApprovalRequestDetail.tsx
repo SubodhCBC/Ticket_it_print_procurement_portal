@@ -14,10 +14,9 @@ import { StatusPill } from './StatusPill'
 import { ApprovalDecisionForm } from './ApprovalDecisionForm'
 import { ApprovalStatusBadge } from './ApprovalStatusBadge'
 import { ApprovalTimeline } from './ApprovalTimeline'
+import { formatMoney, formatDateTime } from '@/lib/format'
 import {
   APPROVAL_COLORS,
-  formatDateTime,
-  formatMoney,
   maxTier,
   successBanner,
   warningBanner,
@@ -103,7 +102,7 @@ export function ApprovalRequestDetail({
       value: <StatusPill status={request.orderStatus} size="sm" />,
     },
     {
-      label: 'Branch',
+      label: 'Site',
       value: `${request.siteName} (${request.siteCode})`,
     },
     { label: 'Requested by', value: request.requestedByName },
@@ -141,10 +140,9 @@ export function ApprovalRequestDetail({
           }}
         >
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
               gap: '8px',
               marginBottom: '10px',
             }}
@@ -196,6 +194,7 @@ export function ApprovalRequestDetail({
         <div role="status" style={successBanner}>
           <span>{notice}</span>
           <button
+            className="touch-target"
             type="button"
             aria-label="Dismiss"
             onClick={() => setNotice(null)}

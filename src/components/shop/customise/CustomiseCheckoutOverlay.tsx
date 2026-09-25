@@ -32,12 +32,12 @@ import {
 } from './FinalStepsPanel'
 import {
   initialOptions,
-  money,
   optionSurcharge,
   packChoices,
   splitOptionAxes,
   unitNoun,
 } from './order-options'
+import { formatMoney, formatNumber } from '@/lib/format'
 import { OVERLAY_CLASS, T, cardStyle, overlayCss } from './theme'
 
 const NARROW_QUERY = '(max-width: 899.98px)'
@@ -197,20 +197,20 @@ export function CustomiseCheckoutOverlay({
   const nounHints = [template.category, template.productName, product?.name]
   const quantityText = (n: number) =>
     unitsPerPack
-      ? `${(unitsPerPack * n).toLocaleString()} ${unitNoun(unitsPerPack * n, ...nounHints)}`
+      ? `${formatNumber(unitsPerPack * n)} ${unitNoun(unitsPerPack * n, ...nounHints)}`
       : `${n} ${n === 1 ? 'pack' : 'packs'}`
 
   const packChoiceList = choices.map((n) => ({
     packs: n,
     label:
       packPrice != null
-        ? `${quantityText(n)} (${money(packPrice * n)})`
+        ? `${quantityText(n)} (${formatMoney(packPrice * n)})`
         : quantityText(n),
   }))
 
   const eachLine =
     total != null && units
-      ? `${money(total / units)} each / ${units.toLocaleString()} ${unitNoun(units, ...nounHints)}`
+      ? `${formatMoney(total / units)} each / ${formatNumber(units)} ${unitNoun(units, ...nounHints)}`
       : null
 
   const summary = [
@@ -366,15 +366,16 @@ export function CustomiseCheckoutOverlay({
     >
       <style>{overlayCss}</style>
 
+      {/* .row-wrap so the three parts drop to a second line on a phone
+          rather than pushing the design's name off the screen; minHeight,
+          not height, so that second line has somewhere to go. */}
       <header
+        className="row-wrap"
         style={{
           flexShrink: 0,
-          height: '60px',
-          display: 'flex',
-          alignItems: 'center',
+          minHeight: '60px',
           justifyContent: 'space-between',
-          gap: '12px',
-          padding: narrow ? '0 16px' : '0 40px',
+          padding: narrow ? '8px 16px' : '0 40px',
           backgroundColor: T.card,
           borderBottom: `1px solid ${T.border}`,
         }}
@@ -383,6 +384,7 @@ export function CustomiseCheckoutOverlay({
           type="button"
           onClick={onClose}
           disabled={saving}
+          className="touch-target"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -472,14 +474,12 @@ export function CustomiseCheckoutOverlay({
         </ol>
 
         <span
+          className="truncate"
           style={{
             fontSize: '0.84rem',
             fontWeight: 600,
             color: T.text,
             maxWidth: narrow ? '110px' : '280px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
           }}
           title={template.name}
         >
@@ -491,7 +491,11 @@ export function CustomiseCheckoutOverlay({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1fr) 440px',
+            // minmax(0, …) stacked as well as side by side: a wide summary
+            // value must wrap inside the column, not widen it.
+            gridTemplateColumns: narrow
+              ? 'minmax(0, 1fr)'
+              : 'minmax(0, 1fr) 440px',
             gap: narrow ? '16px' : '32px',
             alignItems: 'start',
             maxWidth: '1280px',

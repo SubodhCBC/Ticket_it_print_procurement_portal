@@ -1,5 +1,6 @@
 // src/components/dam/dam-format.ts
 import { isDamImage, type DamFile } from '@/services/dam.service'
+import { formatDateTime } from '@/lib/format'
 
 /**
  * Small, pure helpers for showing library files. Kept apart from the
@@ -50,18 +51,13 @@ export function formatDamBytes(bytes: number | null): string {
 }
 
 /**
- * Ticket-IT's timestamps carry no zone. `Date` reads a zone-less ISO string as
- * local time, which is the least-wrong reading available; anything it cannot
- * parse is shown exactly as it came rather than hidden.
+ * Ticket-IT's timestamps carry no zone, so `Date` reads them as local time —
+ * the least-wrong reading available. Anything it cannot parse is shown exactly
+ * as it came rather than hidden, which is why the fallback is the raw value.
  */
 export function formatDamUpdated(value: string | null): string {
   if (!value) return 'Unknown'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+  return formatDateTime(value, value)
 }
 
 /**

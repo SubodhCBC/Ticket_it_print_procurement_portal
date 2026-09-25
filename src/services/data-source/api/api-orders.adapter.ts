@@ -56,25 +56,16 @@ interface ListParams {
 }
 
 /**
- * Statuses the UI knows but the API does not.
+ * The UI's statuses are now exactly the API's.
  *
- * The front end's union carries four extra values (`PAID`, `ORDER_PLACED`,
- * `IN_PRODUCTION`, `RECEIVED`) that were display states in the fixtures. The
- * API models payment on its own axis and production as `PROCESSING`, so a
- * filter naming one of these is translated rather than sent and rejected.
+ * There used to be a translation table here, because the front end's union
+ * carried four values the API never had — `PAID`, `ORDER_PLACED`,
+ * `IN_PRODUCTION` and `RECEIVED`, left over from the fixtures. They have been
+ * removed from the union: payment lives on its own axis and production is
+ * `PROCESSING`, so there is nothing left to translate.
  */
-const STATUS_ALIASES: Partial<Record<OrderStatus, OrderStatus>> = {
-  ORDER_PLACED: 'APPROVED',
-  IN_PRODUCTION: 'PROCESSING',
-  RECEIVED: 'PROCESSING',
-}
-
 function toApiStatus(status?: OrderStatus): OrderStatus | undefined {
-  if (!status) return undefined
-  // PAID is a payment state, not a lifecycle one — there is nothing to filter
-  // the lifecycle by, so it is dropped rather than mistranslated.
-  if (status === 'PAID') return undefined
-  return STATUS_ALIASES[status] ?? status
+  return status
 }
 
 function toQuery(params?: ListParams): Record<string, unknown> {

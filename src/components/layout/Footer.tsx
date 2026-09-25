@@ -20,9 +20,11 @@ export const Footer: React.FC = () => {
       style={{
         background: 'var(--color-secondary)',
         color: '#ffffff',
-        paddingTop: '3.5rem',
-        paddingBottom: '4.5rem', // space for mobile nav
-        marginTop: '5rem',
+        paddingTop: 'clamp(2.25rem, 6vw, 3.5rem)',
+        // Clear of the fixed mobile nav bar, plus the phone's own home-bar area.
+        paddingBottom:
+          'calc(1.5rem + var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px))',
+        marginTop: 'clamp(2.5rem, 8vw, 5rem)',
         borderTop: '1px solid rgba(255, 255, 255, 0.08)',
       }}
     >
@@ -31,7 +33,8 @@ export const Footer: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gridTemplateColumns:
+              'repeat(auto-fit, minmax(min(240px, 100%), 1fr))',
             gap: '1.5rem',
             paddingBottom: '2.5rem',
             marginBottom: '2.5rem',
@@ -127,8 +130,9 @@ export const Footer: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '2.5rem',
+            gridTemplateColumns:
+              'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
+            gap: 'clamp(1.75rem, 5vw, 2.5rem)',
             paddingBottom: '2.5rem',
           }}
         >
@@ -182,7 +186,7 @@ export const Footer: React.FC = () => {
                   }}
                 >
                   <Store size={14} color="#f73582" />
-                  <span>Site User (Branch Orders)</span>
+                  <span>Branch ordering</span>
                 </Link>
               </li>
               <li>
@@ -196,7 +200,7 @@ export const Footer: React.FC = () => {
                   }}
                 >
                   <Building2 size={14} color="#60a5fa" />
-                  <span>Head Office (Consolidated Billing)</span>
+                  <span>Head Office</span>
                 </Link>
               </li>
               <li>
@@ -210,7 +214,7 @@ export const Footer: React.FC = () => {
                   }}
                 >
                   <Shield size={14} color="#58b97d" />
-                  <span>Admin (Full Operations HQ)</span>
+                  <span>Admin</span>
                 </Link>
               </li>
               <li>
@@ -292,7 +296,7 @@ export const Footer: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              All marketing collateral assets, PO authorization thresholds, and
+              All marketing collateral, PO authorisation thresholds and
               consolidated billing exports comply with enterprise SOC-2 Type II
               standards.
             </p>

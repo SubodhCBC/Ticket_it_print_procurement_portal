@@ -102,6 +102,11 @@ function money(value: string | null | undefined): number {
   return value == null ? 0 : Number(value)
 }
 
+/** "1 item", "2 items" — the portal writes counts out, not as "item(s)". */
+function plural(count: number, noun: string): string {
+  return count === 1 ? noun : `${noun}s`
+}
+
 // --- Admin dashboard -----------------------------------------------------------
 
 /**
@@ -137,9 +142,13 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
 
   return {
     totalRevenueMonth: money(report.spend.totalSpend),
-    revenueDeltaPct: report.spend.spendGrowthPercent ?? 0,
+    // Null when there is no prior period to compare against — a new account,
+    // or the estate's first month. Coercing that to `0` drew a green "+0.0%"
+    // that claimed flat growth where the truth is that nothing is known yet,
+    // so the null is carried through and the dashboards render it as a dash.
+    revenueDeltaPct: report.spend.spendGrowthPercent,
     activeOrdersCount: report.spend.orderCount,
-    ordersDeltaPct: report.spend.orderGrowthPercent ?? 0,
+    ordersDeltaPct: report.spend.orderGrowthPercent,
     // Live counts, not windowed. The old figure was "approved *within the last
     // thirty days*", so an order approved forty days ago and still unfulfilled
     // had dropped off the very card meant to surface it — the longer it was
@@ -320,10 +329,11 @@ export async function getHODashboardKPIs(
     accountName: account.items[0]?.accountName ?? '',
     totalSpendThisMonth: money(report.spend.totalSpend),
     totalSpendLastMonth: money(report.spend.previous.totalSpend),
-    spendDeltaPct: report.spend.spendGrowthPercent ?? 0,
+    // Null where there is no prior period; see the note on the admin bundle.
+    spendDeltaPct: report.spend.spendGrowthPercent,
     orderCountThisMonth: report.spend.orderCount,
     orderCountLastMonth: report.spend.previous.orderCount,
-    ordersDeltaPct: report.spend.orderGrowthPercent ?? 0,
+    ordersDeltaPct: report.spend.orderGrowthPercent,
     // The card's subtitle reads "Sites under this account", and now that is
     // what the number is. `spend.siteCount` counts branches that *ordered* in
     // the window, so a branch that opened last week or simply had a quiet
@@ -467,7 +477,10 @@ function toBillingLineItems(
     deliveryInstructions: line.deliveryNotes ?? '',
     billToAddress: addressText(line.billingAddress),
     billToEntity: line.billingAddress?.label ?? invoice.accountName,
-    status: (line.orderStatus ?? 'DELIVERED') as OrderStatus,
+    // An order whose status the invoice does not carry is unknown, not
+    // delivered — reporting it as delivered claimed a fulfilment that may
+    // never have happened. `StatusPill` renders this through its default arm.
+    status: (line.orderStatus ?? 'UNKNOWN') as OrderStatus,
   }
 
   const items = line.items ?? []
@@ -475,12 +488,14 @@ function toBillingLineItems(
     return [
       {
         ...order,
-        productName: `${line.itemCount} item(s)`,
+        productName: `${line.itemCount} ${plural(line.itemCount, 'item')}`,
         sku: '',
         packSize: '',
         uom: '',
         qty: line.itemCount,
-        unitPrice: 0,
+        // Not a free item: this invoice carries no per-product detail, so
+        // there is no unit price to show. `$0.00` read as one.
+        unitPrice: null,
         lineValue: money(line.amount),
         taxTreatment: taxLabel(undefined, line.tax, invoice),
         notes: line.orderNotes ?? line.campaignCode ?? '',
@@ -540,12 +555,13 @@ async function ordersAsLineItems(
       orderedByUser: order.placedByName,
       orderedByEmail: order.placedByEmail,
       poReference: order.poNumber ?? '',
-      productName: `${order.itemCount} item(s) across ${order.lineCount} line(s)`,
+      productName: `${order.itemCount} ${plural(order.itemCount, 'item')} across ${order.lineCount} ${plural(order.lineCount, 'line')}`,
       sku: '',
       packSize: '',
       uom: '',
       qty: order.itemCount,
-      unitPrice: 0,
+      // The preview is at the order grain, so no per-product price exists yet.
+      unitPrice: null,
       lineValue: money(order.total),
       // Not invoiced yet, so no tax has been worked out for it.
       taxTreatment: 'Calculated on invoice',

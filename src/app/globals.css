@@ -27,6 +27,10 @@
 }
 
 html {
+  /* The portal is a single-theme, light design: white cards, light tokens.
+     Without this, a browser on a dark OS theme renders the form controls it
+     paints itself — inputs, selects, scrollbars — dark against those cards. */
+  color-scheme: light;
   font-size: 16px;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
@@ -101,9 +105,209 @@ textarea {
 }
 
 img,
-svg {
+svg,
+video,
+canvas {
   display: block;
   max-width: 100%;
+}
+
+img,
+video {
+  height: auto;
+}
+
+/* Long unbroken content must never widen the page. A code block or a pasted
+   payload scrolls inside itself instead. */
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* A long word, URL or reference id (ORD-2026-8819-…) used to push a card wider
+   than the phone and take the whole page with it. */
+code,
+kbd,
+samp {
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================================
+   RESPONSIVE TOOLKIT
+   ----------------------------------------------------------------------------
+   This portal is styled almost entirely with INLINE STYLES, and an inline
+   `style` attribute cannot hold a media query — there is no way to write
+   "24px on desktop, 16px on a phone" in one. These classes exist for exactly
+   the handful of things that must CHANGE with the viewport; everything else
+   stays inline as before.
+
+   How to use them: put the class on the element and leave the rest of its
+   inline styles alone. Where a class sets a property, do NOT also set that
+   property inline — an inline style always wins and will silently defeat the
+   class. In particular `.page-pad` sets `padding-inline`, so a caller must set
+   only `paddingBlock` inline, never the `padding` shorthand.
+
+   Breakpoints, matching the rest of the app:
+     phone   ≤ 767px      tablet 768–1023px      laptop+ ≥ 1024px
+   The hard rule they serve: nothing scrolls the page sideways at 360px.
+   ========================================================================= */
+
+/* Page gutter. On the outermost wrapper of a page or a panel body. */
+.page-pad {
+  padding-inline: 24px;
+}
+
+/* Any table wider than the screen: wrap it in this, once, and the table
+   scrolls inside its card instead of widening the document. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+/* Cards, stat tiles, form fields — anything that should simply fit as many
+   per row as it can. Override the minimum per instance with the custom
+   property: style={{ ['--min']: '180px' }}. */
+.grid-auto {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(var(--min, 240px), 1fr));
+}
+
+/* Fixed column counts that collapse to a single column on a phone. Reach for
+   these only when the columns mean something (label/value, form pairs);
+   otherwise `.grid-auto` is the better default. */
+.grid-2,
+.grid-3 {
+  display: grid;
+  gap: 14px;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Toolbars, filter bars, header action groups: a row that wraps to a second
+   line rather than pushing its last control off screen. */
+.row-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* A row on a tablet and up, a column on a phone. For a title beside its
+   actions, or a pair of panels side by side. */
+.stack-sm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* One line, truncated with an ellipsis. For a user name, an account name, a
+   file name — anything supplied by the data and therefore any length. Needs an
+   ancestor with `minWidth: 0` to take effect inside a flex row. */
+/*
+ * A fixed-width nav beside its content — the settings screen's tab rail.
+ * Below 1024px the rail stops being a column and sits above the form, which
+ * is the only way both fit on a phone without the form becoming a slot.
+ */
+.split-nav {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1023px) {
+  .split-nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.truncate {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A control a finger has to hit. Compact on a mouse, 40px on touch. */
+.touch-target {
+  min-height: 40px;
+  min-width: 40px;
+}
+
+@media (pointer: fine) {
+  .touch-target {
+    min-height: 0;
+    min-width: 0;
+  }
+}
+
+/* Dialog height cap: never taller than the viewport, so nothing inside is
+   unreachable. `dvh` keeps it honest under a mobile browser's sliding URL bar;
+   the `vh` line above it is the fallback for anything that lacks `dvh`. */
+.dialog-cap {
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+}
+
+/* A Drawer panel: as wide as asked for, full width on a phone. The caller
+   passes its desired width inline as `--drawer-w`. */
+.drawer-panel {
+  width: min(var(--drawer-w, 440px), calc(100vw - 32px));
+}
+
+/* Visibility helpers. Each is only ever a `display: none` — neither class
+   imposes a display value when its element IS shown, so the element keeps
+   whatever it had (flex, grid, block, or its inline style). */
+@media (min-width: 768px) {
+  /* Shown only on a phone: a short label, a compact action, a stacked variant
+     of something the wide screen shows in full. */
+  .show-sm {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .page-pad {
+    padding-inline: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .page-pad {
+    padding-inline: 16px;
+  }
+
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stack-sm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Present on a tablet and up, gone on a phone — for a decoration or a label
+     the screen has no room for. Never hide the only copy of something a reader
+     needs; pair it with `.show-sm` on a shorter version instead. */
+  .hide-sm {
+    display: none !important;
+  }
+
+  .drawer-panel {
+    width: 100vw;
+  }
 }
 
 /* Glassmorphic Utilities */
@@ -180,7 +384,15 @@ svg {
   padding-right: var(--space-6);
 }
 
-@media (max-width: 768px) {
+/* Same gutter ladder as `.page-pad` below: 24 / 20 / 16. */
+@media (max-width: 1023px) {
+  .container {
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
+  }
+}
+
+@media (max-width: 767px) {
   .container {
     padding-left: var(--space-4);
     padding-right: var(--space-4);

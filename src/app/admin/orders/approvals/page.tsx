@@ -16,6 +16,7 @@ import {
 import { AdminHeader } from '@/components/admin/AdminHeader'
 import { ApprovalDetailDrawer } from '@/components/admin/ApprovalDetailDrawer'
 import { ApprovalStatusBadge } from '@/components/admin/ApprovalStatusBadge'
+import { formatMoney, formatDateTime } from '@/lib/format'
 import {
   APPROVAL_COLORS,
   approvalCard,
@@ -27,8 +28,6 @@ import {
   errorMessage,
   fieldControl,
   formatAge,
-  formatDateTime,
-  formatMoney,
   maxTier,
   predictDecisionRefusal,
   secondaryButton,
@@ -128,8 +127,8 @@ export default function AdminApprovalsQueuePage() {
   if (!canAct) {
     return (
       <>
-        <AdminHeader title="Approvals Queue" />
-        <main style={{ padding: '24px' }}>
+        <AdminHeader title="Approvals queue" />
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <div style={{ ...approvalCard, ...emptyState }}>
             <ShieldCheck
               size={24}
@@ -152,10 +151,10 @@ export default function AdminApprovalsQueuePage() {
   return (
     <>
       <AdminHeader
-        title="Approvals Queue"
+        title="Approvals queue"
         subtitle="Orders waiting on a decision, tier by tier"
         actionButton={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap" style={{ gap: '8px' }}>
             <button
               type="button"
               onClick={() => void refetch()}
@@ -179,8 +178,9 @@ export default function AdminApprovalsQueuePage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -188,23 +188,19 @@ export default function AdminApprovalsQueuePage() {
       >
         {/* Filters */}
         <div
+          className="row-wrap"
           style={{
             ...approvalCard,
             padding: '12px 16px',
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
             gap: '12px',
-            flexWrap: 'wrap',
           }}
         >
           <div
+            className="row-wrap"
             role="tablist"
             aria-label="Approval status"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
               gap: '2px',
               backgroundColor: C.hairline,
               padding: '3px',
@@ -217,6 +213,7 @@ export default function AdminApprovalsQueuePage() {
               return (
                 <button
                   key={tab.id}
+                  className="touch-target"
                   type="button"
                   role="tab"
                   aria-selected={isActive}
@@ -249,23 +246,24 @@ export default function AdminApprovalsQueuePage() {
             })}
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="row-wrap" style={{ gap: '12px' }}>
             {isAdmin && (
               <select
+                className="touch-target"
                 aria-label="Account"
                 value={accountId}
                 onChange={(event) => {
                   setAccountId(event.target.value)
                   setPage(1)
                 }}
-                style={{ ...fieldControl, width: 'auto', minWidth: '200px' }}
+                /* A long account name used to stretch the picker past the
+                   filter bar; it now shrinks with the row. */
+                style={{
+                  ...fieldControl,
+                  width: 'auto',
+                  flex: '1 1 180px',
+                  minWidth: 0,
+                }}
               >
                 <option value="">All accounts</option>
                 {(accountsPage?.items ?? []).map((account) => (
@@ -277,6 +275,7 @@ export default function AdminApprovalsQueuePage() {
             )}
 
             <button
+              className="touch-target"
               type="button"
               role="switch"
               aria-checked={mine}
@@ -343,7 +342,7 @@ export default function AdminApprovalsQueuePage() {
         {/* Queue */}
         <div style={{ ...approvalCard, overflow: 'hidden' }}>
           {isLoading ? (
-            <SkeletonTable rows={6} columns={7} label="Loading approvals" />
+            <SkeletonTable rows={6} columns={8} label="Loading approvals" />
           ) : items.length === 0 ? (
             !error && (
               <div style={emptyState}>
@@ -373,10 +372,13 @@ export default function AdminApprovalsQueuePage() {
               </div>
             )
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            // Eight columns cannot fit a phone: the queue scrolls sideways
+            // inside its own card instead of widening the page.
+            <div className="table-scroll">
               <table
                 style={{
                   width: '100%',
+                  minWidth: '900px',
                   borderCollapse: 'collapse',
                   textAlign: 'left',
                   fontSize: '0.84rem',
@@ -387,7 +389,7 @@ export default function AdminApprovalsQueuePage() {
                 <thead>
                   <tr>
                     <th style={approvalThEdge}>Order #</th>
-                    <th style={approvalTh}>Branch</th>
+                    <th style={approvalTh}>Site</th>
                     <th style={approvalTh}>Requested by</th>
                     <th style={{ ...approvalTh, textAlign: 'right' }}>Total</th>
                     <th style={approvalTh}>Tier</th>
@@ -550,6 +552,7 @@ export default function AdminApprovalsQueuePage() {
                           style={{ padding: '12px 20px', textAlign: 'right' }}
                         >
                           <button
+                            className="touch-target"
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation()
@@ -575,16 +578,14 @@ export default function AdminApprovalsQueuePage() {
           {/* Pager */}
           {!isLoading && (items.length > 0 || page > 1) && (
             <div
+              className="row-wrap"
               style={{
-                display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '12px',
                 padding: '10px 20px',
                 borderTop: `1px solid ${C.hairline}`,
                 fontSize: '0.78rem',
                 color: C.secondary,
-                flexWrap: 'wrap',
               }}
             >
               <span>
@@ -596,8 +597,9 @@ export default function AdminApprovalsQueuePage() {
                       } of ${data.total}`
                     : `Page ${page} of ${data.totalPages}`}
               </span>
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div className="row-wrap" style={{ gap: '6px' }}>
                 <button
+                  className="touch-target"
                   type="button"
                   aria-label="Previous page"
                   disabled={!hasPrevious || isFetching}
@@ -612,6 +614,7 @@ export default function AdminApprovalsQueuePage() {
                   Previous
                 </button>
                 <button
+                  className="touch-target"
                   type="button"
                   aria-label="Next page"
                   disabled={!hasNext || isFetching}

@@ -203,7 +203,7 @@ export function assertTransition(from: OrderStatus, to: OrderStatus): void {
  * `Account.approvalThreshold` is nullable rather than using 0 as a sentinel.
  *
  * Strictly greater than: an order landing exactly on the threshold is within
- * it. A head office that sets £1,000 means "up to a thousand is fine".
+ * it. A head office that sets $1,000 means "up to a thousand is fine".
  *
  * BE-07 adds the rest of the triggers the SOW lists — category and role — and
  * the multi-tier routing. This is the total-based one, which is what an order

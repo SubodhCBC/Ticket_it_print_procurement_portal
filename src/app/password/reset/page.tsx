@@ -13,46 +13,16 @@ import {
   PublicAuthShell,
 } from '@/components/auth/PublicAuthShell'
 import {
+  NO_PASSWORD_ERRORS,
   PASSWORD_HINT,
-  PASSWORD_MIN_LENGTH,
+  validatePasswords,
+  type PasswordErrors,
   authBodyTextStyle,
   authStackStyle,
 } from '@/components/auth/publicAuthShell.styles'
 
 /** How long the confirmation sits before it takes the user to sign in. */
 const REDIRECT_DELAY_MS = 5000
-
-interface PasswordErrors {
-  password: string | null
-  confirmPassword: string | null
-}
-
-const NO_ERRORS: PasswordErrors = { password: null, confirmPassword: null }
-
-/**
- * Both boxes, checked in one pass.
- *
- * One pass rather than one refusal at a time: someone who left the form empty
- * should be told about both boxes at once, which is precisely what the
- * browser's own validation would not do.
- */
-function validatePasswords(
-  password: string,
-  confirmPassword: string
-): PasswordErrors {
-  const errors: PasswordErrors = { ...NO_ERRORS }
-
-  if (!password) errors.password = 'Enter a new password.'
-  else if (password.length < PASSWORD_MIN_LENGTH)
-    errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters — this one has ${password.length}.`
-
-  if (!confirmPassword)
-    errors.confirmPassword = 'Type the new password again to confirm it.'
-  else if (password !== confirmPassword)
-    errors.confirmPassword = 'Passwords do not match.'
-
-  return errors
-}
 
 /**
  * Where a password-reset email lands.
@@ -75,7 +45,8 @@ function ResetPasswordForm() {
   /** The banner: only ever what the server said — an expired token, a 500. */
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   /** Each box's own complaint, under that box. */
-  const [fieldErrors, setFieldErrors] = useState<PasswordErrors>(NO_ERRORS)
+  const [fieldErrors, setFieldErrors] =
+    useState<PasswordErrors>(NO_PASSWORD_ERRORS)
 
   // A courtesy, not the only way out: the link below works immediately, and
   // the timer is cleared if the user takes it first.
@@ -189,7 +160,7 @@ function ResetPasswordForm() {
             // The confirm box's complaint is about this value too, so a change
             // here retires both rather than leaving a stale "do not match".
             if (fieldErrors.password || fieldErrors.confirmPassword)
-              setFieldErrors(NO_ERRORS)
+              setFieldErrors(NO_PASSWORD_ERRORS)
           }}
           error={fieldErrors.password}
           hint={PASSWORD_HINT}

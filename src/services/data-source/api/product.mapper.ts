@@ -262,6 +262,12 @@ export function toProduct(api: ApiProduct): Product {
     categoryId: api.category.id,
     categoryName: api.category.name,
     packSize: packSizeLabel(api.packSize, api.uom),
+    // The same fact as a number. `packSize` above is a shelf label — "Pack of
+    // 250" — and a label cannot be multiplied: anything working out how many
+    // pieces a quantity buys got NaN from it and silently fell back to
+    // counting packs as units. The count is carried beside the label rather
+    // than parsed back out of it.
+    unitsPerPack: api.packSize,
     uom: UOM_CODE[api.uom] ?? api.uom,
     basePrice: Number(api.basePrice),
     moq: api.moq,

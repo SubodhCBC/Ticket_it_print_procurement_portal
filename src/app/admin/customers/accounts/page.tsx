@@ -46,6 +46,7 @@ import { InvitationsPanel } from '../_components/InvitationsPanel'
 import { SiteEditDrawer } from '../_components/SiteEditDrawer'
 import { UserEditDrawer } from '../_components/UserEditDrawer'
 import { UserInviteForm } from '../_components/UserInviteForm'
+import { formatMoney } from '@/lib/format'
 import {
   ROLE_LABELS,
   MONEY_PATTERN,
@@ -53,7 +54,6 @@ import {
   cardStyle,
   errorMessage,
   fieldStyle,
-  formatMoney,
   palette,
 } from '../_components/customerAdmin.shared'
 
@@ -65,7 +65,7 @@ const TABS: Array<{
   icon: typeof Building2
 }> = [
   { id: 'accounts', label: 'Customer Accounts', icon: Building2 },
-  { id: 'sites', label: 'Site Branches & Hubs', icon: MapPin },
+  { id: 'sites', label: 'Sites', icon: MapPin },
   { id: 'users', label: 'Account Users & Roles', icon: Users },
   { id: 'invitations', label: 'Invitations', icon: Mail },
 ]
@@ -360,8 +360,8 @@ function CustomerAccountsContent() {
     // at a time — which is what the browser's own validation did.
     const found: CreateErrors = {}
     if (isAdmin && !siteAccountId)
-      found.siteAccountId = 'Choose the account this branch belongs to.'
-    if (!siteName.trim()) found.siteName = 'Enter a branch name.'
+      found.siteAccountId = 'Choose the account this site belongs to.'
+    if (!siteName.trim()) found.siteName = 'Enter a site name.'
     if (!siteCode.trim()) found.siteCode = 'Enter a site code.'
     // A part address is dropped rather than saved, so it is not left to be
     // discovered from the branch having no address afterwards.
@@ -436,7 +436,7 @@ function CustomerAccountsContent() {
   const getActionBtnLabel = () => {
     if (isAdding) return 'Cancel'
     if (activeTab === 'accounts') return 'New Account'
-    if (activeTab === 'sites') return 'New Branch Site'
+    if (activeTab === 'sites') return 'New site'
     return 'Invite New User'
   }
 
@@ -458,8 +458,8 @@ function CustomerAccountsContent() {
   return (
     <>
       <AdminHeader
-        title="Customer Accounts & Organization Hub"
-        subtitle="Consolidated management of healthcare networks, branch physical sites, and authorized portal users"
+        title="Customer accounts"
+        subtitle="Accounts, their sites and the people who order for them"
         actionButton={
           <button
             type="button"
@@ -496,8 +496,9 @@ function CustomerAccountsContent() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -506,16 +507,14 @@ function CustomerAccountsContent() {
         {/* Navigation Tabs Bar */}
         <div
           role="tablist"
+          className="row-wrap"
           style={{
+            gap: '4px',
             backgroundColor: '#FFFFFF',
             borderRadius: '14px',
             boxShadow:
               '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
             padding: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '4px',
             border: '1px solid #F0E6EC',
             width: 'fit-content',
             maxWidth: '100%',
@@ -594,14 +593,11 @@ function CustomerAccountsContent() {
               <span>Create New Enterprise Healthcare Account</span>
             </div>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '14px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '200px' } as React.CSSProperties}
             >
               <Field
-                label="Account / Organization Name *"
+                label="Account name *"
                 htmlFor="new-acc-name"
                 error={createErrors.accName}
               >
@@ -775,18 +771,15 @@ function CustomerAccountsContent() {
               }}
             >
               <MapPin size={16} color="#A39BB3" />
-              <span>Add New Physical Site / Dispensary Branch</span>
+              <span>Add a site</span>
             </div>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '14px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '200px' } as React.CSSProperties}
             >
               {isAdmin && (
                 <Field
-                  label="Parent Account Organization *"
+                  label="Parent account *"
                   htmlFor="new-site-account"
                   error={createErrors.siteAccountId}
                 >
@@ -813,14 +806,14 @@ function CustomerAccountsContent() {
                 </Field>
               )}
               <Field
-                label="Branch Site Name *"
+                label="Site name *"
                 htmlFor="new-site-name"
                 error={createErrors.siteName}
               >
                 <input
                   id="new-site-name"
                   type="text"
-                  placeholder="e.g. Apex Queens Infusion Center"
+                  placeholder="e.g. Apex Queens Infusion Centre"
                   value={siteName}
                   aria-invalid={createErrors.siteName ? true : undefined}
                   onChange={(e) => {
@@ -836,7 +829,7 @@ function CustomerAccountsContent() {
               <Field
                 label="Site Code *"
                 htmlFor="new-site-code"
-                hint="Unique within the account; it appears on this branch's purchase orders."
+                hint="Unique within the account; it appears on this site's purchase orders."
                 error={createErrors.siteCode}
               >
                 <input
@@ -858,11 +851,8 @@ function CustomerAccountsContent() {
               </Field>
             </div>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '12px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '170px' } as React.CSSProperties}
             >
               <Field
                 label="Street Address"
@@ -931,11 +921,8 @@ function CustomerAccountsContent() {
               </Field>
             </div>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '12px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '170px' } as React.CSSProperties}
             >
               <Field
                 label="Monthly Budget"
@@ -967,7 +954,7 @@ function CustomerAccountsContent() {
               <Field
                 label="Cost Centre"
                 htmlFor="new-site-cost-centre"
-                hint="Carried onto this branch's orders for your finance system."
+                hint="Carried onto this site's orders for your finance system."
               >
                 <input
                   id="new-site-cost-centre"
@@ -997,7 +984,7 @@ function CustomerAccountsContent() {
             </div>
             <CheckboxField
               id="new-site-po-required"
-              label="Require a purchase order number for this branch"
+              label="Require a purchase order number for this site"
               checked={sitePoRequired}
               onChange={setSitePoRequired}
             />
@@ -1046,21 +1033,14 @@ function CustomerAccountsContent() {
         {/* Plain fields on the page rather than a white strip holding a
             borderless input: the field itself is the frame, so the strip was
             a card with nothing in it but a search box. */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
           {/* The invitations endpoint has no search. */}
           {activeTab !== 'invitations' && (
             <div
               style={{
                 position: 'relative',
-                flex: '1 1 280px',
+                flex: '1 1 240px',
+                minWidth: 0,
                 maxWidth: '460px',
               }}
             >
@@ -1079,9 +1059,9 @@ function CustomerAccountsContent() {
                 aria-label="Search"
                 placeholder={
                   activeTab === 'accounts'
-                    ? 'Search accounts by organization name or account code...'
+                    ? 'Search accounts by account name or code...'
                     : activeTab === 'sites'
-                      ? 'Search branches by site name or code...'
+                      ? 'Search sites by name or code...'
                       : 'Search users by name, email or login...'
                 }
                 value={searchInput}
@@ -1092,7 +1072,7 @@ function CustomerAccountsContent() {
           )}
 
           {isAdmin && activeTab !== 'accounts' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="row-wrap" style={{ gap: '8px', flex: '1 1 180px' }}>
               <label
                 htmlFor="customer-account-filter"
                 style={{
@@ -1107,7 +1087,14 @@ function CustomerAccountsContent() {
                 id="customer-account-filter"
                 value={selectedAccountFilter}
                 onChange={(e) => changeAccountFilter(e.target.value)}
-                style={{ ...fieldStyle(), width: 'auto' }}
+                className="touch-target"
+                style={{
+                  ...fieldStyle(),
+                  width: 'auto',
+                  flex: '1 1 auto',
+                  minWidth: 0,
+                  maxWidth: '100%',
+                }}
               >
                 <option value="">{ownAccountLabel}</option>
                 {accountChoices.map((acc) => (
@@ -1122,7 +1109,7 @@ function CustomerAccountsContent() {
 
         {/* TAB 1: ACCOUNTS TABLE */}
         {activeTab === 'accounts' && (
-          <div style={{ ...cardStyle, overflowX: 'auto' }}>
+          <div style={cardStyle}>
             {accountsQuery.isLoading ? (
               <SkeletonTable rows={6} columns={6} label="Loading accounts" />
             ) : accountsQuery.error ? (
@@ -1141,171 +1128,184 @@ function CustomerAccountsContent() {
                   ? searchQuery
                     ? 'No accounts match this search.'
                     : 'No customer accounts yet.'
-                  : 'The customer account directory is restricted to platform administrators. Your own account and its branches are on the Sites and Users tabs.'}
+                  : 'The customer account directory is restricted to platform administrators. Your own account and its sites are on the Sites and Users tabs.'}
               </StateMessage>
             ) : (
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  textAlign: 'left',
-                  fontSize: '0.84rem',
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th style={{ ...headerCell, padding: '10px 20px' }}>
-                      Account Name
-                    </th>
-                    <th style={headerCell}>Account Code</th>
-                    <th style={headerCell}>Sites Count</th>
-                    <th style={{ ...headerCell, textAlign: 'right' }}>
-                      Approval Threshold
-                    </th>
-                    <th style={headerCell}>Status</th>
-                    <th
-                      style={{
-                        ...headerCell,
-                        padding: '10px 20px',
-                        textAlign: 'right',
-                      }}
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accountsData?.items.map((acc) => (
-                    <tr key={acc.id} style={{ borderTop: '1px solid #F5EEF2' }}>
-                      <td
+              <div className="table-scroll">
+                <table
+                  style={{
+                    width: '100%',
+                    minWidth: '880px',
+                    borderCollapse: 'collapse',
+                    textAlign: 'left',
+                    fontSize: '0.84rem',
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={{ ...headerCell, padding: '10px 20px' }}>
+                        Account Name
+                      </th>
+                      <th style={headerCell}>Account Code</th>
+                      <th style={headerCell}>Sites Count</th>
+                      <th style={{ ...headerCell, textAlign: 'right' }}>
+                        Approval Threshold
+                      </th>
+                      <th style={headerCell}>Status</th>
+                      <th
                         style={{
-                          padding: '12px 20px',
-                          fontWeight: 600,
-                          color: '#2B253E',
+                          ...headerCell,
+                          padding: '10px 20px',
+                          textAlign: 'right',
                         }}
                       >
-                        <div
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accountsData?.items.map((acc) => (
+                      <tr
+                        key={acc.id}
+                        style={{ borderTop: '1px solid #F5EEF2' }}
+                      >
+                        <td
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
+                            padding: '12px 20px',
+                            fontWeight: 600,
+                            color: '#2B253E',
                           }}
                         >
-                          <Building2
-                            size={16}
-                            color="#A39BB3"
-                            style={{ flexShrink: 0 }}
-                          />
-                          <div>
-                            <div>{acc.name}</div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              minWidth: 0,
+                            }}
+                          >
+                            <Building2
+                              size={16}
+                              color="#A39BB3"
+                              style={{ flexShrink: 0 }}
+                            />
+                            <div style={{ minWidth: 0 }}>
+                              <div className="truncate" title={acc.name}>
+                                {acc.name}
+                              </div>
+                              <div
+                                className="truncate"
+                                title={acc.contactEmail || undefined}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  color: '#A39BB3',
+                                  fontWeight: 400,
+                                }}
+                              >
+                                {acc.contactEmail || 'No contact email'}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 14px',
+                            fontFamily: 'monospace',
+                            color: '#6E6781',
+                            fontSize: '0.78rem',
+                          }}
+                        >
+                          {acc.accountCode}
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 14px',
+                            fontWeight: 600,
+                            color: '#2B253E',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              changeAccountFilter(acc.id)
+                              setTab('sites')
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#F73582',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: 0,
+                            }}
+                          >
+                            <span>{acc.sitesCount || 0} Sites</span>
+                            <ArrowRight size={13} />
+                          </button>
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 14px',
+                            textAlign: 'right',
+                            fontWeight: 600,
+                            color: '#2B253E',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {acc.approvalThreshold != null
+                            ? formatMoney(acc.approvalThreshold)
+                            : 'None'}
+                          {acc.requirePoNumber && (
                             <div
                               style={{
-                                fontSize: '0.72rem',
+                                fontSize: '0.7rem',
                                 color: '#A39BB3',
                                 fontWeight: 400,
                               }}
                             >
-                              {acc.contactEmail || 'No contact email'}
+                              PO required
                             </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 14px',
-                          fontFamily: 'monospace',
-                          color: '#6E6781',
-                          fontSize: '0.78rem',
-                        }}
-                      >
-                        {acc.accountCode}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 14px',
-                          fontWeight: 600,
-                          color: '#2B253E',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            changeAccountFilter(acc.id)
-                            setTab('sites')
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#F73582',
-                            cursor: 'pointer',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: 0,
-                          }}
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 14px' }}>
+                          <CustomerStatusBadge status={acc.status} />
+                        </td>
+                        <td
+                          style={{ padding: '12px 20px', textAlign: 'right' }}
                         >
-                          <span>{acc.sitesCount || 0} Branches</span>
-                          <ArrowRight size={13} />
-                        </button>
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 14px',
-                          textAlign: 'right',
-                          fontWeight: 600,
-                          color: '#2B253E',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {acc.approvalThreshold != null
-                          ? formatMoney(acc.approvalThreshold)
-                          : 'None'}
-                        {acc.requirePoNumber && (
                           <div
                             style={{
-                              fontSize: '0.7rem',
-                              color: '#A39BB3',
-                              fontWeight: 400,
+                              display: 'inline-flex',
+                              gap: '6px',
                             }}
                           >
-                            PO required
+                            <RowActionButton
+                              icon={<Pencil size={13} />}
+                              label={canManageAccounts ? 'Edit' : 'View'}
+                              onClick={() => setEditAccount(acc)}
+                            />
+                            <RowActionButton
+                              tone="danger"
+                              icon={<Power size={13} />}
+                              label="Deactivate"
+                              disabled={!canManageAccounts}
+                              title={
+                                !canManageAccounts ? NO_PERMISSION : undefined
+                              }
+                              onClick={() => setDeactivatingAccount(acc)}
+                            />
                           </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <CustomerStatusBadge status={acc.status} />
-                      </td>
-                      <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            gap: '6px',
-                          }}
-                        >
-                          <RowActionButton
-                            icon={<Pencil size={13} />}
-                            label={canManageAccounts ? 'Edit' : 'View'}
-                            onClick={() => setEditAccount(acc)}
-                          />
-                          <RowActionButton
-                            tone="danger"
-                            icon={<Power size={13} />}
-                            label="Deactivate"
-                            disabled={!canManageAccounts}
-                            title={
-                              !canManageAccounts ? NO_PERMISSION : undefined
-                            }
-                            onClick={() => setDeactivatingAccount(acc)}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
             {accountsData && (
               <Pager
@@ -1317,32 +1317,29 @@ function CustomerAccountsContent() {
           </div>
         )}
 
-        {/* TAB 2: SITE BRANCHES GRID */}
+        {/* TAB 2: SITES GRID */}
         {activeTab === 'sites' && (
           <div
             style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
           >
             {sitesQuery.isLoading ? (
-              <SkeletonList count={4} label="Loading branches" />
+              <SkeletonList count={4} label="Loading sites" />
             ) : sitesQuery.error ? (
               <ErrorNote
-                message={`Could not load branches: ${errorMessage(sitesQuery.error)}`}
+                message={`Could not load sites: ${errorMessage(sitesQuery.error)}`}
               />
             ) : (sitesData?.items.length ?? 0) === 0 ? (
               <div style={cardStyle}>
                 <StateMessage>
                   {searchQuery
-                    ? 'No branches match this search.'
-                    : 'No branches for this account yet.'}
+                    ? 'No sites match this search.'
+                    : 'No sites for this account yet.'}
                 </StateMessage>
               </div>
             ) : (
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                  gap: '14px',
-                }}
+                className="grid-auto"
+                style={{ ['--min']: '270px' } as React.CSSProperties}
               >
                 {sitesData?.items.map((site) => {
                   const shipTo = pickAddress(site, 'SHIPPING')
@@ -1377,6 +1374,7 @@ function CustomerAccountsContent() {
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             gap: '10px',
+                            minWidth: 0,
                           }}
                         >
                           <div
@@ -1392,8 +1390,10 @@ function CustomerAccountsContent() {
                               color="#A39BB3"
                               style={{ flexShrink: 0 }}
                             />
-                            <div>
+                            <div style={{ minWidth: 0 }}>
                               <div
+                                className="truncate"
+                                title={site.name}
                                 style={{
                                   fontWeight: 700,
                                   fontSize: '0.95rem',
@@ -1403,6 +1403,8 @@ function CustomerAccountsContent() {
                                 {site.name}
                               </div>
                               <div
+                                className="truncate"
+                                title={site.accountName}
                                 style={{
                                   fontSize: '0.76rem',
                                   color: '#A39BB3',
@@ -1479,13 +1481,7 @@ function CustomerAccountsContent() {
                           fontSize: '0.78rem',
                         }}
                       >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                          }}
-                        >
+                        <div className="row-wrap" style={{ gap: '8px' }}>
                           <CustomerStatusBadge status={site.status} />
                           <span style={{ color: '#6E6781' }}>
                             {site.monthlyBudget
@@ -1527,9 +1523,9 @@ function CustomerAccountsContent() {
 
         {/* TAB 3: ACCOUNT USERS TABLE */}
         {activeTab === 'users' && (
-          <div style={{ ...cardStyle, overflowX: 'auto' }}>
+          <div style={cardStyle}>
             {usersQuery.isLoading ? (
-              <SkeletonTable rows={6} columns={6} label="Loading users" />
+              <SkeletonTable rows={6} columns={5} label="Loading users" />
             ) : usersQuery.error ? (
               <div style={{ padding: '16px' }}>
                 <ErrorNote
@@ -1545,172 +1541,184 @@ function CustomerAccountsContent() {
                     : 'No users in this account yet. Invited people appear here once they accept.'}
               </StateMessage>
             ) : (
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  textAlign: 'left',
-                  fontSize: '0.84rem',
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th style={{ ...headerCell, padding: '10px 20px' }}>
-                      User Profile
-                    </th>
-                    <th style={headerCell}>Role</th>
-                    <th style={headerCell}>Branch & Org</th>
-                    <th style={headerCell}>Status</th>
-                    <th
-                      style={{
-                        ...headerCell,
-                        padding: '10px 20px',
-                        textAlign: 'right',
-                      }}
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersData?.items.map((u) => {
-                    const isSelf = u.id === user?.id
-                    // Head office holds USER_MANAGE too, but deactivating an
-                    // administrator is as privileged as making one.
-                    const adminOnly = u.role === 'ADMIN' && !isAdmin
-                    return (
-                      <tr
-                        key={u.id}
-                        tabIndex={0}
-                        onClick={() => setEditUser(u)}
-                        onKeyDown={(e) => {
-                          // As for the site cards: not when Enter comes from
-                          // an action button inside the row.
-                          if (e.key === 'Enter' && e.target === e.currentTarget)
-                            setEditUser(u)
-                        }}
+              <div className="table-scroll">
+                <table
+                  style={{
+                    width: '100%',
+                    minWidth: '820px',
+                    borderCollapse: 'collapse',
+                    textAlign: 'left',
+                    fontSize: '0.84rem',
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={{ ...headerCell, padding: '10px 20px' }}>
+                        User Profile
+                      </th>
+                      <th style={headerCell}>Role</th>
+                      <th style={headerCell}>Site & account</th>
+                      <th style={headerCell}>Status</th>
+                      <th
                         style={{
-                          borderTop: '1px solid #F5EEF2',
-                          cursor: 'pointer',
+                          ...headerCell,
+                          padding: '10px 20px',
+                          textAlign: 'right',
                         }}
                       >
-                        <td style={{ padding: '12px 20px' }}>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: '32px',
-                                height: '32px',
-                                flexShrink: 0,
-                                borderRadius: '50%',
-                                backgroundColor: '#F5EEF2',
-                                color: '#5C566E',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 600,
-                                fontSize: '0.78rem',
-                              }}
-                            >
-                              {u.name[0]}
-                            </div>
-                            <div>
-                              <div
-                                style={{ fontWeight: 600, color: '#2B253E' }}
-                              >
-                                {u.name}
-                                {isSelf && (
-                                  <span
-                                    style={{
-                                      color: '#A39BB3',
-                                      fontWeight: 400,
-                                    }}
-                                  >
-                                    {' '}
-                                    (you)
-                                  </span>
-                                )}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: '0.72rem',
-                                  color: '#A39BB3',
-                                }}
-                              >
-                                {u.email}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 14px' }}>
-                          {/* One neutral tag for every role. Pink, green and
-                            amber read as status colours, and a role is not a
-                            status; the words already tell the three apart. */}
-                          <Tag>{ROLE_LABELS[u.role]}</Tag>
-                        </td>
-                        <td
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usersData?.items.map((u) => {
+                      const isSelf = u.id === user?.id
+                      // Head office holds USER_MANAGE too, but deactivating an
+                      // administrator is as privileged as making one.
+                      const adminOnly = u.role === 'ADMIN' && !isAdmin
+                      return (
+                        <tr
+                          key={u.id}
+                          tabIndex={0}
+                          onClick={() => setEditUser(u)}
+                          onKeyDown={(e) => {
+                            // As for the site cards: not when Enter comes from
+                            // an action button inside the row.
+                            if (
+                              e.key === 'Enter' &&
+                              e.target === e.currentTarget
+                            )
+                              setEditUser(u)
+                          }}
                           style={{
-                            padding: '12px 14px',
-                            color: '#2B253E',
-                            fontWeight: 500,
+                            borderTop: '1px solid #F5EEF2',
+                            cursor: 'pointer',
                           }}
                         >
-                          <div>{u.siteName || 'Account-wide'}</div>
-                          <div
+                          <td style={{ padding: '12px 20px' }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                minWidth: 0,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  flexShrink: 0,
+                                  borderRadius: '50%',
+                                  backgroundColor: '#F5EEF2',
+                                  color: '#5C566E',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 600,
+                                  fontSize: '0.78rem',
+                                }}
+                              >
+                                {u.name[0]}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div
+                                  className="truncate"
+                                  style={{ fontWeight: 600, color: '#2B253E' }}
+                                >
+                                  {u.name}
+                                  {isSelf && (
+                                    <span
+                                      style={{
+                                        color: '#A39BB3',
+                                        fontWeight: 400,
+                                      }}
+                                    >
+                                      {' '}
+                                      (you)
+                                    </span>
+                                  )}
+                                </div>
+                                <div
+                                  className="truncate"
+                                  title={u.email}
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    color: '#A39BB3',
+                                  }}
+                                >
+                                  {u.email}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            {/* One neutral tag for every role. Pink, green and
+                            amber read as status colours, and a role is not a
+                            status; the words already tell the three apart. */}
+                            <Tag>{ROLE_LABELS[u.role]}</Tag>
+                          </td>
+                          <td
                             style={{
-                              fontSize: '0.72rem',
-                              color: '#A39BB3',
+                              padding: '12px 14px',
+                              color: '#2B253E',
+                              fontWeight: 500,
                             }}
                           >
-                            {u.siteCode && (
-                              <span style={{ fontFamily: 'monospace' }}>
-                                {u.siteCode}
-                              </span>
-                            )}
-                            {u.siteCode && u.accountName ? ' · ' : ''}
-                            {u.accountName}
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 14px' }}>
-                          <CustomerStatusBadge status={u.status} />
-                        </td>
-                        <td
-                          style={{ padding: '12px 20px', textAlign: 'right' }}
-                        >
-                          <div style={{ display: 'inline-flex', gap: '6px' }}>
-                            <RowActionButton
-                              icon={<Pencil size={13} />}
-                              label={canManageUsers ? 'Edit' : 'View'}
-                              onClick={() => setEditUser(u)}
-                            />
-                            <RowActionButton
-                              tone="danger"
-                              icon={<Power size={13} />}
-                              label="Deactivate"
-                              disabled={!canManageUsers || isSelf || adminOnly}
-                              title={
-                                isSelf
-                                  ? 'You cannot deactivate your own account.'
-                                  : !canManageUsers
-                                    ? NO_PERMISSION
-                                    : adminOnly
-                                      ? 'Only an administrator can deactivate another administrator.'
-                                      : undefined
-                              }
-                              onClick={() => setDeactivatingUser(u)}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                            <div>{u.siteName || 'Account-wide'}</div>
+                            <div
+                              style={{
+                                fontSize: '0.72rem',
+                                color: '#A39BB3',
+                              }}
+                            >
+                              {u.siteCode && (
+                                <span style={{ fontFamily: 'monospace' }}>
+                                  {u.siteCode}
+                                </span>
+                              )}
+                              {u.siteCode && u.accountName ? ' · ' : ''}
+                              {u.accountName}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <CustomerStatusBadge status={u.status} />
+                          </td>
+                          <td
+                            style={{ padding: '12px 20px', textAlign: 'right' }}
+                          >
+                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              <RowActionButton
+                                icon={<Pencil size={13} />}
+                                label={canManageUsers ? 'Edit' : 'View'}
+                                onClick={() => setEditUser(u)}
+                              />
+                              <RowActionButton
+                                tone="danger"
+                                icon={<Power size={13} />}
+                                label="Deactivate"
+                                disabled={
+                                  !canManageUsers || isSelf || adminOnly
+                                }
+                                title={
+                                  isSelf
+                                    ? 'You cannot deactivate your own account.'
+                                    : !canManageUsers
+                                      ? NO_PERMISSION
+                                      : adminOnly
+                                        ? 'Only an administrator can deactivate another administrator.'
+                                        : undefined
+                                }
+                                onClick={() => setDeactivatingUser(u)}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
             {usersData && (
               <Pager
@@ -1784,7 +1792,7 @@ export default function CustomerAccountsPage() {
   return (
     <Suspense
       fallback={
-        <div style={{ padding: '24px' }}>
+        <div className="page-pad" style={{ paddingBlock: '24px' }}>
           <SkeletonTable rows={6} columns={6} label="Loading customers" />
         </div>
       }

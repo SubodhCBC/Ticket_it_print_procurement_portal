@@ -15,43 +15,13 @@ import {
   PublicAuthShell,
 } from '@/components/auth/PublicAuthShell'
 import {
+  NO_PASSWORD_ERRORS,
   PASSWORD_HINT,
-  PASSWORD_MIN_LENGTH,
+  validatePasswords,
+  type PasswordErrors,
   authBodyTextStyle,
   authStackStyle,
 } from '@/components/auth/publicAuthShell.styles'
-
-interface PasswordErrors {
-  password: string | null
-  confirmPassword: string | null
-}
-
-const NO_ERRORS: PasswordErrors = { password: null, confirmPassword: null }
-
-/**
- * Both boxes, checked in one pass.
- *
- * One pass rather than one refusal at a time: someone who left the form empty
- * should be told about both boxes at once, which is precisely what the
- * browser's own validation would not do.
- */
-function validatePasswords(
-  password: string,
-  confirmPassword: string
-): PasswordErrors {
-  const errors: PasswordErrors = { ...NO_ERRORS }
-
-  if (!password) errors.password = 'Choose a password.'
-  else if (password.length < PASSWORD_MIN_LENGTH)
-    errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters — this one has ${password.length}.`
-
-  if (!confirmPassword)
-    errors.confirmPassword = 'Type the password again to confirm it.'
-  else if (password !== confirmPassword)
-    errors.confirmPassword = 'Passwords do not match.'
-
-  return errors
-}
 
 /**
  * Where an invitation email lands.
@@ -82,7 +52,8 @@ function AcceptInvitationForm() {
   /** The banner: only ever what the server said — a dead token, a 500. */
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   /** Each box's own complaint, under that box. */
-  const [fieldErrors, setFieldErrors] = useState<PasswordErrors>(NO_ERRORS)
+  const [fieldErrors, setFieldErrors] =
+    useState<PasswordErrors>(NO_PASSWORD_ERRORS)
 
   // A link that arrived without its token cannot be repaired from here, and a
   // form that is certain to fail is worse than saying so.
@@ -114,7 +85,11 @@ function AcceptInvitationForm() {
     // Checked here so a typo costs nothing: the endpoint is rate-limited, and
     // spending one of those attempts to be told the two boxes differ is a poor
     // trade.
-    const found = validatePasswords(password, confirmPassword)
+    const found = validatePasswords(
+      password,
+      confirmPassword,
+      'Choose a password.'
+    )
     setFieldErrors(found)
     if (found.password || found.confirmPassword) {
       setErrorMessage(null)
@@ -159,7 +134,7 @@ function AcceptInvitationForm() {
             // The confirm box's complaint is about this value too, so a change
             // here retires both rather than leaving a stale "do not match".
             if (fieldErrors.password || fieldErrors.confirmPassword)
-              setFieldErrors(NO_ERRORS)
+              setFieldErrors(NO_PASSWORD_ERRORS)
           }}
           error={fieldErrors.password}
           hint={PASSWORD_HINT}

@@ -2,6 +2,7 @@
 'use client'
 
 import { Skeleton as UiSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState, ErrorState } from '@/components/ui/TableState'
 import { useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -18,6 +19,22 @@ import { useHOMonthlyBillingReport } from '@/hooks/useHeadOffice'
 import { useAuth } from '@/hooks/useAuth'
 import { InvoicesPanel } from '@/components/billing/InvoicesPanel'
 import { exportBackingLinesCSV } from '@/utils/export/csv'
+import {
+  formatMoney,
+  formatMoneyWhole,
+  formatDate,
+  formatMonthYear,
+  formatMonthYearLong,
+} from '@/lib/format'
+
+/** The face of a full-width state panel: the same card as everything else. */
+const panelCard: React.CSSProperties = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: '14px',
+  boxShadow:
+    '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
+  border: '1px solid #F0E6EC',
+}
 
 /**
  * The last twelve billing periods, newest first.
@@ -39,16 +56,8 @@ function recentBillingPeriods(
 
     return {
       key,
-      label: date.toLocaleDateString('en-GB', {
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'UTC',
-      }),
-      shortLabel: date.toLocaleDateString('en-GB', {
-        month: 'short',
-        year: '2-digit',
-        timeZone: 'UTC',
-      }),
+      label: formatMonthYearLong(date),
+      shortLabel: formatMonthYear(date),
     }
   })
 }
@@ -147,7 +156,7 @@ function CategoryBar({
         <span
           style={{ fontWeight: 600, color: '#2B253E', whiteSpace: 'nowrap' }}
         >
-          ${spend.toLocaleString('en-US', { minimumFractionDigits: 0 })}{' '}
+          {formatMoneyWhole(spend)}{' '}
           <span style={{ color: '#A39BB3', fontWeight: 500 }}>
             ({pct.toFixed(1)}%)
           </span>
@@ -185,10 +194,12 @@ export default function HOMonthlyBillingPage() {
   // head-office read to it anyway; this is what the screen asks about.
   const accountId = user?.accountId ?? ''
   const [selectedPeriod, setSelectedPeriod] = useState(AVAILABLE_PERIODS[0].key)
-  const { data: report, isLoading } = useHOMonthlyBillingReport(
-    accountId,
-    selectedPeriod
-  )
+  const {
+    data: report,
+    isLoading,
+    error: reportError,
+    refetch: refetchReport,
+  } = useHOMonthlyBillingReport(accountId, selectedPeriod)
   const [showBacking, setShowBacking] = useState(false)
 
   return (
@@ -202,15 +213,7 @@ export default function HOMonthlyBillingPage() {
       {/* Header. The period picker and the exports sit in the header's action
           slot rather than in a card of their own: they drive the whole page,
           and a bordered strip made them read as content. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
         <div style={{ minWidth: 0 }}>
           <div
             style={{
@@ -246,7 +249,7 @@ export default function HOMonthlyBillingPage() {
               margin: 0,
             }}
           >
-            Consolidated Monthly Billing
+            Monthly billing
           </h1>
           <p
             style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}
@@ -257,15 +260,8 @@ export default function HOMonthlyBillingPage() {
         </div>
 
         {/* Period selector + Actions */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="row-wrap">
+          <div className="row-wrap">
             <Calendar size={16} color="#A39BB3" />
             <span
               style={{ fontSize: '0.78rem', fontWeight: 600, color: '#5C566E' }}
@@ -275,7 +271,9 @@ export default function HOMonthlyBillingPage() {
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="touch-target"
               style={{
+                flex: '1 1 150px',
                 padding: '8px 12px',
                 border: '1px solid #F0E6EC',
                 borderRadius: '10px',
@@ -295,6 +293,7 @@ export default function HOMonthlyBillingPage() {
 
           <button
             onClick={() => setShowBacking(!showBacking)}
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -322,6 +321,7 @@ export default function HOMonthlyBillingPage() {
                   report.accountName
                 )
               }
+              className="touch-target"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -352,12 +352,13 @@ export default function HOMonthlyBillingPage() {
             exit={{ opacity: 0 }}
           >
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '14px',
-                marginBottom: '20px',
-              }}
+              className="grid-auto"
+              style={
+                {
+                  ['--min']: '220px',
+                  marginBottom: '20px',
+                } as React.CSSProperties
+              }
             >
               {[0, 1, 2, 3].map((i) => (
                 <div
@@ -420,6 +421,24 @@ export default function HOMonthlyBillingPage() {
               Generating billing report…
             </div>
           </motion.div>
+        ) : reportError ? (
+          // Ahead of the `report ? …` branch: a failed request rendered
+          // nothing at all below the period picker, which reads as a month
+          // with no spend in it.
+          <motion.div
+            key="error"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={panelCard}
+          >
+            <ErrorState
+              title="The billing statement could not be loaded"
+              detail="The billing service did not respond. Nothing has been billed differently — try again."
+              error={reportError}
+              onRetry={() => refetchReport()}
+            />
+          </motion.div>
         ) : report ? (
           <motion.div
             key={selectedPeriod}
@@ -430,16 +449,17 @@ export default function HOMonthlyBillingPage() {
           >
             {/* Summary Cards */}
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '14px',
-                marginBottom: '20px',
-              }}
+              className="grid-auto"
+              style={
+                {
+                  ['--min']: '220px',
+                  marginBottom: '20px',
+                } as React.CSSProperties
+              }
             >
               <SummaryCard
                 label="Total Amount Owed"
-                value={`$${report.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                value={formatMoney(report.totalSpend)}
                 sub={`Invoice: ${report.invoiceRef}`}
               />
               <SummaryCard
@@ -470,12 +490,13 @@ export default function HOMonthlyBillingPage() {
 
             {/* Site Breakdown + Category Breakdown */}
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 340px',
-                gap: '20px',
-                marginBottom: '20px',
-              }}
+              className="grid-auto"
+              style={
+                {
+                  ['--min']: '300px',
+                  marginBottom: '20px',
+                } as React.CSSProperties
+              }
             >
               {/* Site Breakdown Table */}
               <div
@@ -489,13 +510,11 @@ export default function HOMonthlyBillingPage() {
                 }}
               >
                 <div
+                  className="row-wrap"
                   style={{
                     padding: '16px 20px',
                     borderBottom: '1px solid #F5EEF2',
-                    display: 'flex',
-                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '12px',
                   }}
                 >
                   <h2
@@ -513,7 +532,7 @@ export default function HOMonthlyBillingPage() {
                     {report.periodLabel}
                   </span>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
+                <div className="table-scroll">
                   <table
                     style={{
                       width: '100%',
@@ -548,6 +567,16 @@ export default function HOMonthlyBillingPage() {
                       </tr>
                     </thead>
                     <tbody>
+                      {report.siteBreakdowns.length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: 0 }}>
+                            <EmptyState
+                              title="No site spend this period"
+                              detail="Each site that orders in this period appears here with its share of the invoice."
+                            />
+                          </td>
+                        </tr>
+                      )}
                       {report.siteBreakdowns.map((s) => (
                         <tr
                           key={s.siteId}
@@ -581,10 +610,7 @@ export default function HOMonthlyBillingPage() {
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            $
-                            {s.totalSpend.toLocaleString('en-US', {
-                              minimumFractionDigits: 2,
-                            })}
+                            {formatMoney(s.totalSpend)}
                           </td>
                           <td
                             style={{
@@ -655,14 +681,11 @@ export default function HOMonthlyBillingPage() {
                   }}
                 >
                   <div
+                    className="row-wrap"
                     style={{
                       padding: '16px 20px',
                       borderBottom: '1px solid #F5EEF2',
-                      display: 'flex',
-                      alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '12px',
-                      flexWrap: 'wrap',
                     }}
                   >
                     <div>
@@ -696,6 +719,7 @@ export default function HOMonthlyBillingPage() {
                           report.accountName
                         )
                       }
+                      className="touch-target"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -714,11 +738,8 @@ export default function HOMonthlyBillingPage() {
                     </button>
                   </div>
                   <div
-                    style={{
-                      overflowX: 'auto',
-                      maxHeight: '600px',
-                      overflowY: 'auto',
-                    }}
+                    className="table-scroll"
+                    style={{ maxHeight: '600px', overflowY: 'auto' }}
                   >
                     <table
                       style={{
@@ -788,6 +809,16 @@ export default function HOMonthlyBillingPage() {
                         </tr>
                       </thead>
                       <tbody>
+                        {report.lineItems.length === 0 && (
+                          <tr>
+                            <td colSpan={19} style={{ padding: 0 }}>
+                              <EmptyState
+                                title="No backing lines for this period"
+                                detail="Every billed item appears here once orders are placed — one row per product, with its SKU, quantity and GST."
+                              />
+                            </td>
+                          </tr>
+                        )}
                         {report.lineItems.map((li, i) => (
                           <tr
                             key={`${li.orderNumber}-${li.sku}-${i}`}
@@ -821,10 +852,7 @@ export default function HOMonthlyBillingPage() {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              {new Date(li.orderDate).toLocaleDateString(
-                                'en-US',
-                                { month: 'short', day: 'numeric' }
-                              )}
+                              {formatDate(li.orderDate)}
                             </td>
                             <td
                               style={{
@@ -926,7 +954,7 @@ export default function HOMonthlyBillingPage() {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              ${li.unitPrice.toFixed(2)}
+                              {formatMoney(li.unitPrice)}
                             </td>
                             <td
                               style={{
@@ -936,7 +964,7 @@ export default function HOMonthlyBillingPage() {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              ${li.lineValue.toFixed(2)}
+                              {formatMoney(li.lineValue)}
                             </td>
                             <td
                               style={{
@@ -956,7 +984,7 @@ export default function HOMonthlyBillingPage() {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              ${li.orderTotal.toFixed(2)}
+                              {formatMoney(li.orderTotal)}
                             </td>
                             <td
                               style={{
@@ -1017,11 +1045,12 @@ export default function HOMonthlyBillingPage() {
               >
                 Historical Reports
               </h2>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="row-wrap">
                 {AVAILABLE_PERIODS.map((p) => (
                   <Link
                     key={p.key}
                     href={`/head-office/billing/monthly/${p.key}`}
+                    className="touch-target"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1047,7 +1076,21 @@ export default function HOMonthlyBillingPage() {
               </div>
             </div>
           </motion.div>
-        ) : null}
+        ) : (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={panelCard}
+          >
+            <EmptyState
+              icon={FileSpreadsheet}
+              title="No statement for this period yet"
+              detail="Pick another month above, or come back once this account's first order has been placed."
+            />
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <style>{`

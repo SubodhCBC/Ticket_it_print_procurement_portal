@@ -13,6 +13,7 @@ import { useShippingStatus } from '@/hooks/useShipping'
 import { apiClient, toApiError } from '@/services/api.service'
 import { getOrderAgeing } from '@/services/data-source/api/api-reports.adapter'
 import { IntegrationHealthPanel } from '@/components/shipping/IntegrationHealthPanel'
+import { formatMoney, formatNumber } from '@/lib/format'
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_APPROVAL: 'Awaiting approval',
@@ -114,18 +115,15 @@ export function DashboardInsights({
 
   return (
     <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: '16px',
-      }}
+      className="grid-auto"
+      style={{ ['--min']: '260px', gap: '16px' } as React.CSSProperties}
     >
       <Card title="Orders by status" subtitle="Last 30 days, every status">
         <Bars
           query={insights}
           rows={insights.data?.byStatus}
           valueLabel={(row) =>
-            `${row.orders.toLocaleString()} · ${money(row.value)}`
+            `${formatNumber(row.orders)} · ${formatMoney(row.value)}`
           }
           empty="No orders in the last 30 days."
         />
@@ -135,7 +133,9 @@ export function DashboardInsights({
         <Bars
           query={insights}
           rows={insights.data?.topCategories}
-          valueLabel={(row) => `${money(row.value)} · ${row.share.toFixed(1)}%`}
+          valueLabel={(row) =>
+            `${formatMoney(row.value)} · ${row.share.toFixed(1)}%`
+          }
           empty="No category spend in the last 30 days."
         />
       </Card>
@@ -161,7 +161,7 @@ export function DashboardInsights({
         ) : ageing.data.byStatus.length === 0 ? (
           <p style={muted}>No open orders.</p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-scroll">
             <table style={table}>
               <thead>
                 <tr>
@@ -254,7 +254,9 @@ function Bars({
       }}
     >
       {rows.map((row) => (
-        <li key={row.label}>
+        <li key={row.label} style={{ minWidth: 0 }}>
+          {/* A long category name pushed the figure beside it out of the card;
+              the name gives way instead. */}
           <div
             style={{
               display: 'flex',
@@ -262,9 +264,14 @@ function Bars({
               gap: '8px',
               fontSize: '0.78rem',
               marginBottom: '4px',
+              minWidth: 0,
             }}
           >
-            <span style={{ color: '#2B253E', fontWeight: 500 }}>
+            <span
+              className="truncate"
+              title={row.label}
+              style={{ color: '#2B253E', fontWeight: 500 }}
+            >
               {row.label}
             </span>
             <span style={{ color: '#6E6781', whiteSpace: 'nowrap' }}>
@@ -350,10 +357,6 @@ function Card({
       {children}
     </section>
   )
-}
-
-function money(value: number): string {
-  return `$${value.toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 const muted: React.CSSProperties = {

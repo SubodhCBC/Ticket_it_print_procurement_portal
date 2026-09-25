@@ -79,7 +79,7 @@ export const ADMIN_MENU: readonly SidebarEntry[] = [
     icon: Library,
     children: [
       {
-        title: 'Design Templates',
+        title: 'Templates',
         href: '/admin/templates',
         icon: LayoutTemplate,
         badge: 'Master',
@@ -100,7 +100,7 @@ export const ADMIN_MENU: readonly SidebarEntry[] = [
         icon: Layers,
       },
       {
-        title: 'Inventory Count',
+        title: 'Stocktake',
         href: '/admin/catalogue/inventory',
         icon: Boxes,
       },
@@ -152,7 +152,7 @@ export const ADMIN_MENU: readonly SidebarEntry[] = [
         icon: CheckCircle2,
       },
       {
-        title: 'Fulfilment Queue',
+        title: 'Fulfilment',
         href: '/admin/orders/fulfilment',
         icon: Kanban,
       },
@@ -209,7 +209,7 @@ export const ADMIN_MENU: readonly SidebarEntry[] = [
 
 export const HEAD_OFFICE_MENU: readonly SidebarEntry[] = [
   {
-    title: 'HQ Dashboard',
+    title: 'Dashboard',
     href: '/head-office/dashboard',
     icon: LayoutDashboard,
   },
@@ -235,14 +235,14 @@ export const HEAD_OFFICE_MENU: readonly SidebarEntry[] = [
     icon: ClipboardCheck,
     children: [
       {
-        title: 'Cross-Site Orders',
+        title: 'All Orders',
         href: '/head-office/orders/all',
         icon: ShoppingCart,
         badge: 'Live',
         match: ['/head-office/orders'],
       },
       {
-        title: 'PO Approvals & Payments',
+        title: 'Approvals',
         href: '/head-office/approvals',
         icon: CheckCircle2,
         badge: 'Action',
@@ -261,7 +261,7 @@ export const HEAD_OFFICE_MENU: readonly SidebarEntry[] = [
         badge: 'Reports',
       },
       {
-        title: 'Spend Insights',
+        title: 'Spend by Site',
         href: '/head-office/reports/spend-by-site',
         icon: TrendingUp,
       },
@@ -295,12 +295,12 @@ export const SITE_USER_MENU: readonly SidebarEntry[] = [
     icon: Library,
     children: [
       {
-        title: 'Template Gallery',
+        title: 'Design Gallery',
         href: '/shop/templates',
         icon: FileSpreadsheet,
       },
       {
-        title: 'Print Products Catalogue',
+        title: 'Product Catalogue',
         href: '/shop/catalogue',
         icon: Package,
       },
@@ -311,7 +311,7 @@ export const SITE_USER_MENU: readonly SidebarEntry[] = [
     icon: Truck,
     children: [
       {
-        title: 'Purchase Orders & Pipeline',
+        title: 'Purchase Orders',
         href: '/shop/orders',
         icon: ClipboardList,
         badge: 'Live',
@@ -341,7 +341,7 @@ export const SITE_USER_MENU: readonly SidebarEntry[] = [
     ],
   },
   {
-    title: 'Collateral Cart',
+    title: 'Cart',
     href: '/shop/cart',
     icon: ShoppingCart,
     match: ['/shop/checkout'],

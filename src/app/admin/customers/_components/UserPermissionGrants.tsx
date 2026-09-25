@@ -21,6 +21,7 @@ import {
   palette,
   sectionTitleStyle,
 } from './customerAdmin.shared'
+import { formatDate } from '@/lib/format'
 
 const grantsKey = (userId: string, accountId: string) =>
   ['users', 'grants', userId, accountId] as const
@@ -206,7 +207,7 @@ export function UserPermissionGrants({
               <div style={{ color: palette.muted, marginTop: '2px' }}>
                 {grant.reason ? `“${grant.reason}” · ` : ''}
                 {grant.expiresAt
-                  ? `until ${new Date(grant.expiresAt).toLocaleDateString('en-NZ')}`
+                  ? `until ${formatDate(grant.expiresAt)}`
                   : 'no expiry'}
               </div>
             </div>
@@ -421,7 +422,7 @@ function GrantForm({
         />
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+      <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
         <button
           type="button"
           onClick={onCancel}

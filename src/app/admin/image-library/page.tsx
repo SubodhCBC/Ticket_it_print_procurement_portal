@@ -13,15 +13,16 @@ export default function AdminImageLibraryPage() {
   return (
     <>
       <AdminHeader
-        title="Image Library"
+        title="Image library"
         subtitle="Browse, upload and share the pictures and PDFs held in your Ticket-IT library."
       />
 
       <main
+        // The gutter is the toolkit's now (24/20/16), so it steps with the
+        // other admin screens instead of drifting on its own clamp.
+        className="page-pad"
         style={{
-          // Narrower gutters on a phone; 24px like the other admin screens
-          // once there is room.
-          padding: 'clamp(12px, 4vw, 24px)',
+          paddingBlock: 'clamp(12px, 4vw, 24px)',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',

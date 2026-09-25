@@ -7,7 +7,7 @@ import { AdminReportScope } from '@/components/reports/ReportScopes'
 export default function AdminAnalyticsPage() {
   return (
     <AdminReportScope
-      title="Analytics & Exports"
+      title="Analytics and exports"
       subtitle="Spend, orders, products and inventory reports, each downloadable as CSV and XLSX"
       permission="REPORT_VIEW"
     >

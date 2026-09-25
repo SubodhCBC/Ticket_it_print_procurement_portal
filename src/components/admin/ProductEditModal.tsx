@@ -14,6 +14,7 @@ import {
   uomCode,
   UOM_OPTIONS,
 } from '@/services/data-source/api/product.mapper'
+import { formatMoney } from '@/lib/format'
 
 /**
  * The SKU box starts empty.
@@ -271,20 +272,20 @@ export function ProductEditModal({
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 100,
-          padding: '20px',
+          padding: '16px',
         }}
       >
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 10 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 10 }}
+          className="dialog-cap"
           style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '14px',
             border: '1px solid #F0E6EC',
             width: '100%',
             maxWidth: '680px',
-            maxHeight: '90vh',
             display: 'flex',
             flexDirection: 'column',
             boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)',
@@ -330,6 +331,8 @@ export function ProductEditModal({
             <button
               type="button"
               onClick={onClose}
+              aria-label="Close"
+              className="touch-target"
               style={{
                 width: '32px',
                 height: '32px',
@@ -372,13 +375,7 @@ export function ProductEditModal({
               </div>
             )}
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '14px',
-              }}
-            >
+            <div className="grid-2">
               <div>
                 <label
                   htmlFor="product-name"
@@ -463,6 +460,7 @@ export function ProductEditModal({
 
             <div>
               <label
+                htmlFor="product-description"
                 style={{
                   display: 'block',
                   fontSize: '0.78rem',
@@ -474,6 +472,7 @@ export function ProductEditModal({
                 Description
               </label>
               <textarea
+                id="product-description"
                 rows={2}
                 value={formData.description}
                 onChange={(e) =>
@@ -493,15 +492,10 @@ export function ProductEditModal({
               />
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '14px',
-              }}
-            >
+            <div className="grid-2">
               <div>
                 <label
+                  htmlFor="product-category"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -513,6 +507,7 @@ export function ProductEditModal({
                   Product Category
                 </label>
                 <select
+                  id="product-category"
                   value={formData.categoryId}
                   onChange={(e) =>
                     setFormData({ ...formData, categoryId: e.target.value })
@@ -537,6 +532,7 @@ export function ProductEditModal({
 
               <div>
                 <label
+                  htmlFor="product-status"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -548,6 +544,7 @@ export function ProductEditModal({
                   Product Status
                 </label>
                 <select
+                  id="product-status"
                   value={formData.status}
                   disabled={isEditing && product?.status === 'SUPERSEDED'}
                   onChange={(e) =>
@@ -597,15 +594,10 @@ export function ProductEditModal({
               of the sentence, and ignored the word — so "Box" and "Pack" typed
               here changed nothing but the screen.
             */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '12px',
-              }}
-            >
+            <div className="grid-3">
               <div>
                 <label
+                  htmlFor="product-packUom"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -617,6 +609,7 @@ export function ProductEditModal({
                   Sold by
                 </label>
                 <select
+                  id="product-packUom"
                   value={packUom}
                   onChange={(e) => {
                     const uom = e.target.value as ApiUom
@@ -643,6 +636,7 @@ export function ProductEditModal({
 
               <div>
                 <label
+                  htmlFor="product-packQty"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -654,6 +648,7 @@ export function ProductEditModal({
                   Units in one {uomNoun}
                 </label>
                 <input
+                  id="product-packQty"
                   type="number"
                   min="1"
                   step="1"
@@ -676,6 +671,7 @@ export function ProductEditModal({
 
               <div>
                 <label
+                  htmlFor="product-basePrice"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -687,6 +683,7 @@ export function ProductEditModal({
                   Price per {uomNoun} ($)
                 </label>
                 <input
+                  id="product-basePrice"
                   type="number"
                   step="0.01"
                   min="0"
@@ -717,23 +714,16 @@ export function ProductEditModal({
                 marginTop: '-6px',
               }}
             >
-              Sold as <strong>{packSizeLabel(packQty, packUom)}</strong> at $
-              {basePrice.toFixed(2)} per {uomNoun}
-              {packQty > 1
-                ? ` ($${(basePrice / packQty).toFixed(2)} each)`
-                : ''}
+              Sold as <strong>{packSizeLabel(packQty, packUom)}</strong> at{' '}
+              {formatMoney(basePrice)} per {uomNoun}
+              {packQty > 1 ? ` (${formatMoney(basePrice / packQty)} each)` : ''}
               . MOQ and order multiple below count {uomPlural}, not pieces.
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '12px',
-              }}
-            >
+            <div className="grid-2">
               <div>
                 <label
+                  htmlFor="product-moq"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -745,6 +735,7 @@ export function ProductEditModal({
                   MOQ
                 </label>
                 <input
+                  id="product-moq"
                   type="number"
                   min="1"
                   value={formData.moq}
@@ -768,6 +759,7 @@ export function ProductEditModal({
 
               <div>
                 <label
+                  htmlFor="product-orderMultiple"
                   style={{
                     display: 'block',
                     fontSize: '0.78rem',
@@ -779,6 +771,7 @@ export function ProductEditModal({
                   Order Multiple
                 </label>
                 <input
+                  id="product-orderMultiple"
                   type="number"
                   min="1"
                   value={formData.orderMultiple}
@@ -826,13 +819,7 @@ export function ProductEditModal({
                 </span>
               </div>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '12px',
-                }}
-              >
+              <div className="grid-2">
                 <div>
                   <label htmlFor="product-widthMm" style={fieldLabel}>
                     Trim width (mm)
@@ -975,11 +962,8 @@ export function ProductEditModal({
               </label>
 
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                  gap: '12px',
-                }}
+                className="grid-auto"
+                style={{ ['--min']: '150px' } as React.CSSProperties}
               >
                 <div>
                   <label htmlFor="product-lowStockThreshold" style={fieldLabel}>
@@ -1101,14 +1085,12 @@ export function ProductEditModal({
 
             {/* Footer Buttons */}
             <div
+              className="row-wrap"
               style={{
                 marginTop: '4px',
                 paddingTop: '16px',
                 borderTop: '1px solid #F5EEF2',
-                display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'flex-end',
-                gap: '8px',
               }}
             >
               <button

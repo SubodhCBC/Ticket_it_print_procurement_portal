@@ -145,6 +145,7 @@ export function SidePreview({
               type="button"
               aria-pressed={on}
               onClick={() => onSideChange(face)}
+              className="touch-target"
               style={{
                 padding: '6px 20px',
                 borderRadius: '8px',

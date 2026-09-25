@@ -18,7 +18,8 @@ import {
   Th,
   TextInput,
 } from './ProductAdminUi'
-import { errorMessage, formatMoney } from './ProductAdminUtils'
+import { formatMoney } from '@/lib/format'
+import { errorMessage } from './ProductAdminUtils'
 
 const MAX_TIERS = 20
 

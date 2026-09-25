@@ -12,12 +12,12 @@ import {
   Field,
   SuccessNote,
 } from './CustomerAdminUi'
+import { formatDateTime } from '@/lib/format'
 import {
   ROLE_LABELS,
   buttonStyle,
   cardStyle,
   fieldStyle,
-  formatDateTime,
   palette,
 } from './customerAdmin.shared'
 
@@ -474,7 +474,7 @@ export function UserInviteForm({
 
       <ErrorNote error={create.error} />
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+      <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
         <button
           type="button"
           onClick={onCancel}

@@ -1,15 +1,13 @@
 // src/components/admin/AdminSidebar.tsx
 'use client'
 
-import { useMemo, useState } from 'react'
-import { getDataSource } from '@/services/data-source'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles,
   ChevronRight,
-  Database,
   X,
   PanelLeftClose,
   PanelLeftOpen,
@@ -41,6 +39,64 @@ export function AdminSidebar({
   const handleToggleCollapse = propOnToggleCollapse || sidebar.toggleMiniSidebar
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+
+  // The store's `windowWidth` had nobody reporting to it, so it sat at its
+  // 1200px seed for the life of the session. Everything downstream of it was
+  // therefore wrong on a phone: `sidebar.isMobile` read false, so the header's
+  // hamburger toggled the MINI sidebar — which is `display: none` below 768px —
+  // and the slide-over drawer could not be opened at all. This shell is mounted
+  // on every admin page, so the measurement belongs here.
+  //
+  // Only band CHANGES are reported, for two reasons. `resize` fires
+  // continuously while a window is dragged (and whenever a mobile URL bar
+  // slides), and `setWindowWidth` re-asserts the mini sidebar for the whole
+  // tablet band — so reporting every event would shut a tablet user's sidebar
+  // the instant anything nudged the viewport. And a desktop mount reports
+  // nothing at all: the seed is already a desktop width, and dispatching would
+  // clear the remembered "keep it mini" preference on every page load.
+  const sidebarActions = useRef(sidebar)
+  sidebarActions.current = sidebar
+  useEffect(() => {
+    const bandFor = (width: number) =>
+      width < 768 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop'
+
+    let band = bandFor(window.innerWidth)
+    if (band !== 'desktop')
+      sidebarActions.current.setWindowWidth(window.innerWidth)
+
+    const handleResize = () => {
+      const width = window.innerWidth
+      const next = bandFor(width)
+      if (next === band) return
+      band = next
+      sidebarActions.current.setWindowWidth(width)
+      // Leaving phone width reveals the docked sidebar; an open drawer on top
+      // of it would be two copies of the same navigation.
+      if (next !== 'mobile') sidebarActions.current.closeMobileDrawer()
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // The drawer covers the screen, so Escape has to close it, and the page
+  // behind it must not scroll under the finger.
+  useEffect(() => {
+    if (!sidebar.isMobileOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        sidebarActions.current.closeMobileDrawer()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [sidebar.isMobileOpen])
 
   // Account settings (`/admin/settings`) need ACCOUNT_MANAGE, which only an
   // admin holds; head office would be sent to a page the API refuses. Approval
@@ -86,6 +142,7 @@ export function AdminSidebar({
             gap: nested ? '10px' : '12px',
             padding: isCollapsed ? '10px 0' : nested ? '8px 10px' : '9px 12px',
             justifyContent: isCollapsed ? 'center' : 'flex-start',
+            minHeight: '40px',
             borderRadius: '10px',
             color: isActive ? '#FFFFFF' : '#DCD3E0',
             backgroundColor: isActive
@@ -182,28 +239,12 @@ export function AdminSidebar({
     )
   }
 
-  // Common navigation content inside sidebar
-  /**
-   * What the data-source badge should say.
-   *
-   * Derived from `getDataSource().isMock`, which the seam has exported for
-   * exactly this since the API migration began and which nothing consumed. The
-   * badge was hard-coded to "Mock Service Layer — ACTIVE" and stayed that way
-   * after eight of nine domains moved to the live API, so the admin portal was
-   * telling its operator it ran on fixtures while showing them real orders. A
-   * status light that cannot be wrong is worth more than one that is pretty.
-   */
-  const { isMock, mockDomains } = getDataSource()
-  const dataSourceColor = isMock ? '#F2B84B' : '#58B97D'
-  const dataSourceTint = isMock
-    ? 'rgba(242, 184, 75, 0.15)'
-    : 'rgba(88, 185, 125, 0.15)'
-  const dataSourceName = isMock ? 'Partial Mock Data' : 'Live API'
-  const dataSourceTag = isMock ? `${mockDomains.length} MOCK` : 'LIVE'
-  const dataSourceLabel = isMock
-    ? `Served by the API except: ${mockDomains.join(', ')}`
-    : 'Every domain is served by the backend API'
-
+  // The sidebar used to end with a "Live API" badge. It reported whether any
+  // domain still came from fixtures — a real warning while the migration was
+  // half done. The fixtures are gone, so it could only ever read LIVE: an
+  // indicator that cannot change states is telling nobody anything, and it was
+  // developer wiring sitting in a customer's operator screen. If a status light
+  // is wanted here, /health/dependencies is the thing to read.
   const renderSidebarContent = (isDrawer = false) => {
     const isCollapsed = !isDrawer && isMini
 
@@ -274,7 +315,7 @@ export function AdminSidebar({
                     letterSpacing: '-0.01em',
                     lineHeight: 1.25,
                     color: '#FFFFFF',
-                    overflowWrap: 'break-word',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   Print Procurement Portal
@@ -307,7 +348,7 @@ export function AdminSidebar({
                     textOverflow: 'ellipsis',
                   }}
                 >
-                  Enterprise Platform HQ
+                  Administration
                 </div>
               </motion.div>
             )}
@@ -319,9 +360,11 @@ export function AdminSidebar({
               type="button"
               onClick={sidebar.closeMobileDrawer}
               aria-label="Close Sidebar Drawer"
+              className="touch-target"
               style={{
                 width: '34px',
                 height: '34px',
+                flexShrink: 0,
                 borderRadius: '10px',
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 color: '#DCD3E0',
@@ -427,6 +470,7 @@ export function AdminSidebar({
                     alignItems: 'center',
                     gap: '12px',
                     padding: '9px 12px',
+                    minHeight: '40px',
                     width: '100%',
                     borderRadius: '10px',
                     color: holdsActive ? '#FFFFFF' : '#DCD3E0',
@@ -536,57 +580,8 @@ export function AdminSidebar({
               >
                 <PanelLeftOpen size={16} />
               </button>
-
-              <div
-                title={dataSourceLabel}
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: dataSourceColor,
-                }}
-              />
             </div>
-          ) : (
-            /* Data-source badge. The portal switcher that used to sit here is
-               gone: moving between portals is a matter of who you signed in
-               as, so the only way across is to sign out and back in. */
-            <>
-              {/* Data source badge */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '0.7rem',
-                  color: '#A39BB3',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                }}
-              >
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Database size={13} color={dataSourceColor} />
-                  <span>{dataSourceName}</span>
-                </div>
-                <span
-                  title={dataSourceLabel}
-                  style={{
-                    fontSize: '0.62rem',
-                    backgroundColor: dataSourceTint,
-                    color: dataSourceColor,
-                    padding: '1px 5px',
-                    borderRadius: '4px',
-                    fontWeight: 700,
-                  }}
-                >
-                  {dataSourceTag}
-                </span>
-              </div>
-            </>
-          )}
+          ) : null}
         </div>
       </div>
     )
@@ -650,10 +645,12 @@ export function AdminSidebar({
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Admin navigation"
               style={{
                 position: 'relative',
-                width: '85vw',
-                maxWidth: '310px',
+                width: 'min(85vw, 310px)',
                 height: '100%',
                 backgroundColor: '#2B253E',
                 color: '#FFFFFF',

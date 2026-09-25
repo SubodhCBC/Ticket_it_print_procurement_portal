@@ -57,7 +57,9 @@ export function AdminReportScope({
           ) : undefined
         }
       />
-      <main style={{ padding: '24px' }}>
+      {/* The 24px gutter was flat at every size; a phone needs that space for
+          the report itself. */}
+      <main className="page-pad" style={{ paddingBlock: '24px' }}>
         {allowed ? (
           children(accountId || undefined)
         ) : status === 'ready' ? (

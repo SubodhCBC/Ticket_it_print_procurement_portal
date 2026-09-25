@@ -139,13 +139,8 @@ export function MyTemplatesGallery({
     >
       {/* 1. Page header */}
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
+        className="row-wrap"
+        style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
       >
         <div style={{ minWidth: 0, maxWidth: '680px' }}>
           <h1
@@ -199,6 +194,7 @@ export function MyTemplatesGallery({
 
       {/* 2. Search */}
       <div
+        className="row-wrap"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '14px',
@@ -206,18 +202,14 @@ export function MyTemplatesGallery({
             '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
           border: '1px solid #F0E6EC',
           padding: '16px',
-          display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
         }}
       >
         <div
           style={{
             position: 'relative',
-            flex: 1,
-            minWidth: '260px',
+            flex: '1 1 220px',
+            minWidth: 0,
             maxWidth: '440px',
           }}
         >
@@ -252,13 +244,20 @@ export function MyTemplatesGallery({
           />
         </div>
 
+        {/* "Showing 5 of 12 of your own templates" — the doubled "of" came from
+            appending the tail to a count that already read as "5 of 12".
+            The number counted is `owned`, not the hook's `total`: `total` is
+            every template on the server, whoever made it, and this gallery
+            shows one person's own. There is no server-side owner filter to ask
+            for that total, so the honest figure is the one we hold. */}
         <span style={{ fontSize: '0.8rem', color: '#6E6781' }}>
           Showing{' '}
           <strong style={{ fontWeight: 600, color: '#2B253E' }}>
             {mine.length}
           </strong>
-          {mine.length === owned.length ? '' : ` of ${owned.length}`} of your
-          own templates
+          {mine.length === owned.length
+            ? ` of your own ${owned.length === 1 ? 'template' : 'templates'}`
+            : ` of your ${owned.length} ${owned.length === 1 ? 'template' : 'templates'}`}
         </span>
       </div>
 
@@ -305,11 +304,8 @@ export function MyTemplatesGallery({
 function TemplateGrid({ children }: { children: React.ReactNode }) {
   return (
     <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-        gap: '16px',
-      }}
+      className="grid-auto"
+      style={{ ['--min']: '210px' } as React.CSSProperties}
     >
       {children}
     </div>
@@ -598,6 +594,7 @@ function TemplateCard({
               letterSpacing: '-0.01em',
               margin: 0,
               lineHeight: 1.3,
+              overflowWrap: 'anywhere',
             }}
           >
             {tpl.name}
@@ -654,7 +651,7 @@ function TemplateCard({
             }}
           >
             <Unlock size={14} color="#A39BB3" />
-            <span>{editableCount} Customizable Fields</span>
+            <span>{editableCount} customisable fields</span>
           </div>
         </div>
 

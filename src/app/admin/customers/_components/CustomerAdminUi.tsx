@@ -304,6 +304,7 @@ export function RowActionButton({
       type="button"
       title={title}
       disabled={disabled}
+      className="touch-target"
       onClick={(e) => {
         // Rows open a drawer on click; the action must not also do that.
         e.stopPropagation()
@@ -381,9 +382,7 @@ export function ConfirmActionModal({
       >
         {children}
         <ErrorNote error={error} />
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
             onClick={close}
@@ -435,11 +434,9 @@ export function Pager({
 
   return (
     <div
+      className="row-wrap"
       style={{
-        display: 'flex',
-        alignItems: 'center',
         justifyContent: 'flex-end',
-        gap: '8px',
         padding: '10px 16px',
         borderTop: `1px solid ${palette.divider}`,
         fontSize: '0.78rem',
@@ -453,6 +450,7 @@ export function Pager({
       <button
         type="button"
         disabled={!canBack}
+        className="touch-target"
         onClick={() => onPageChange(page - 1)}
         style={pagerButton(canBack)}
       >
@@ -462,6 +460,7 @@ export function Pager({
       <button
         type="button"
         disabled={!canForward}
+        className="touch-target"
         onClick={() => onPageChange(page + 1)}
         style={pagerButton(canForward)}
       >

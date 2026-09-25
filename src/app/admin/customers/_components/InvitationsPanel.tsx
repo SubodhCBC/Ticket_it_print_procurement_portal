@@ -18,12 +18,12 @@ import {
   StateMessage,
   Tag,
 } from './CustomerAdminUi'
+import { formatDateTime } from '@/lib/format'
 import {
   ROLE_LABELS,
   cardStyle,
   errorMessage,
   fieldStyle,
-  formatDateTime,
   palette,
   useRetained,
 } from './customerAdmin.shared'
@@ -110,7 +110,7 @@ export function InvitationsPanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div className="row-wrap" style={{ gap: '8px' }}>
         <label
           htmlFor="invitation-status-filter"
           style={{
@@ -128,7 +128,13 @@ export function InvitationsPanel({
             setStatus(e.target.value as '' | InvitationStatus)
             setPage(1)
           }}
-          style={{ ...fieldStyle(), width: 'auto' }}
+          className="touch-target"
+          style={{
+            ...fieldStyle(),
+            width: 'auto',
+            minWidth: 0,
+            maxWidth: '100%',
+          }}
         >
           {STATUS_FILTERS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -138,9 +144,9 @@ export function InvitationsPanel({
         </select>
       </div>
 
-      <div style={{ ...cardStyle, overflowX: 'auto' }}>
+      <div style={cardStyle}>
         {isLoading ? (
-          <SkeletonTable rows={4} columns={5} label="Loading invitations" />
+          <SkeletonTable rows={4} columns={7} label="Loading invitations" />
         ) : error ? (
           <div style={{ padding: '16px' }}>
             <ErrorNote
@@ -154,117 +160,139 @@ export function InvitationsPanel({
               : 'No invitations have been sent for this account.'}
           </StateMessage>
         ) : (
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              textAlign: 'left',
-              fontSize: '0.84rem',
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={{ ...headerCell, paddingLeft: '20px' }}>Invitee</th>
-                <th style={headerCell}>Role</th>
-                <th style={headerCell}>Site</th>
-                <th style={headerCell}>Status</th>
-                <th style={headerCell}>Expires</th>
-                <th style={headerCell}>Sent</th>
-                <th
-                  style={{
-                    ...headerCell,
-                    paddingRight: '20px',
-                    textAlign: 'right',
-                  }}
-                >
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((invitation) => {
-                const lapsed = invitation.hasLapsed
-
-                return (
-                  <tr
-                    key={invitation.id}
-                    style={{ borderTop: `1px solid ${palette.divider}` }}
+          <div className="table-scroll">
+            <table
+              style={{
+                width: '100%',
+                minWidth: '920px',
+                borderCollapse: 'collapse',
+                textAlign: 'left',
+                fontSize: '0.84rem',
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={{ ...headerCell, paddingLeft: '20px' }}>
+                    Invitee
+                  </th>
+                  <th style={headerCell}>Role</th>
+                  <th style={headerCell}>Site</th>
+                  <th style={headerCell}>Status</th>
+                  <th style={headerCell}>Expires</th>
+                  <th style={headerCell}>Sent</th>
+                  <th
+                    style={{
+                      ...headerCell,
+                      paddingRight: '20px',
+                      textAlign: 'right',
+                    }}
                   >
-                    <td style={{ ...bodyCell, paddingLeft: '20px' }}>
-                      <div style={{ fontWeight: 600, color: palette.text }}>
-                        {invitation.name}
-                      </div>
-                      <div
-                        style={{ fontSize: '0.72rem', color: palette.muted }}
-                      >
-                        {invitation.email}
-                      </div>
-                    </td>
-                    <td style={bodyCell}>
-                      <div
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((invitation) => {
+                  const lapsed = invitation.hasLapsed
+
+                  return (
+                    <tr
+                      key={invitation.id}
+                      style={{ borderTop: `1px solid ${palette.divider}` }}
+                    >
+                      <td style={{ ...bodyCell, paddingLeft: '20px' }}>
+                        <div
+                          className="truncate"
+                          title={invitation.name}
+                          style={{
+                            fontWeight: 600,
+                            color: palette.text,
+                            maxWidth: '220px',
+                          }}
+                        >
+                          {invitation.name}
+                        </div>
+                        <div
+                          className="truncate"
+                          title={invitation.email}
+                          style={{
+                            fontSize: '0.72rem',
+                            color: palette.muted,
+                            maxWidth: '220px',
+                          }}
+                        >
+                          {invitation.email}
+                        </div>
+                      </td>
+                      <td style={bodyCell}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '4px',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <Tag>{ROLE_LABELS[invitation.role]}</Tag>
+                          {invitation.userType === 'EXTERNAL' && (
+                            <Tag>External</Tag>
+                          )}
+                        </div>
+                      </td>
+                      <td style={bodyCell}>
+                        {invitation.siteId
+                          ? (siteNames.get(invitation.siteId) ??
+                            invitation.siteId)
+                          : 'Account-wide'}
+                      </td>
+                      <td style={bodyCell}>
+                        <CustomerStatusBadge status={invitation.status} />
+                      </td>
+                      <td style={{ ...bodyCell, whiteSpace: 'nowrap' }}>
+                        {invitation.status === 'ACCEPTED' ? (
+                          <span style={{ color: palette.muted }}>
+                            Accepted {formatDateTime(invitation.acceptedAt)}
+                          </span>
+                        ) : (
+                          formatDateTime(invitation.expiresAt)
+                        )}
+                        {lapsed && (
+                          <div
+                            style={{
+                              fontSize: '0.72rem',
+                              color: palette.danger,
+                            }}
+                          >
+                            Link has lapsed
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...bodyCell, whiteSpace: 'nowrap' }}>
+                        {formatDateTime(invitation.createdAt)}
+                      </td>
+                      <td
                         style={{
-                          display: 'flex',
-                          gap: '4px',
-                          flexWrap: 'wrap',
+                          ...bodyCell,
+                          paddingRight: '20px',
+                          textAlign: 'right',
                         }}
                       >
-                        <Tag>{ROLE_LABELS[invitation.role]}</Tag>
-                        {invitation.userType === 'EXTERNAL' && (
-                          <Tag>External</Tag>
+                        {invitation.status === 'PENDING' ? (
+                          <RowActionButton
+                            tone="danger"
+                            icon={<Ban size={13} />}
+                            label="Revoke"
+                            onClick={() => setRevoking(invitation)}
+                          />
+                        ) : (
+                          <span style={{ color: palette.muted }}>—</span>
                         )}
-                      </div>
-                    </td>
-                    <td style={bodyCell}>
-                      {invitation.siteId
-                        ? (siteNames.get(invitation.siteId) ??
-                          invitation.siteId)
-                        : 'Account-wide'}
-                    </td>
-                    <td style={bodyCell}>
-                      <CustomerStatusBadge status={invitation.status} />
-                    </td>
-                    <td style={{ ...bodyCell, whiteSpace: 'nowrap' }}>
-                      {invitation.status === 'ACCEPTED' ? (
-                        <span style={{ color: palette.muted }}>
-                          Accepted {formatDateTime(invitation.acceptedAt)}
-                        </span>
-                      ) : (
-                        formatDateTime(invitation.expiresAt)
-                      )}
-                      {lapsed && (
-                        <div
-                          style={{ fontSize: '0.72rem', color: palette.danger }}
-                        >
-                          Link has lapsed
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ ...bodyCell, whiteSpace: 'nowrap' }}>
-                      {formatDateTime(invitation.createdAt)}
-                    </td>
-                    <td
-                      style={{
-                        ...bodyCell,
-                        paddingRight: '20px',
-                        textAlign: 'right',
-                      }}
-                    >
-                      {invitation.status === 'PENDING' ? (
-                        <RowActionButton
-                          tone="danger"
-                          icon={<Ban size={13} />}
-                          label="Revoke"
-                          onClick={() => setRevoking(invitation)}
-                        />
-                      ) : (
-                        <span style={{ color: palette.muted }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
         {data && (
           <Pager

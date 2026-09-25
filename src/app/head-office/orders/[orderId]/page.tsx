@@ -2,6 +2,7 @@
 'use client'
 
 import { Skeleton as UiSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/TableState'
 import { DocketButton } from '@/components/orders/DocketButton'
 import { LineNote } from '@/components/shop/cart/LineNote'
 import React from 'react'
@@ -25,6 +26,7 @@ import { LineChips } from '@/components/shop/cart/LineChips'
 import { STANDARD_DELIVERY_LABEL } from '@/components/shop/cart/line-format'
 import { TrackingTimeline } from '@/components/shipping/TrackingTimeline'
 import type { Order, OrderStatus } from '@/types'
+import { formatMoney, formatDate } from '@/lib/format'
 
 /** The page's placeholder bar, drawn by the shared skeleton. */
 function Skeleton({
@@ -144,11 +146,8 @@ export default function HOOrderDetailPage() {
         <Skeleton h="0.8rem" w="200px" />
         <Skeleton h="1.5rem" w="340px" />
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: '16px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '280px' } as React.CSSProperties}
         >
           {[0, 1, 2, 3].map((i) => (
             <div
@@ -210,6 +209,7 @@ export default function HOOrderDetailPage() {
         </p>
         <Link
           href="/head-office/orders/all"
+          className="touch-target"
           style={{
             marginTop: '16px',
             display: 'inline-block',
@@ -237,12 +237,10 @@ export default function HOOrderDetailPage() {
       {/* Header. The breadcrumb sits inside it, directly over the title, so it
           reads as part of the heading rather than a separate row. */}
       <div
+        className="stack-sm"
         style={{
-          display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-end',
           flexWrap: 'wrap',
-          gap: '12px',
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -324,16 +322,10 @@ export default function HOOrderDetailPage() {
               margin: '4px 0 0',
             }}
           >
-            {order.siteName} ·{' '}
-            {new Date(order.createdAt).toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {order.siteName} · {formatDate(order.createdAt)}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div className="row-wrap">
           <DocketButton orderId={order.id} orderNumber={order.orderNumber} />
           <div
             style={{
@@ -344,31 +336,19 @@ export default function HOOrderDetailPage() {
               lineHeight: 1.1,
             }}
           >
-            $
-            {order.totalAmount.toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-            })}
+            {formatMoney(order.totalAmount)}
           </div>
         </div>
       </div>
 
       {/* Order & Delivery Info grid */}
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '16px',
-        }}
+        className="grid-auto"
+        style={{ ['--min']: '280px' } as React.CSSProperties}
       >
         {/* Order Info */}
         <SectionCard title="Order Details" icon={<FileText size={16} />}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '1.25rem 1.5rem',
-            }}
-          >
+          <div className="grid-2">
             <InfoRow label="Order Number" value={order.orderNumber} />
             <InfoRow label="Account" value={order.accountName} />
             <InfoRow label="Site" value={order.siteName} />
@@ -380,18 +360,11 @@ export default function HOOrderDetailPage() {
                 value={order.customerReference}
               />
             )}
-            <InfoRow
-              label="Order Date"
-              value={new Date(order.createdAt).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            />
+            <InfoRow label="Order Date" value={formatDate(order.createdAt)} />
             <InfoRow label="Items" value={String(order.itemCount)} />
             <InfoRow
               label="Order Total"
-              value={`$${order.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+              value={formatMoney(order.totalAmount)}
             />
           </div>
         </SectionCard>
@@ -427,32 +400,20 @@ export default function HOOrderDetailPage() {
           >
             <InfoRow
               label="Shipping Method"
-              value={`${order.shippingMethodLabel ?? STANDARD_DELIVERY_LABEL} · $${(order.shippingCost ?? 0).toFixed(2)}`}
+              value={`${order.shippingMethodLabel ?? STANDARD_DELIVERY_LABEL} · ${formatMoney(order.shippingCost ?? 0)}`}
             />
             <InfoRow label="Carrier" value={order.carrier} />
             <InfoRow label="Tracking Number" value={order.trackingNumber} />
             <InfoRow
               label="Dispatched"
               value={
-                order.dispatchedAt
-                  ? new Date(order.dispatchedAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : undefined
+                order.dispatchedAt ? formatDate(order.dispatchedAt) : undefined
               }
             />
             <InfoRow
               label="Delivered"
               value={
-                order.deliveredAt
-                  ? new Date(order.deliveredAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : undefined
+                order.deliveredAt ? formatDate(order.deliveredAt) : undefined
               }
             />
             <InfoRow
@@ -516,14 +477,14 @@ export default function HOOrderDetailPage() {
         <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
           {(
             [
-              'RECEIVED',
+              'APPROVED',
               'PROCESSING',
               'DISPATCHED',
               'DELIVERED',
             ] as OrderStatus[]
           ).map((st, i, arr) => {
             const statusOrder: Record<string, number> = {
-              RECEIVED: 0,
+              APPROVED: 0,
               PROCESSING: 1,
               DISPATCHED: 2,
               DELIVERED: 3,
@@ -533,7 +494,7 @@ export default function HOOrderDetailPage() {
             const isPast = thisIdx < currentIdx
             const isCurrent = thisIdx === currentIdx
             const dateMap: Partial<Record<OrderStatus, string | undefined>> = {
-              RECEIVED: order.createdAt,
+              APPROVED: order.createdAt,
               PROCESSING: order.updatedAt,
               DISPATCHED: order.dispatchedAt,
               DELIVERED: order.deliveredAt,
@@ -627,10 +588,7 @@ export default function HOOrderDetailPage() {
                         marginTop: '2px',
                       }}
                     >
-                      {new Date(dateMap[st]!).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
+                      {formatDate(dateMap[st])}
                     </div>
                   )}
                 </div>
@@ -645,7 +603,7 @@ export default function HOOrderDetailPage() {
         title={`Line Items (${order.lineItems.length})`}
         icon={<Package size={16} />}
       >
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-scroll">
           <table
             style={{
               width: '100%',
@@ -691,6 +649,17 @@ export default function HOOrderDetailPage() {
               </tr>
             </thead>
             <tbody>
+              {order.lineItems.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: 0 }}>
+                    <EmptyState
+                      icon={Package}
+                      title="No line items on this order"
+                      detail="Nothing was recorded against it. Your print administrator can confirm what was ordered."
+                    />
+                  </td>
+                </tr>
+              )}
               {order.lineItems.map((li) => (
                 <tr key={li.id} style={{ borderTop: '1px solid #F5EEF2' }}>
                   <td style={{ padding: '12px 12px 12px 0' }}>
@@ -761,10 +730,7 @@ export default function HOOrderDetailPage() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    $
-                    {li.unitPrice.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                    })}
+                    {formatMoney(li.unitPrice)}
                   </td>
                   <td
                     style={{
@@ -775,10 +741,7 @@ export default function HOOrderDetailPage() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    $
-                    {li.lineTotal.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                    })}
+                    {formatMoney(li.lineTotal)}
                   </td>
                 </tr>
               ))}
@@ -806,11 +769,10 @@ export default function HOOrderDetailPage() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  $
-                  {(
+                  {formatMoney(
                     order.subtotalAmount ??
-                    order.totalAmount - (order.shippingCost ?? 0)
-                  ).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      order.totalAmount - (order.shippingCost ?? 0)
+                  )}
                 </td>
               </tr>
               <tr>
@@ -836,10 +798,7 @@ export default function HOOrderDetailPage() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  $
-                  {(order.shippingCost ?? 0).toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                  })}
+                  {formatMoney(order.shippingCost ?? 0)}
                 </td>
               </tr>
               <tr style={{ borderTop: '1px solid #F5EEF2' }}>
@@ -865,10 +824,7 @@ export default function HOOrderDetailPage() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  $
-                  {order.totalAmount.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                  })}
+                  {formatMoney(order.totalAmount)}
                 </td>
               </tr>
             </tbody>

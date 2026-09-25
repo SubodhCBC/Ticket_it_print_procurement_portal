@@ -1,7 +1,64 @@
 // src/components/shop/cart/OrderTotals.tsx
 'use client'
 
-import { formatMoney } from './line-format'
+import { useQuery } from '@tanstack/react-query'
+import { formatMoney, formatNumber } from '@/lib/format'
+import { queryKeys } from '@/lib/query/queryKeys'
+import { getSettings } from '@/services/data-source/api/api-settings.adapter'
+import { useAuth } from '@/hooks/useAuth'
+
+/**
+ * What the note says when the account's GST convention is not readable here.
+ *
+ * True on either basis. The screens used to print a flat `Excl. tax
+ * (On-Account)`, which is simply wrong for an account whose prices include
+ * GST, and a buyer who memorises that figure then cannot reconcile it against
+ * the invoice.
+ */
+const UNKNOWN_BASIS_NOTE = 'GST per account settings'
+
+/**
+ * How this account's prices relate to GST, in words.
+ *
+ * The convention is per-account (`pricesIncludeGst`, `gstRatePercent`), and the
+ * monthly invoice already honours it — so the checkout has to say the same
+ * thing rather than assert a basis nobody checked.
+ *
+ * `GET /settings` needs `ACCOUNT_MANAGE`, which a branch buyer does not hold.
+ * The request is therefore only made by a reader who can actually make it; for
+ * everyone else the note falls back to a line that is true either way instead
+ * of a 403 and a guess. The query key and stale time match `useSettings`, so
+ * this shares that cache rather than opening a second one.
+ *
+ * @param suffix Appended after a separator — "on account", say.
+ */
+export function useTaxBasisNote(suffix?: string): string {
+  const { hasPermission } = useAuth()
+
+  const { data } = useQuery({
+    queryKey: queryKeys.settings(),
+    queryFn: getSettings,
+    enabled: hasPermission('ACCOUNT_MANAGE'),
+    staleTime: 5 * 60_000,
+  })
+
+  // Older builds omit the field entirely; absent is unknown, not false.
+  const basis =
+    data?.pricesIncludeGst === undefined
+      ? UNKNOWN_BASIS_NOTE
+      : withRate(
+          data.pricesIncludeGst ? 'Incl. GST' : 'Excl. GST',
+          data.gstRatePercent
+        )
+
+  return suffix ? `${basis} · ${suffix}` : basis
+}
+
+/** "Excl. GST (15%)" when the rate is known, "Excl. GST" when it is not. */
+function withRate(basis: string, ratePercent: string | undefined): string {
+  const rate = formatNumber(ratePercent, '')
+  return rate === '' ? basis : `${basis} (${rate}%)`
+}
 
 const row: React.CSSProperties = {
   display: 'flex',

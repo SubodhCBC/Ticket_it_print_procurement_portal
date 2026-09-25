@@ -58,18 +58,13 @@ const STATUS_PIPELINE: {
     desc: 'Approved by Head Office',
   },
   {
-    key: 'PAID',
-    label: 'Paid by Head Office',
-    bg: '#ECFDF5',
-    color: '#3F9C68',
-    desc: 'Corporate payment settled',
-  },
-  {
-    key: 'IN_PRODUCTION',
+    // Payment is tracked on its own axis, so there is no lifecycle stage for
+    // it; production is PROCESSING, which is what the API actually reports.
+    key: 'PROCESSING',
     label: 'In Production',
     bg: '#F5EEF2',
     color: '#5C566E',
-    desc: 'Direct UV printing active',
+    desc: 'Being printed and packed',
   },
   {
     key: 'DISPATCHED',
@@ -154,7 +149,7 @@ export default function SiteUserOrdersPage() {
         )
       const [pending, production, dispatched, delivered] = await Promise.all([
         ask('PENDING_APPROVAL'),
-        ask('IN_PRODUCTION'),
+        ask('PROCESSING'),
         ask('DISPATCHED'),
         ask('DELIVERED'),
       ])
@@ -201,14 +196,14 @@ export default function SiteUserOrdersPage() {
               margin: 0,
             }}
           >
-            Branch Purchase Orders & Artwork Pipeline
+            Branch purchase orders
           </h1>
 
           <p
             style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}
           >
-            Track customized print proofs, Head Office approval status, and
-            commercial fulfillment with zero site payment liability.
+            Track your branch&apos;s print proofs, Head Office approval and
+            delivery. Orders are billed to Head Office, not to your branch.
           </p>
 
           <div
@@ -233,9 +228,11 @@ export default function SiteUserOrdersPage() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Link
             href="/shop/templates"
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
               padding: '8px 14px',
               borderRadius: '10px',
@@ -247,18 +244,15 @@ export default function SiteUserOrdersPage() {
             }}
           >
             <Sparkles size={14} />
-            Create New Print PO
+            New print order
           </Link>
         </div>
       </div>
 
       {/* 2. Pipeline Summary KPI Cards */}
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '14px',
-        }}
+        className="grid-auto"
+        style={{ ['--min']: '200px' } as React.CSSProperties}
       >
         <StatCard
           label="Pending Head Office Approval"
@@ -282,10 +276,10 @@ export default function SiteUserOrdersPage() {
         />
 
         <StatCard
-          label="Site Payment Liability"
+          label="Charged to your branch"
           icon={ShieldCheck}
-          value="$0.00 (HO Billed)"
-          footer="Billed to corporate account"
+          value="$0.00"
+          footer="Billed to Head Office"
         />
       </div>
 
@@ -294,21 +288,18 @@ export default function SiteUserOrdersPage() {
           header now. */}
       <div style={{ ...card, overflow: 'hidden' }}>
         <div
+          className="row-wrap"
           style={{
             padding: '14px 20px',
             borderBottom: '1px solid #F5EEF2',
-            display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
           }}
         >
           <div
             style={{
               position: 'relative',
               flex: 1,
-              minWidth: '280px',
+              minWidth: '160px',
               maxWidth: '440px',
             }}
           >
@@ -324,6 +315,7 @@ export default function SiteUserOrdersPage() {
             />
             <input
               type="text"
+              className="touch-target"
               placeholder="Search by order #, PO or your reference..."
               aria-label="Search purchase orders"
               value={searchInput}
@@ -344,13 +336,14 @@ export default function SiteUserOrdersPage() {
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap">
             <span
               style={{ fontSize: '0.78rem', color: '#5C566E', fontWeight: 600 }}
             >
               Filter Status:
             </span>
             <select
+              className="touch-target"
               value={selectedStatus}
               aria-label="Filter by status"
               onChange={(e) => {
@@ -370,7 +363,7 @@ export default function SiteUserOrdersPage() {
               <option value="PENDING_APPROVAL">Pending Approval</option>
               <option value="CHANGES_REQUESTED">Changes Requested</option>
               <option value="APPROVED">Approved</option>
-              <option value="IN_PRODUCTION">In Production</option>
+              <option value="PROCESSING">In Production</option>
               <option value="DISPATCHED">Dispatched</option>
               <option value="DELIVERED">Delivered</option>
               <option value="REJECTED">Rejected</option>
@@ -409,7 +402,7 @@ export default function SiteUserOrdersPage() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-scroll">
             <table
               style={{
                 width: '100%',
@@ -421,10 +414,10 @@ export default function SiteUserOrdersPage() {
               <thead>
                 <tr>
                   <Th edge>PO Reference / Order #</Th>
-                  <Th>Print Product & Customized Artwork</Th>
+                  <Th>Print Product & Customised Artwork</Th>
                   <Th>Qty & Price</Th>
-                  <Th>Pipeline Status</Th>
-                  <Th>Delivery Destination</Th>
+                  <Th>Status</Th>
+                  <Th className="hide-sm">Delivery Destination</Th>
                   <Th align="right" edge>
                     Actions
                   </Th>
@@ -478,6 +471,16 @@ export default function SiteUserOrdersPage() {
                         >
                           {new Date(order.createdAt).toLocaleDateString()}
                         </span>
+                        <span
+                          className="show-sm"
+                          style={{
+                            fontSize: '0.72rem',
+                            color: '#A39BB3',
+                            display: 'block',
+                          }}
+                        >
+                          {order.siteName}
+                        </span>
                       </td>
 
                       <td style={{ padding: '12px 14px' }}>
@@ -525,7 +528,7 @@ export default function SiteUserOrdersPage() {
                                 }}
                               >
                                 <Check size={12} style={{ flexShrink: 0 }} />
-                                Personalized for{' '}
+                                Personalised for{' '}
                                 {firstItem.customizations.businessName ||
                                   user?.siteName}
                               </span>
@@ -608,7 +611,10 @@ export default function SiteUserOrdersPage() {
                         )}
                       </td>
 
-                      <td style={{ padding: '12px 14px', color: '#2B253E' }}>
+                      <td
+                        className="hide-sm"
+                        style={{ padding: '12px 14px', color: '#2B253E' }}
+                      >
                         <div>{order.siteName}</div>
                         <div style={{ fontSize: '0.72rem', color: '#A39BB3' }}>
                           {order.recipientContact?.name || user?.name}
@@ -618,6 +624,7 @@ export default function SiteUserOrdersPage() {
                       <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                         <button
                           onClick={() => setActiveProofOrder(order)}
+                          className="touch-target"
                           style={{
                             padding: 0,
                             backgroundColor: 'transparent',
@@ -662,10 +669,11 @@ export default function SiteUserOrdersPage() {
               alignItems: 'center',
               justifyContent: 'center',
               zIndex: 1000,
-              padding: '24px',
+              padding: '16px',
             }}
           >
             <motion.div
+              className="dialog-cap"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -680,15 +688,12 @@ export default function SiteUserOrdersPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '16px',
+                overflowY: 'auto',
               }}
             >
               <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
+                className="row-wrap"
+                style={{ justifyContent: 'space-between' }}
               >
                 <div style={{ minWidth: 0 }}>
                   <h3
@@ -712,6 +717,7 @@ export default function SiteUserOrdersPage() {
                 </div>
                 <button
                   onClick={() => setActiveProofOrder(null)}
+                  className="touch-target"
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',
@@ -747,7 +753,7 @@ export default function SiteUserOrdersPage() {
                     activeProofOrder.lineItems[0]?.thumbnailUrl ||
                     '/product-placeholder.svg'
                   }
-                  alt="Customized Artwork Proof"
+                  alt="Customised artwork proof"
                   fill
                   unoptimized
                   style={{ objectFit: 'contain' }}
@@ -780,9 +786,9 @@ export default function SiteUserOrdersPage() {
                         marginTop: '6px',
                       }}
                     >
-                      {activeProofOrder.statusHistory.map((h, i) => (
+                      {activeProofOrder.statusHistory.map((h) => (
                         <div
-                          key={i}
+                          key={`${h.timestamp}-${h.status}`}
                           style={{ fontSize: '0.8rem', color: '#5C566E' }}
                         >
                           <span style={{ fontWeight: 600, color: '#2B253E' }}>
@@ -879,13 +885,16 @@ function Th({
   children,
   align = 'left',
   edge,
+  className,
 }: {
   children?: React.ReactNode
   align?: 'left' | 'center' | 'right'
   edge?: boolean
+  className?: string
 }) {
   return (
     <th
+      className={className}
       style={{
         padding: edge ? '10px 20px' : '10px 14px',
         color: '#A39BB3',

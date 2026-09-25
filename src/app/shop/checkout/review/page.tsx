@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useCart } from '@/hooks/useCart'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { toApiError } from '@/services'
 import {
   describePlacementFailure,
@@ -26,11 +27,13 @@ import { formatAddressSnapshot } from '@/services/data-source/api/cart.types'
 import { getSiteAddresses } from '@/services/accounts.service'
 import type { SiteAddressOption } from '@/services/data-source/api/api-accounts.adapter'
 import { CartLineSummary } from '@/components/shop/cart/CartLineSummary'
-import { OrderTotals } from '@/components/shop/cart/OrderTotals'
+import {
+  OrderTotals,
+  useTaxBasisNote,
+} from '@/components/shop/cart/OrderTotals'
+import { formatDate, formatMoney, formatDateTime } from '@/lib/format'
 import {
   PAYMENT_METHOD_LABELS,
-  formatDate,
-  formatMoney,
   shippingOptionName,
 } from '@/components/shop/cart/line-format'
 import {
@@ -175,6 +178,13 @@ export default function CheckoutReviewPage() {
     updateCheckoutState,
   } = useCart()
 
+  // Below 1024px the submit card drops under the review rather than beside it.
+  // Stacked it is the last thing on the page — which is also the order the
+  // buyer reads in: check the items, check the addresses, then submit — and it
+  // stays in the flow, so the button is scrolled to rather than pinned over
+  // the terms it sits above.
+  const stacked = useMediaQuery('(max-width: 1023.98px)')
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   /**
    * Set synchronously on submit. `isSubmitting` only disables the button once
@@ -187,6 +197,10 @@ export default function CheckoutReviewPage() {
   const [failure, setFailure] = useState<PlacementFailure['kind'] | null>(null)
 
   const instructions = checkoutState.deliveryInstructions.trim()
+
+  // The account decides whether its prices include GST; this reads that rather
+  // than asserting a basis the invoice may contradict.
+  const taxNote = useTaxBasisNote('on account')
 
   /** What checkout validation still refuses. Null until first checked. */
   const [blockers, setBlockers] = useState<ApiCartIssue[] | null>(null)
@@ -501,18 +515,20 @@ export default function CheckoutReviewPage() {
             margin: 0,
           }}
         >
-          Review & Submit On-Account Order
+          Review and submit
         </h1>
         <p style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}>
-          Review your collateral assets and delivery details before placing the
-          order on your company account.
+          Check your items and delivery details before placing the order on your
+          company account.
         </p>
       </div>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 340px',
+          gridTemplateColumns: stacked
+            ? 'minmax(0, 1fr)'
+            : 'minmax(0, 1fr) 340px',
           gap: '20px',
           alignItems: 'start',
         }}
@@ -545,7 +561,7 @@ export default function CheckoutReviewPage() {
                 <Package size={16} color="#A39BB3" />
                 <span>Collateral Assets ({totalCount} items)</span>
               </h3>
-              <Link href="/shop/cart" style={editLink}>
+              <Link href="/shop/cart" className="touch-target" style={editLink}>
                 Edit Cart
               </Link>
             </div>
@@ -588,13 +604,7 @@ export default function CheckoutReviewPage() {
           </div>
 
           {/* 2. Customer & Address Breakdown */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '20px',
-            }}
-          >
+          <div className="grid-2" style={{ gap: '20px' }}>
             {/* Account & PO Info */}
             <div
               style={{
@@ -627,7 +637,11 @@ export default function CheckoutReviewPage() {
                   <Building2 size={16} color="#A39BB3" />
                   <span>Account & PO Info</span>
                 </span>
-                <Link href="/shop/checkout/details" style={editLink}>
+                <Link
+                  href="/shop/checkout/details"
+                  className="touch-target"
+                  style={editLink}
+                >
                   Edit
                 </Link>
               </div>
@@ -647,7 +661,7 @@ export default function CheckoutReviewPage() {
                   {user?.accountName ?? '—'}
                 </p>
                 <p style={{ margin: 0 }}>
-                  <strong style={fieldLabel}>Site Branch:</strong>
+                  <strong style={fieldLabel}>Branch:</strong>
                   {siteName ?? user?.siteName ?? '—'}
                   {(siteCode ?? user?.siteCode) &&
                     ` (${siteCode ?? user?.siteCode})`}
@@ -699,7 +713,11 @@ export default function CheckoutReviewPage() {
                   <Truck size={16} color="#A39BB3" />
                   <span>Delivery Destination</span>
                 </span>
-                <Link href="/shop/checkout/delivery" style={editLink}>
+                <Link
+                  href="/shop/checkout/delivery"
+                  className="touch-target"
+                  style={editLink}
+                >
                   Edit
                 </Link>
               </div>
@@ -731,7 +749,11 @@ export default function CheckoutReviewPage() {
                   ) : (
                     <span style={{ color: '#DC2626', fontWeight: 500 }}>
                       Not chosen yet —{' '}
-                      <Link href="/shop/checkout/delivery" style={editLink}>
+                      <Link
+                        href="/shop/checkout/delivery"
+                        className="touch-target"
+                        style={editLink}
+                      >
                         choose a delivery method
                       </Link>
                     </span>
@@ -835,7 +857,11 @@ export default function CheckoutReviewPage() {
                       <strong style={fieldLabel}>Delivery Instructions:</strong>
                       <span style={{ color: '#DC2626', fontWeight: 500 }}>
                         Required for this account —{' '}
-                        <Link href="/shop/checkout/delivery" style={editLink}>
+                        <Link
+                          href="/shop/checkout/delivery"
+                          className="touch-target"
+                          style={editLink}
+                        >
                           add them
                         </Link>
                       </span>
@@ -852,7 +878,7 @@ export default function CheckoutReviewPage() {
         <div
           style={{
             ...card,
-            position: 'sticky',
+            position: stacked ? 'static' : 'sticky',
             top: '80px',
             display: 'flex',
             flexDirection: 'column',
@@ -876,13 +902,13 @@ export default function CheckoutReviewPage() {
                 margin: 0,
               }}
             >
-              Authorization Summary
+              Authorisation summary
             </h3>
             <Receipt size={16} color="#A39BB3" />
           </div>
 
-          {/* Every figure is the server's. Tax is not modelled by the API, so
-              none is estimated here. */}
+          {/* Every figure is the server's. No tax is estimated here — the note
+              states the account's basis so this reconciles with the invoice. */}
           <OrderTotals
             subtotal={subtotal}
             shippingMethod={shipping ? shippingOptionName(shipping) : null}
@@ -890,7 +916,7 @@ export default function CheckoutReviewPage() {
             total={total}
             pendingShippingText="Not chosen"
             totalLabel="Total Order Value"
-            totalNote="Excl. tax (On-Account)"
+            totalNote={taxNote}
           />
 
           {/* Campaign Code. A line like the rows above; the indigo box around
@@ -1125,8 +1151,7 @@ export default function CheckoutReviewPage() {
                       fontWeight: 600,
                     }}
                   >
-                    Accepted{' '}
-                    {new Date(checkoutState.termsAcceptedAt).toLocaleString()}
+                    Accepted {formatDateTime(checkoutState.termsAcceptedAt)}
                   </strong>
                 )}
               </span>
@@ -1271,6 +1296,7 @@ export default function CheckoutReviewPage() {
           <button
             onClick={handleSubmitOrder}
             disabled={submitDisabled}
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1306,8 +1332,11 @@ export default function CheckoutReviewPage() {
 
           <Link
             href="/shop/checkout/delivery"
+            className="touch-target"
             style={{
-              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               fontSize: '0.8rem',
               fontWeight: 600,
               color: '#6E6781',

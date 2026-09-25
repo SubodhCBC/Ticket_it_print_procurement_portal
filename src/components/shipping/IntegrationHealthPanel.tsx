@@ -6,6 +6,7 @@ import type {
   ApiIntegrationCallWindow,
   ApiShippingStatus,
 } from '@/services/data-source/api/shipping.types'
+import { formatNumber, formatDateTime } from '@/lib/format'
 
 /**
  * NZ Post integration health (SOW §15, Administrator): call success rate,
@@ -38,10 +39,13 @@ export function IntegrationHealthPanel({
         ))
       )}
 
-      <div style={tiles}>
+      <div
+        className="grid-auto"
+        style={{ ['--min']: '130px' } as React.CSSProperties}
+      >
         <Tile
           label="Dead letters"
-          value={status.shipments.failed.toLocaleString()}
+          value={formatNumber(status.shipments.failed)}
           hint="Labels that exhausted their retries"
           tone={status.shipments.failed > 0 ? 'bad' : 'ok'}
         />
@@ -54,7 +58,7 @@ export function IntegrationHealthPanel({
           }
           hint={
             reconciliation
-              ? `${formatWhen(reconciliation.finishedAt ?? reconciliation.startedAt)}${
+              ? `${formatDateTime(reconciliation.finishedAt ?? reconciliation.startedAt)}${
                   reconciliation.flagged !== null
                     ? ` · ${reconciliation.flagged} flagged`
                     : ''
@@ -79,7 +83,11 @@ export function IntegrationHealthPanel({
       {compact && (
         <Link
           href="/admin/orders/shipping"
+          className="touch-target"
           style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            alignSelf: 'flex-start',
             fontSize: '0.78rem',
             fontWeight: 600,
             color: '#F73582',
@@ -105,14 +113,17 @@ function CallWindow({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#6E6781' }}>
         Last {window.window === '24h' ? '24 hours' : '7 days'} ·{' '}
-        {window.calls.toLocaleString()} call{window.calls === 1 ? '' : 's'}
+        {formatNumber(window.calls)} call{window.calls === 1 ? '' : 's'}
         {window.mockCalls > 0 ? ` (${window.mockCalls} mock)` : ''}
       </div>
-      <div style={tiles}>
+      <div
+        className="grid-auto"
+        style={{ ['--min']: '130px' } as React.CSSProperties}
+      >
         <Tile
           label="Success rate"
           value={rate === null ? '—' : `${rate.toFixed(1)}%`}
-          hint={`${window.failed.toLocaleString()} failed`}
+          hint={`${formatNumber(window.failed)} failed`}
           tone={
             rate === null
               ? 'neutral'
@@ -137,13 +148,13 @@ function CallWindow({
         />
         <Tile
           label="Retries"
-          value={window.retries.toLocaleString()}
+          value={formatNumber(window.retries)}
           hint="Calls made as a retry"
           tone={window.retries > 0 ? 'warn' : 'ok'}
         />
       </div>
       {!compact && window.byOperation.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-scroll">
           <table
             style={{
               width: '100%',
@@ -177,14 +188,14 @@ function CallWindow({
                   <td style={{ padding: '6px 8px', color: '#2B253E' }}>
                     {op.operation}
                   </td>
-                  <td style={num}>{op.calls.toLocaleString()}</td>
+                  <td style={num}>{formatNumber(op.calls)}</td>
                   <td
                     style={{
                       ...num,
                       color: op.failed > 0 ? '#DC2626' : '#6E6781',
                     }}
                   >
-                    {op.failed.toLocaleString()}
+                    {formatNumber(op.failed)}
                   </td>
                   <td style={num}>{Math.round(op.averageMs)} ms</td>
                 </tr>
@@ -240,20 +251,6 @@ function Tile({
   )
 }
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString('en-NZ', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-const tiles: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-  gap: '8px',
-}
 const muted: React.CSSProperties = {
   margin: 0,
   fontSize: '0.76rem',

@@ -47,7 +47,7 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     {
-      label: 'Site Ordering Hub',
+      label: 'Order for your branch',
       href: '/shop/catalogue',
       icon: Store,
       role: 'site_user',
@@ -58,7 +58,7 @@ export const Navbar: React.FC = () => {
       icon: Building2,
       role: 'head_office',
     },
-    { label: 'Admin DAM HQ', href: '/admin', icon: Shield, role: 'admin' },
+    { label: 'Admin', href: '/admin', icon: Shield, role: 'admin' },
   ]
 
   const currentRoleMeta = role ? ROLE_DETAILS[role] : null
@@ -90,6 +90,8 @@ export const Navbar: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '0.75rem',
+          minWidth: 0,
         }}
       >
         {/* Brand Logo */}
@@ -103,6 +105,8 @@ export const Navbar: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             textDecoration: 'none',
+            minWidth: 0,
+            overflow: 'hidden',
           }}
         >
           <PortalLogo size="sm" showTagline={true} />
@@ -164,7 +168,14 @@ export const Navbar: React.FC = () => {
         </nav>
 
         {/* Action Controls & Auth State */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.85rem',
+            flexShrink: 0,
+          }}
+        >
           {isAuthenticated && user ? (
             <div style={{ position: 'relative' }} ref={menuRef}>
               <motion.button
@@ -175,6 +186,8 @@ export const Navbar: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.65rem',
+                  minHeight: '40px',
+                  maxWidth: '100%',
                   padding: '0.4rem 0.85rem 0.4rem 0.45rem',
                   borderRadius: 'var(--radius-full)',
                   background: '#ffffff',
@@ -197,6 +210,7 @@ export const Navbar: React.FC = () => {
                     justifyContent: 'center',
                     fontWeight: 800,
                     fontSize: '0.8rem',
+                    flexShrink: 0,
                   }}
                 >
                   {user.name.charAt(0)}
@@ -204,10 +218,17 @@ export const Navbar: React.FC = () => {
 
                 {/* Role Pill */}
                 <div
-                  style={{ textAlign: 'left', display: 'none' }}
+                  style={{
+                    textAlign: 'left',
+                    display: 'none',
+                    minWidth: 0,
+                    maxWidth: '180px',
+                  }}
                   className="user-profile-label"
                 >
                   <div
+                    className="truncate"
+                    title={user.name}
                     style={{
                       fontWeight: 800,
                       fontSize: '0.8rem',
@@ -243,7 +264,7 @@ export const Navbar: React.FC = () => {
                       position: 'absolute',
                       right: 0,
                       top: 'calc(100% + 8px)',
-                      width: '290px',
+                      width: 'min(290px, calc(100vw - 32px))',
                       background: '#ffffff',
                       borderRadius: 'var(--radius-lg)',
                       boxShadow: '0 16px 36px rgba(43, 37, 62, 0.18)',
@@ -321,7 +342,7 @@ export const Navbar: React.FC = () => {
                         }}
                       >
                         <Store size={15} color="#58b97d" />
-                        <span>Site User Ordering Hub</span>
+                        <span>Order for your branch</span>
                       </Link>
 
                       <Link
@@ -365,7 +386,7 @@ export const Navbar: React.FC = () => {
                         }}
                       >
                         <Shield size={15} color="#f73582" />
-                        <span>Portal Admin DAM HQ</span>
+                        <span>Admin</span>
                       </Link>
                     </div>
 

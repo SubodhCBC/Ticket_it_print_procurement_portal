@@ -5,14 +5,13 @@ import { useAuth } from '@/hooks/useAuth'
 import { useOrderApproval } from '@/hooks/useApprovals'
 import { ApprovalRequestDetail } from './ApprovalRequestDetail'
 import { ApprovalStatusBadge } from './ApprovalStatusBadge'
+import { formatMoney, formatDateTime } from '@/lib/format'
 import {
   APPROVAL_COLORS,
   approvalCard,
   approvalCardTitle,
   errorBanner,
   errorMessage,
-  formatDateTime,
-  formatMoney,
   isApiStatus,
   maxTier,
   secondaryButton,
@@ -47,6 +46,7 @@ export function OrderApprovalPanel({ orderId }: { orderId: string }) {
             Could not load this order&apos;s approval: {errorMessage(error)}
           </span>
           <button
+            className="touch-target"
             type="button"
             onClick={() => void refetch()}
             style={secondaryButton}

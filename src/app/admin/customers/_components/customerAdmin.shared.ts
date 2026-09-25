@@ -137,8 +137,11 @@ export function errorMessage(error: unknown): string {
     return error.message
   }
 
-  if (error instanceof Error) return error.message
-  return 'Something went wrong. Please try again.'
+  // Not an ApiError: a transport or programming fault. Its text is written for
+  // a developer, so it goes to the console and the reader gets a sentence they
+  // can act on.
+  console.error('Customer admin request failed:', error)
+  return 'That did not go through. Check your connection and try again — if it keeps happening, contact support.'
 }
 
 /** The API's money format: up to ten digits and two decimals, as a string. */
@@ -146,6 +149,9 @@ export const MONEY_PATTERN = /^\d{1,10}(\.\d{1,2})?$/
 
 export function toMoneyInput(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === '') return ''
+  // A form field's value, not a label: two decimals and nothing else, so what
+  // the admin sees is exactly what is POSTed back. Not `formatMoney` — an input
+  // cannot hold "$1,500.00".
   return typeof value === 'number' ? value.toFixed(2) : value
 }
 
@@ -162,22 +168,7 @@ export function sameMoney(a: string, b: string): boolean {
   )
 }
 
-export function formatMoney(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === '') return '—'
-  const amount = typeof value === 'number' ? value : Number(value)
-  if (Number.isNaN(amount)) return String(value)
-  return `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-}
-
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  return date.toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
-}
+// Money and dates are formatted by `@/lib/format`; import them from there.
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Admin',

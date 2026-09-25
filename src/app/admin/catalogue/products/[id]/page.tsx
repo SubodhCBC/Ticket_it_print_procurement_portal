@@ -23,7 +23,8 @@ import {
   ReadOnlyNotice,
   StateBlock,
 } from '@/components/admin/ProductAdminUi'
-import { errorMessage, formatMoney } from '@/components/admin/ProductAdminUtils'
+import { formatMoney } from '@/lib/format'
+import { errorMessage } from '@/components/admin/ProductAdminUtils'
 import { useAuth } from '@/hooks/useAuth'
 import {
   useAdminProduct,
@@ -34,6 +35,59 @@ import type { Product } from '@/types'
 
 type Tab =
   'overview' | 'variants' | 'pricing' | 'inventory' | 'visibility' | 'assets'
+
+/**
+ * The product's picture, or a neutral panel where one would be.
+ *
+ * An unguarded `<img>` on a product with no `thumbnailUrl` — the state every
+ * product is in between being created and having artwork attached — rendered
+ * the browser's broken-image glyph at 260px, at the top of the overview. The
+ * `onError` handles the second case: a URL that is set but no longer loads.
+ * Same approach as the shop's `ProductCard`.
+ */
+function ProductHero({ src, name }: { src?: string; name: string }) {
+  const [failed, setFailed] = useState(false)
+  const frame: React.CSSProperties = {
+    width: '100%',
+    height: '260px',
+    borderRadius: '10px',
+    border: '1px solid #F0E6EC',
+  }
+
+  if (!src || failed) {
+    return (
+      <div
+        role="img"
+        aria-label={`${name}: no picture`}
+        style={{
+          ...frame,
+          backgroundColor: '#FCF7FA',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          color: '#CFC6D6',
+        }}
+      >
+        <Package size={40} />
+        <span style={{ fontSize: '0.78rem', color: '#A39BB3' }}>
+          No product image
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={`Photograph of ${name}`}
+      onError={() => setFailed(true)}
+      style={{ ...frame, objectFit: 'cover' }}
+    />
+  )
+}
 
 function Attribute({
   label,
@@ -92,7 +146,7 @@ export default function ProductDetailPage() {
     return (
       <>
         <AdminHeader title="Product Details" />
-        <main style={{ padding: '24px' }}>
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <SkeletonDetail label="Loading product" />
         </main>
       </>
@@ -103,7 +157,7 @@ export default function ProductDetailPage() {
     return (
       <>
         <AdminHeader title="Product Details" />
-        <main style={{ padding: '24px' }}>
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <AdminCard>
             <StateBlock
               tone="error"
@@ -122,8 +176,11 @@ export default function ProductDetailPage() {
   if (!product || !view) {
     return (
       <>
-        <AdminHeader title="Product Not Found" />
-        <main style={{ padding: '24px', textAlign: 'center' }}>
+        <AdminHeader title="Product not found" />
+        <main
+          className="page-pad"
+          style={{ paddingBlock: '24px', textAlign: 'center' }}
+        >
           <StateBlock
             icon={<Package size={20} color="#DCD3E0" />}
             title="Product was not found"
@@ -150,7 +207,7 @@ export default function ProductDetailPage() {
         title={product.name}
         subtitle={`SKU: ${product.sku} • Category: ${view.category.name}`}
         actionButton={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap">
             <Link
               href="/admin/catalogue/products"
               style={{
@@ -190,8 +247,9 @@ export default function ProductDetailPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -229,25 +287,16 @@ export default function ProductDetailPage() {
 
         {tab === 'overview' && (
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: '20px',
-              alignItems: 'start',
-            }}
+            className="grid-auto"
+            style={
+              {
+                '--min': '300px',
+                alignItems: 'start',
+              } as React.CSSProperties
+            }
           >
             <AdminCard>
-              <img
-                src={product.thumbnailUrl}
-                alt={product.name}
-                style={{
-                  width: '100%',
-                  height: '260px',
-                  objectFit: 'cover',
-                  borderRadius: '10px',
-                  border: '1px solid #F0E6EC',
-                }}
-              />
+              <ProductHero src={product.thumbnailUrl} name={product.name} />
 
               <div
                 style={{
@@ -317,7 +366,7 @@ export default function ProductDetailPage() {
                 </div>
                 {!canManage && (
                   <ReadOnlyNotice>
-                    Status changes need the Catalog Manage permission.
+                    Status changes need the Catalogue Manage permission.
                   </ReadOnlyNotice>
                 )}
                 <ProductLifecycleActions
@@ -353,11 +402,8 @@ export default function ProductDetailPage() {
               </div>
 
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: '14px 20px',
-                }}
+                className="grid-auto"
+                style={{ '--min': '170px' } as React.CSSProperties}
               >
                 <Attribute label="SKU Identifier" mono>
                   {view.sku}

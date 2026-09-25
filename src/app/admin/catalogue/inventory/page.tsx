@@ -325,7 +325,7 @@ export default function InventoryReconcilePage() {
 
   const header = (
     <AdminHeader
-      title="Stocktake & Reconciliation"
+      title="Stocktake and reconciliation"
       subtitle="Enter physical shelf counts, preview the variances, then write them"
     />
   )
@@ -334,7 +334,7 @@ export default function InventoryReconcilePage() {
     return (
       <>
         {header}
-        <main style={{ padding: '24px' }}>
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <AdminCard>
             {status === 'ready' ? (
               <ReadOnlyNotice>
@@ -353,8 +353,9 @@ export default function InventoryReconcilePage() {
     <>
       {header}
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -380,6 +381,7 @@ export default function InventoryReconcilePage() {
           />
 
           <AdminTable
+            minWidth={720}
             head={
               <>
                 <Th first>SKU</Th>
@@ -584,9 +586,7 @@ export default function InventoryReconcilePage() {
             </Notice>
           )}
 
-          <div
-            style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-          >
+          <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
             <ActionButton
               pending={reconcile.isPending && !confirming}
               pendingLabel="Checking…"
@@ -634,11 +634,8 @@ export default function InventoryReconcilePage() {
               </Notice>
             )}
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                gap: '12px 20px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '130px' } as CSSProperties}
             >
               <StatTile label="Counted" value={report.summary.counted} />
               <StatTile label="Matched" value={report.summary.matched} />
@@ -659,6 +656,7 @@ export default function InventoryReconcilePage() {
             </div>
 
             <AdminTable
+              minWidth={900}
               head={
                 <>
                   <Th first>SKU</Th>

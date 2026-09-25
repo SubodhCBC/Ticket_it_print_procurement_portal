@@ -7,6 +7,7 @@ import type {
   ApiInvoiceSite,
   ApiInvoiceStatus,
 } from '@/services/data-source/api/report.types'
+import { formatMonthYearLong } from '@/lib/format'
 
 /**
  * The single-invoice read, as the API actually sends it.
@@ -139,45 +140,30 @@ export function disabledWhen(
 
 // --- Formatting ---------------------------------------------------------------
 
-/** Money arrives as a decimal string; it is only formatted here, never summed. */
-export function formatMoney(value: string | null | undefined): string {
-  const amount = Number(value ?? 0)
-  if (Number.isNaN(amount)) return value ?? ''
-  return `$${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
-
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
-}
+// Money and dates are formatted by `@/lib/format`; import them from there.
 
 export function periodLabel(billingPeriod: string): string {
   const [year, month] = billingPeriod.split('-').map(Number)
   if (!year || !month) return billingPeriod
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-GB', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return formatMonthYearLong(new Date(Date.UTC(year, month - 1, 1)))
 }
 
-/** The API's message, with the request id support will ask for. */
+/**
+ * The API's message, with the request id support will ask for.
+ *
+ * Only the API's own message reaches the screen: it is written for this reader.
+ * Anything else — a dropped connection, a parse failure, a bug in the browser —
+ * says "Failed to fetch" or worse, which tells an accounts administrator
+ * nothing they can act on, so it goes to the console and the caller's own
+ * sentence is shown instead.
+ */
 export function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     return error.requestId
       ? `${error.message} (request ${error.requestId})`
       : error.message
   }
-  if (error instanceof Error && error.message) return error.message
+  if (error) console.error('Billing request failed:', error)
   return fallback
 }
 

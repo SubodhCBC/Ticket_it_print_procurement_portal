@@ -47,13 +47,14 @@ export function AdminHeader({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0.75rem 1.25rem',
+        paddingBlock: '0.75rem',
         position: 'sticky',
         top: 0,
         zIndex: 35,
-        gap: '12px',
+        gap: '10px 12px',
         flexWrap: 'wrap',
       }}
+      className="page-pad"
     >
       {/* Left: Sidebar Toggle + Title & Subtitle */}
       <div
@@ -62,7 +63,9 @@ export function AdminHeader({
           alignItems: 'center',
           gap: '12px',
           minWidth: 0,
-          flex: 1,
+          // Wide enough to be worth a row of its own: below that the controls
+          // on the right wrap underneath rather than squeeze out the title.
+          flex: '1 1 220px',
         }}
       >
         {/* Responsive Toggle Button */}
@@ -77,6 +80,7 @@ export function AdminHeader({
                 ? 'Expand Sidebar'
                 : 'Collapse to Mini Sidebar'
           }
+          className="touch-target"
           style={{
             width: '38px',
             height: '38px',
@@ -103,30 +107,29 @@ export function AdminHeader({
 
         <div style={{ minWidth: 0 }}>
           <h1
+            className="truncate"
             style={{
-              fontSize: '1.1rem',
+              fontSize: 'clamp(0.95rem, 3.2vw, 1.1rem)',
               fontWeight: 700,
               color: '#2B253E',
               letterSpacing: '-0.01em',
               margin: 0,
               lineHeight: 1.2,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
             }}
           >
             {title}
           </h1>
           {subtitle && (
+            /* A subtitle is a sentence. On a phone the one row it would take is
+               needed by the title and the controls, so it is kept for a tablet
+               and up. */
             <p
+              className="truncate hide-sm"
               style={{
                 fontSize: '0.74rem',
                 color: '#6E6781',
                 margin: 0,
                 marginTop: '2px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
               }}
             >
               {subtitle}
@@ -136,14 +139,7 @@ export function AdminHeader({
       </div>
 
       {/* Right Controls */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          flexShrink: 0,
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
         {/* Optional Action Button */}
         {actionButton && (
           <div
@@ -159,6 +155,8 @@ export function AdminHeader({
           <button
             type="button"
             onClick={() => setShowNotifications(!showNotifications)}
+            aria-label="Recent alerts"
+            className="touch-target"
             style={{
               width: '38px',
               height: '38px',
@@ -194,7 +192,7 @@ export function AdminHeader({
                 position: 'absolute',
                 top: '46px',
                 right: 0,
-                width: '290px',
+                width: 'min(290px, calc(100vw - 32px))',
                 backgroundColor: '#FFFFFF',
                 borderRadius: '14px',
                 boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)',
@@ -253,10 +251,12 @@ export function AdminHeader({
           <button
             type="button"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
+              maxWidth: '100%',
               padding: '5px 10px 5px 5px',
               borderRadius: '9999px',
               backgroundColor: '#FCF7FA',
@@ -276,19 +276,26 @@ export function AdminHeader({
                 justifyContent: 'center',
                 fontWeight: 700,
                 fontSize: '0.82rem',
+                flexShrink: 0,
               }}
             >
               {user?.name ? user.name[0] : 'A'}
             </div>
+            {/* Name and role. The avatar alone identifies the account once the
+                row is down to a phone width, and a long name is truncated
+                rather than allowed to push the header sideways. */}
             <div
-              className="admin-header-user-info"
-              style={{ textAlign: 'left', lineHeight: 1.1 }}
+              className="hide-sm"
+              style={{ textAlign: 'left', lineHeight: 1.1, minWidth: 0 }}
             >
               <div
+                className="truncate"
+                title={user?.name || 'Administrator'}
                 style={{
                   fontSize: '0.8rem',
                   fontWeight: 700,
                   color: '#2B253E',
+                  maxWidth: '150px',
                 }}
               >
                 {user?.name || 'Administrator'}
@@ -300,7 +307,7 @@ export function AdminHeader({
                   fontWeight: 600,
                 }}
               >
-                Operations HQ Admin
+                Administrator
               </div>
             </div>
             <ChevronDown size={14} color="#6E6781" />
@@ -312,7 +319,7 @@ export function AdminHeader({
                 position: 'absolute',
                 top: '46px',
                 right: 0,
-                width: '210px',
+                width: 'min(210px, calc(100vw - 32px))',
                 backgroundColor: '#FFFFFF',
                 borderRadius: '14px',
                 boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)',
@@ -338,7 +345,7 @@ export function AdminHeader({
                     fontSize: '0.8rem',
                     fontWeight: 700,
                     color: '#2B253E',
-                    wordBreak: 'break-all',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {user?.email || 'sarah.jenkins@ticketit.com'}
@@ -384,14 +391,6 @@ export function AdminHeader({
           )}
         </div>
       </div>
-
-      <style jsx>{`
-        @media (max-width: 640px) {
-          .admin-header-user-info {
-            display: none;
-          }
-        }
-      `}</style>
     </header>
   )
 }

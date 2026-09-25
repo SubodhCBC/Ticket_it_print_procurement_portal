@@ -8,6 +8,7 @@ import { ChevronRight, TrendingUp, BarChart3, Building2 } from 'lucide-react'
 import { useHODashboardKPIs } from '@/hooks/useHeadOffice'
 import { useAuth } from '@/hooks/useAuth'
 import { ReportDownloadButtons } from '@/components/reports/ReportDownloadButtons'
+import { formatMoney, formatNumber } from '@/lib/format'
 
 // ─── Period filter labels ────────────────────────────────────────────────────
 /** The page's placeholder bar, drawn by the shared skeleton. */
@@ -48,8 +49,12 @@ function SiteBarChart({
 
   return (
     <svg
-      viewBox={`0 0 ${totalWidth} ${H + 56}`}
-      style={{ width: '100%', overflow: 'visible' }}
+      viewBox={`0 0 ${totalWidth} ${H + 64}`}
+      style={{
+        width: '100%',
+        minWidth: `${totalWidth}px`,
+        height: `${H + 64}px`,
+      }}
     >
       {/* Grid lines */}
       {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
@@ -134,7 +139,8 @@ function SiteBarChart({
               fill="#A39BB3"
               fontFamily="inherit"
             >
-              {d.ordersCount} orders
+              {formatNumber(d.ordersCount)}{' '}
+              {d.ordersCount === 1 ? 'order' : 'orders'}
             </text>
           </g>
         )
@@ -293,12 +299,12 @@ export default function HOSpendInsightsPage() {
             margin: 0,
           }}
         >
-          Spend Insights & Analytics
+          Spend by site
         </h1>
         <p style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}>
           {isLoading
             ? '...'
-            : `${kpis?.accountName} — cross-site spend analytics, scoped to your account`}
+            : `${kpis?.accountName} — what each of your sites spent`}
         </p>
         {/* Every branch, not the twenty the strip below shows. */}
         <div style={{ marginTop: '10px' }}>
@@ -308,11 +314,8 @@ export default function HOSpendInsightsPage() {
 
       {/* KPI Row */}
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '14px',
-        }}
+        className="grid-auto"
+        style={{ ['--min']: '220px' } as React.CSSProperties}
       >
         {isLoading
           ? [0, 1, 2].map((i) => (
@@ -339,12 +342,12 @@ export default function HOSpendInsightsPage() {
               // colour mean something: up or down. The two amounts are plain.
               {
                 label: 'Spend This Month',
-                value: `$${(kpis?.totalSpendThisMonth ?? 0).toLocaleString('en-US')}`,
+                value: formatMoney(kpis?.totalSpendThisMonth ?? 0),
                 color: '#2B253E',
               },
               {
                 label: 'Spend Last Month',
-                value: `$${(kpis?.totalSpendLastMonth ?? 0).toLocaleString('en-US')}`,
+                value: formatMoney(kpis?.totalSpendLastMonth ?? 0),
                 color: '#2B253E',
               },
               {
@@ -449,7 +452,7 @@ export default function HOSpendInsightsPage() {
             ))}
           </div>
         ) : (
-          <div style={{ height: '290px', position: 'relative' }}>
+          <div className="table-scroll">
             <SiteBarChart data={kpis?.spendBySite ?? []} />
           </div>
         )}
@@ -526,11 +529,8 @@ export default function HOSpendInsightsPage() {
           <Building2 size={16} color="#A39BB3" /> Site Performance — This Month
         </h2>
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-            gap: '14px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '280px' } as React.CSSProperties}
         >
           {isLoading
             ? [0, 1, 2].map((i) => (
@@ -634,7 +634,7 @@ export default function HOSpendInsightsPage() {
                           letterSpacing: '-0.02em',
                         }}
                       >
-                        ${s.totalSpend.toLocaleString('en-US')}
+                        {formatMoney(s.totalSpend)}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>

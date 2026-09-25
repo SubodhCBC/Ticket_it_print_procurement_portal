@@ -46,7 +46,9 @@ export function DashboardPdfButton({ params }: { params: DashboardPdfParams }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {/* The button sat under a finger's 40px on touch. */}
       <ActionButton
+        className="touch-target"
         icon={<FileDown size={15} />}
         pending={pending}
         pendingLabel="Preparing PDF…"

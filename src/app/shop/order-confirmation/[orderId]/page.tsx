@@ -12,11 +12,14 @@ import { useCart } from '@/hooks/useCart'
 import type { Order } from '@/types'
 import { OrderStatusBadge } from '@/components/shop/OrderStatusBadge'
 import { OrderLineAsset } from '@/components/shop/cart/OrderLineAsset'
-import { OrderTotals } from '@/components/shop/cart/OrderTotals'
+import {
+  OrderTotals,
+  useTaxBasisNote,
+} from '@/components/shop/cart/OrderTotals'
+import { formatDate, formatMoney, formatDateTime } from '@/lib/format'
 import {
   PAYMENT_METHOD_LABELS,
   STANDARD_DELIVERY_LABEL,
-  formatDate,
 } from '@/components/shop/cart/line-format'
 import {
   AlertCircle,
@@ -129,6 +132,10 @@ export default function OrderConfirmationPage() {
   const orderId = params?.orderId as string
 
   const { reload } = useCart()
+
+  // The figure a buyer remembers has to reconcile with the invoice, so the
+  // total says which GST basis it is on rather than leaving it unstated.
+  const taxNote = useTaxBasisNote('on account')
   const [order, setOrder] = useState<Order | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   /** Bumped by "Try again"; part of what a load answers for. */
@@ -221,22 +228,20 @@ export default function OrderConfirmationPage() {
           {loadError ?? 'Something went wrong while loading the order.'} If you
           have just placed it, it will be in your order history.
         </p>
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'center' }}>
           <button
             type="button"
+            className="touch-target"
             onClick={() => setAttempt((n) => n + 1)}
             style={secondaryButton}
           >
             Try again
           </button>
-          <Link href="/shop/orders/history" style={primaryButton}>
+          <Link
+            href="/shop/orders/history"
+            className="touch-target"
+            style={primaryButton}
+          >
             <span>View My Orders</span>
             <ArrowRight size={14} />
           </Link>
@@ -324,13 +329,14 @@ export default function OrderConfirmationPage() {
 
         {/* Reference tags row: label/value pairs in one card, not five tiles */}
         <div
-          style={{
-            ...card,
-            padding: '16px 20px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: '16px',
-          }}
+          className="grid-auto"
+          style={
+            {
+              ...card,
+              padding: '16px 20px',
+              ['--min']: '150px',
+            } as React.CSSProperties
+          }
         >
           <div>
             <span style={fieldLabel}>Order Reference</span>
@@ -409,11 +415,8 @@ export default function OrderConfirmationPage() {
         <h3 style={cardTitle}>What Happens Next with Your Order</h3>
 
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '20px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '200px' } as React.CSSProperties}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <span style={stepNumber}>1</span>
@@ -431,7 +434,7 @@ export default function OrderConfirmationPage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <span style={stepNumber}>2</span>
-            <h4 style={stepTitle}>Site Dispatch & Tracking</h4>
+            <h4 style={stepTitle}>Dispatch and tracking</h4>
             <p style={stepText}>
               Sent by {order.shippingMethodLabel ?? 'standard delivery'} to your
               branch, with tracking and a signed receipt.
@@ -442,7 +445,7 @@ export default function OrderConfirmationPage() {
             <span style={stepNumber}>3</span>
             <h4 style={stepTitle}>Monthly Billing Roll-Up</h4>
             <p style={stepText}>
-              This order (${order.totalAmount.toFixed(2)}) is reconciled into
+              This order ({formatMoney(order.totalAmount)}) is reconciled into
               your Head Office consolidated monthly billing report.
             </p>
           </div>
@@ -459,16 +462,8 @@ export default function OrderConfirmationPage() {
           gap: '16px',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div>
+        <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
+          <div style={{ minWidth: 0 }}>
             <h3 style={cardTitle}>Order Requisition Details</h3>
             <p
               style={{
@@ -477,38 +472,32 @@ export default function OrderConfirmationPage() {
                 margin: '3px 0 0',
               }}
             >
-              Placed on{' '}
-              {new Date(order.createdAt).toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              Placed on {formatDateTime(order.createdAt)}
             </p>
           </div>
 
           {/* Both secondary: the page's one primary action is at the bottom. */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-            }}
-          >
-            <button onClick={handlePrint} style={secondaryButton}>
+          <div className="row-wrap">
+            <button
+              onClick={handlePrint}
+              className="touch-target"
+              style={secondaryButton}
+            >
               <Printer size={14} /> Print Receipt
             </button>
 
-            <Link href={`/shop/orders/${order.id}`} style={secondaryButton}>
+            <Link
+              href={`/shop/orders/${order.id}`}
+              className="touch-target"
+              style={secondaryButton}
+            >
               <FileText size={14} /> View Order Record
             </Link>
           </div>
         </div>
 
         {/* Line Items Table */}
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-scroll">
           <table
             style={{
               width: '100%',
@@ -519,7 +508,7 @@ export default function OrderConfirmationPage() {
           >
             <thead>
               <tr>
-                <Th edge="start">Asset / Item</Th>
+                <Th edge="start">Product</Th>
                 <Th>SKU</Th>
                 <Th align="center">Pack / UOM</Th>
                 <Th align="center">Quantity</Th>
@@ -575,7 +564,7 @@ export default function OrderConfirmationPage() {
                       color: '#6E6781',
                     }}
                   >
-                    ${line.unitPrice.toFixed(2)}
+                    {formatMoney(line.unitPrice)}
                   </td>
                   <td
                     style={{
@@ -585,7 +574,7 @@ export default function OrderConfirmationPage() {
                       color: '#2B253E',
                     }}
                   >
-                    ${line.lineTotal.toFixed(2)}
+                    {formatMoney(line.lineTotal)}
                   </td>
                 </tr>
               ))}
@@ -595,14 +584,15 @@ export default function OrderConfirmationPage() {
 
         {/* Totals Row */}
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-            gap: '20px',
-            paddingTop: '16px',
-            borderTop: '1px solid #F5EEF2',
-            fontSize: '0.84rem',
-          }}
+          className="grid-auto"
+          style={
+            {
+              ['--min']: '240px',
+              paddingTop: '16px',
+              borderTop: '1px solid #F5EEF2',
+              fontSize: '0.84rem',
+            } as React.CSSProperties
+          }
         >
           <div
             style={{
@@ -613,7 +603,7 @@ export default function OrderConfirmationPage() {
             }}
           >
             <p style={{ margin: 0 }}>
-              <strong style={fieldLabel}>Site Branch:</strong>
+              <strong style={fieldLabel}>Branch:</strong>
               {order.siteName} ({order.siteCode})
             </p>
             <p style={{ margin: 0 }}>
@@ -716,6 +706,7 @@ export default function OrderConfirmationPage() {
               shippingPrice={order.shippingCost ?? 0}
               total={order.totalAmount}
               totalLabel="Total Billed to Account"
+              totalNote={taxNote}
               size="lg"
             />
           </div>
@@ -723,21 +714,21 @@ export default function OrderConfirmationPage() {
       </div>
 
       {/* 4. Bottom Navigation CTA */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <Link href="/shop/catalogue" style={secondaryButton}>
-          <ShoppingBag size={14} /> Continue Shopping Catalogue
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
+        <Link
+          href="/shop/catalogue"
+          className="touch-target"
+          style={secondaryButton}
+        >
+          <ShoppingBag size={14} /> Continue shopping
         </Link>
 
-        <Link href="/shop/orders/history" style={primaryButton}>
-          <span>Go to My Site Order History</span>
+        <Link
+          href="/shop/orders/history"
+          className="touch-target"
+          style={primaryButton}
+        >
+          <span>Go to my order history</span>
           <ArrowRight size={14} />
         </Link>
       </div>

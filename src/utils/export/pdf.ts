@@ -1,5 +1,6 @@
 // src/lib/export/pdf.ts
 import type { MonthlyBillingReport } from '@/types'
+import { formatMoney } from '@/lib/format'
 
 export function printBillingReportPDF(report: MonthlyBillingReport) {
   const printWindow = window.open('', '_blank')
@@ -41,7 +42,7 @@ export function printBillingReportPDF(report: MonthlyBillingReport) {
         <div class="meta">
           <div class="meta-box">
             <div class="label">Total Amount Due</div>
-            <div class="value" style="color: #f73582;">$${report.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            <div class="value" style="color: #f73582;">${formatMoney(report.totalSpend)}</div>
           </div>
           <div class="meta-box">
             <div class="label">Active Branches / Sites</div>
@@ -61,7 +62,7 @@ export function printBillingReportPDF(report: MonthlyBillingReport) {
               <th>Account</th>
               <th>Orders</th>
               <th>Top Collateral Category</th>
-              <th style="text-align: right;">Subtotal (USD)</th>
+              <th style="text-align: right;">Subtotal (NZD)</th>
             </tr>
           </thead>
           <tbody>
@@ -74,14 +75,14 @@ export function printBillingReportPDF(report: MonthlyBillingReport) {
                 <td>${s.accountName}</td>
                 <td>${s.ordersCount}</td>
                 <td>${s.topCategory}</td>
-                <td style="text-align: right; font-weight: bold;">$${s.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: right; font-weight: bold;">${formatMoney(s.totalSpend)}</td>
               </tr>
             `
               )
               .join('')}
             <tr class="total-row">
               <td colspan="5" style="text-align: right;"><strong>TOTAL CONSOLIDATED SPEND:</strong></td>
-              <td style="text-align: right; color: #f73582;"><strong>$${report.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></td>
+              <td style="text-align: right; color: #f73582;"><strong>${formatMoney(report.totalSpend)}</strong></td>
             </tr>
           </tbody>
         </table>

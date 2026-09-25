@@ -340,14 +340,7 @@ function AccountEditForm({
 
       <ErrorNote error={update.error} />
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
         {canManage && !hasChanges && (
           <span style={{ ...hintStyle, marginTop: 0, marginRight: 'auto' }}>
             No changes yet

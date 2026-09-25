@@ -97,7 +97,7 @@ export function SiteEditDrawer({
             {header.name}
           </span>
         ) : (
-          'Branch'
+          'Site'
         )
       }
     >
@@ -120,11 +120,11 @@ export function SiteEditDrawer({
 
           {error && (
             <ErrorNote
-              message={`Could not ${detail ? 'refresh' : 'load'} this branch: ${errorMessage(error)}`}
+              message={`Could not ${detail ? 'refresh' : 'load'} this site: ${errorMessage(error)}`}
             />
           )}
           {!canManage && (
-            <ErrorNote message="You can view this branch but not change it: that needs the site management permission." />
+            <ErrorNote message="You can view this site but not change it: that needs the site management permission." />
           )}
 
           {detail ? (
@@ -142,7 +142,7 @@ export function SiteEditDrawer({
             </>
           ) : (
             site !== null &&
-            !error && <SkeletonForm fields={6} label="Loading branch" />
+            !error && <SkeletonForm fields={6} label="Loading site" />
           )}
         </>
       )}
@@ -205,7 +205,7 @@ function SiteSettingsForm({
     // Every field in one pass, so a branch with two things wrong is not
     // discovered one refusal at a time.
     const found: SettingsErrors = {}
-    if (!name.trim()) found.name = 'Enter a branch name.'
+    if (!name.trim()) found.name = 'Enter a site name.'
     if (budget.trim() && !MONEY_PATTERN.test(budget.trim()))
       found.budget =
         'Monthly budget must be a number, or leave it empty for no limit.'
@@ -257,16 +257,12 @@ function SiteSettingsForm({
           gap: '12px',
         }}
       >
-        <Field
-          label="Branch name *"
-          htmlFor="site-edit-name"
-          error={errors.name}
-        >
+        <Field label="Site name *" htmlFor="site-edit-name" error={errors.name}>
           <input
             id="site-edit-name"
             type="text"
             maxLength={200}
-            placeholder="e.g. Queen Street Branch"
+            placeholder="e.g. Queen Street"
             value={name}
             disabled={locked}
             aria-invalid={errors.name ? true : undefined}
@@ -319,7 +315,7 @@ function SiteSettingsForm({
         <Field
           label="Cost centre"
           htmlFor="site-edit-cost-centre"
-          hint="Carried onto this branch's orders for your finance system."
+          hint="Carried onto this site's orders for your finance system."
         >
           <input
             id="site-edit-cost-centre"
@@ -379,16 +375,14 @@ function SiteSettingsForm({
 
       <CheckboxField
         id="site-edit-po-required"
-        label="Require a purchase order number for this branch"
+        label="Require a purchase order number for this site"
         checked={poRequired}
         disabled={locked}
         onChange={setPoRequired}
       />
 
       <ErrorNote error={update.error} />
-      {saved && !hasChanges && (
-        <SuccessNote>Branch settings saved.</SuccessNote>
-      )}
+      {saved && !hasChanges && <SuccessNote>Site settings saved.</SuccessNote>}
 
       {canManage && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -469,7 +463,7 @@ function SiteAddressesSection({
 
       {site.addresses.length === 0 ? (
         <div style={{ ...hintStyle, marginTop: 0 }}>
-          No addresses on file. Checkout delivers to a branch&apos;s shipping
+          No addresses on file. Checkout delivers to a site&apos;s shipping
           addresses, so add at least one.
         </div>
       ) : (
@@ -681,7 +675,7 @@ function AddressCheck({
             gap: '6px',
           }}
         >
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="row-wrap" style={{ gap: '6px' }}>
             <input
               aria-label="Search NZ Post for this address"
               value={query}
@@ -692,7 +686,7 @@ function AddressCheck({
                   void search()
                 }
               }}
-              style={{ ...fieldStyle(), flex: 1, minWidth: 0 }}
+              style={{ ...fieldStyle(), flex: '1 1 160px', minWidth: 0 }}
             />
             <button
               type="button"
@@ -1075,7 +1069,7 @@ function SiteAddressForm({
 
       <ErrorNote error={add.error} />
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+      <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
         <button
           type="button"
           onClick={onCancel}
@@ -1132,7 +1126,7 @@ function NzPostAddressSearch({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <div style={{ display: 'flex', gap: '6px' }}>
+      <div className="row-wrap" style={{ gap: '6px' }}>
         <input
           aria-label="Find the address in NZ Post"
           placeholder="Find in NZ Post, e.g. 12 Queen Street Auckland"
@@ -1145,7 +1139,7 @@ function NzPostAddressSearch({
               void search()
             }
           }}
-          style={{ ...fieldStyle(disabled), flex: 1, minWidth: 0 }}
+          style={{ ...fieldStyle(disabled), flex: '1 1 160px', minWidth: 0 }}
         />
         <button
           type="button"

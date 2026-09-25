@@ -118,6 +118,7 @@ import {
   qrDataUrl,
   renderCodeBitmap as renderCodeShared,
 } from '@/lib/design/codes'
+import { formatMoney } from '@/lib/format'
 import { proofSides, renderSidePreview } from '@/lib/design/proof-export'
 import { parsePackSize } from '@/services/data-source/api/product.mapper'
 import {
@@ -390,7 +391,7 @@ const FIELD_KEY_OPTIONS: {
 }[] = [
   {
     key: 'businessName',
-    label: 'Business / Branch Name',
+    label: 'Business / site name',
     defaultPlaceholder: 'Apex Midtown Central Health',
   },
   {
@@ -1707,7 +1708,7 @@ export function TemplateBuilderStudio({
       unitsPerPack: null,
       name: 'Untitled Template',
       description:
-        'Master template with locked brand guidelines and customizable site fields.',
+        'Master template with locked brand guidelines and customisable site fields.',
       thumbnailUrl: '',
       orientation: 'portrait',
       aspectRatio: '3:4',
@@ -9696,7 +9697,10 @@ export function TemplateBuilderStudio({
 
                   <p style={ST.hint}>
                     {perUnitPrice !== null
-                      ? `$${(template.price ?? 0).toFixed(2)} · $${perUnitPrice.toFixed(2)} each / ${unitsPerPack} units`
+                      ? // Marked approximate, as the gallery marks it: $49.99
+                        // over 250 rounds to "$0.20", which multiplies back to
+                        // $50.00. The pack price is what is charged.
+                        `${formatMoney(template.price ?? 0)} per pack of ${unitsPerPack} (≈ ${formatMoney(perUnitPrice)} a unit)`
                       : canSetPrice
                         ? lockedPackSize != null
                           ? 'Set the pack price. It cannot be published until you do.'

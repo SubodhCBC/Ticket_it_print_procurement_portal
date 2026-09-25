@@ -21,7 +21,7 @@ import type {
   ApiCollectionPoint,
   ApiShippingRates,
 } from '@/services/data-source/api/cart.types'
-import { formatMoney } from '@/components/shop/cart/line-format'
+import { formatMoney } from '@/lib/format'
 
 /**
  * The basket's NZ Post delivery choice: a validated address, then a service or
@@ -309,14 +309,7 @@ export function NzPostDeliveryPanel() {
   }
 
   const header = (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '8px',
-      }}
-    >
+    <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
       <h4 style={sectionTitle}>
         <MapPin size={16} color="#A39BB3" />
         <span>NZ Post Delivery Details</span>
@@ -361,8 +354,12 @@ export function NzPostDeliveryPanel() {
       {header}
       <p style={note}>
         Confirm the address with NZ Post to record a courier service or a nearby
-        collection point for dispatch. This does not change the order total —
-        delivery is charged by the shipping method above.
+        collection point for dispatch.{' '}
+        <strong style={{ fontWeight: 600, color: '#2B253E' }}>
+          Any NZ Post price shown here is an indicative quote, not a charge.
+        </strong>{' '}
+        Your branch pays the delivery method selected above, and the order total
+        does not change.
       </p>
 
       {isLoading ? (
@@ -382,6 +379,7 @@ export function NzPostDeliveryPanel() {
             aria-label="Search NZ Post addresses"
             autoComplete="off"
             maxLength={120}
+            className="touch-target"
             style={input}
           />
           {query.trim().length > 0 &&
@@ -420,6 +418,7 @@ export function NzPostDeliveryPanel() {
                   aria-selected={false}
                   disabled={busy !== null}
                   onClick={() => void chooseAddress(suggestion)}
+                  className="touch-target"
                   style={{
                     textAlign: 'left',
                     padding: '8px 12px',
@@ -443,13 +442,8 @@ export function NzPostDeliveryPanel() {
         <>
           {/* 2. The chosen address. */}
           <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: '12px',
-              fontSize: '0.8rem',
-            }}
+            className="row-wrap"
+            style={{ justifyContent: 'space-between', fontSize: '0.8rem' }}
           >
             <div style={{ minWidth: 0 }}>
               <strong style={{ color: '#2B253E', display: 'block' }}>
@@ -465,7 +459,13 @@ export function NzPostDeliveryPanel() {
               type="button"
               onClick={() => void clear()}
               disabled={busy !== null}
-              style={{ ...linkButton, display: 'inline-flex', gap: 4 }}
+              className="touch-target"
+              style={{
+                ...linkButton,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
             >
               <X size={12} /> {busy === 'clear' ? 'Clearing…' : 'Change'}
             </button>
@@ -482,7 +482,8 @@ export function NzPostDeliveryPanel() {
           <div
             role="radiogroup"
             aria-label="NZ Post delivery kind"
-            style={{ display: 'flex', gap: '16px', fontSize: '0.8rem' }}
+            className="row-wrap"
+            style={{ gap: '10px 16px', fontSize: '0.8rem' }}
           >
             {(
               [
@@ -492,6 +493,7 @@ export function NzPostDeliveryPanel() {
             ).map(([kind, label]) => (
               <label
                 key={kind}
+                className="touch-target"
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <input
@@ -520,6 +522,7 @@ export function NzPostDeliveryPanel() {
               {points?.map((point) => (
                 <label
                   key={point.id}
+                  className="touch-target"
                   style={optionCard(point.id === pointId, busy !== null)}
                 >
                   <input
@@ -539,7 +542,13 @@ export function NzPostDeliveryPanel() {
                     </span>
                   </span>
                   {distance(point.distanceMetres) && (
-                    <span style={{ fontSize: '0.74rem', color: '#A39BB3' }}>
+                    <span
+                      style={{
+                        fontSize: '0.74rem',
+                        color: '#A39BB3',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {distance(point.distanceMetres)}
                     </span>
                   )}
@@ -562,6 +571,14 @@ export function NzPostDeliveryPanel() {
               >
                 Courier service
               </span>
+              {/* Restated beside the prices themselves: the intro is several
+                  fields away by the time a buyer reads a rate, and these
+                  figures sit a short scroll from the total that IS billed. */}
+              <p style={{ ...note, color: '#A39BB3' }}>
+                Indicative NZ Post quotes — recorded for dispatch, never
+                charged. They are quoted GST-inclusive, which need not match how
+                your account states prices.
+              </p>
               {isLoadingRates && <p style={note}>Getting NZ Post rates…</p>}
               {rates && rates.source === 'FLAT_RATE' && (
                 <p style={note}>
@@ -580,6 +597,7 @@ export function NzPostDeliveryPanel() {
                 return (
                   <label
                     key={option.serviceCode}
+                    className="touch-target"
                     style={optionCard(selected, busy !== null)}
                   >
                     <input
@@ -606,11 +624,14 @@ export function NzPostDeliveryPanel() {
                           .join(' · ')}
                       </span>
                     </span>
+                    {/* Deliberately lighter than an amount that is billed:
+                        this was set in the same ink and weight as the order
+                        total, which is the whole reason it read as a charge. */}
                     <span
                       style={{
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        color: '#2B253E',
+                        fontSize: '0.78rem',
+                        fontWeight: 500,
+                        color: '#6E6781',
                         whiteSpace: 'nowrap',
                         textAlign: 'right',
                       }}
@@ -624,7 +645,7 @@ export function NzPostDeliveryPanel() {
                           color: '#A39BB3',
                         }}
                       >
-                        incl. GST · not billed
+                        quote only · incl. GST
                       </span>
                     </span>
                   </label>

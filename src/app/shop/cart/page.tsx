@@ -10,7 +10,10 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { QuantitySelector } from '@/components/shop/QuantitySelector'
 import { CartLineSummary } from '@/components/shop/cart/CartLineSummary'
 import { LineNoteEditor } from '@/components/shop/cart/LineNoteEditor'
-import { OrderTotals } from '@/components/shop/cart/OrderTotals'
+import {
+  OrderTotals,
+  useTaxBasisNote,
+} from '@/components/shop/cart/OrderTotals'
 import { shippingOptionName } from '@/components/shop/cart/line-format'
 import {
   ShoppingBag,
@@ -21,6 +24,7 @@ import {
   Building2,
   LayoutTemplate,
 } from 'lucide-react'
+import { formatMoney } from '@/lib/format'
 
 /**
  * Issues that already have a row of their own below — the purchase order and
@@ -147,8 +151,17 @@ export default function CartPage() {
     acceptAdjustments,
   } = useCart()
 
-  // Under ~720px the rows stack their controls and the header actions wrap.
-  const narrow = useMediaQuery('(max-width: 719.98px)')
+  // Whether the account's prices include GST is a setting, so the note is read
+  // rather than hardcoded. Until a method is chosen the total is not the whole
+  // bill, and the note says so instead of implying it is.
+  const taxNote = useTaxBasisNote(
+    shipping ? 'on account' : 'shipping added at checkout'
+  )
+
+  // Below 768px — the toolkit's phone breakpoint, the same one `.stack-sm`
+  // uses inside `CartLineSummary` — the rows stack their controls, so the
+  // column header above them is no longer describing anything.
+  const narrow = useMediaQuery('(max-width: 767.98px)')
   // Emptying the whole basket is one click from gone, so it asks first.
   const [confirmingClear, setConfirmingClear] = useState(false)
 
@@ -179,12 +192,11 @@ export default function CartPage() {
     >
       {/* 1. Page header */}
       <div
+        className="row-wrap"
         style={{
-          display: 'flex',
           alignItems: 'flex-end',
           justifyContent: 'space-between',
           gap: '12px 16px',
-          flexWrap: 'wrap',
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -250,21 +262,13 @@ export default function CartPage() {
         </div>
 
         {items.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="row-wrap" style={{ gap: '8px' }}>
             {confirmingClear ? (
               <div
                 role="group"
                 aria-label="Clear the cart"
+                className="row-wrap"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
                   gap: '8px',
                   padding: '6px 6px 6px 12px',
                   borderRadius: '12px',
@@ -282,6 +286,7 @@ export default function CartPage() {
                     setConfirmingClear(false)
                     void clearCart()
                   }}
+                  className="touch-target"
                   style={{
                     ...secondaryAction,
                     padding: '6px 12px',
@@ -295,6 +300,7 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmingClear(false)}
+                  className="touch-target"
                   style={{ ...secondaryAction, padding: '6px 12px' }}
                 >
                   Keep items
@@ -302,13 +308,18 @@ export default function CartPage() {
               </div>
             ) : (
               <>
-                <Link href="/shop/templates" style={secondaryAction}>
+                <Link
+                  href="/shop/templates"
+                  className="touch-target"
+                  style={secondaryAction}
+                >
                   <LayoutTemplate size={14} />
-                  <span>Browse templates</span>
+                  <span>Browse designs</span>
                 </Link>
                 <button
                   type="button"
                   onClick={() => setConfirmingClear(true)}
+                  className="touch-target"
                   style={{ ...secondaryAction, color: C.danger }}
                 >
                   <Trash2 size={14} />
@@ -416,30 +427,31 @@ export default function CartPage() {
               color: C.secondary,
               margin: '0 0 22px 0',
               lineHeight: 1.55,
-              maxWidth: '380px',
+              maxWidth: 'min(380px, 100%)',
             }}
           >
-            Personalise a template or pick items from the catalogue — they will
+            Personalise a design or pick items from the catalogue — they will
             wait here until you check out.
           </p>
 
           <div
-            style={{
-              display: 'flex',
-              gap: '10px',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-            }}
+            className="row-wrap"
+            style={{ justifyContent: 'center', gap: '10px' }}
           >
             <Link
               href="/shop/templates"
+              className="touch-target"
               style={{ ...primaryAction, padding: '10px 18px' }}
             >
               <LayoutTemplate size={16} />
-              <span>Browse templates</span>
+              <span>Browse designs</span>
             </Link>
-            <Link href="/shop/catalogue" style={secondaryAction}>
-              <span>Return to Asset Catalogue</span>
+            <Link
+              href="/shop/catalogue"
+              className="touch-target"
+              style={secondaryAction}
+            >
+              <span>Return to catalogue</span>
             </Link>
           </div>
         </div>
@@ -526,12 +538,9 @@ export default function CartPage() {
             </div>
 
             <div
+              className="row-wrap"
               style={{
-                display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '10px',
-                flexWrap: 'wrap',
                 paddingTop: '14px',
                 borderTop: `1px solid ${C.hairline}`,
                 fontSize: '0.8rem',
@@ -677,8 +686,8 @@ export default function CartPage() {
 
                 {budget?.wouldExceed && (
                   <div style={notice('warning')}>
-                    This order would put the branch ${budget.overage.toFixed(2)}{' '}
-                    over its monthly budget.
+                    This order would put the branch{' '}
+                    {formatMoney(budget.overage)} over its monthly budget.
                   </div>
                 )}
 
@@ -686,7 +695,7 @@ export default function CartPage() {
                   <div style={notice('warning')}>
                     {userBudget.cap === 0
                       ? 'Your account is not currently permitted to place orders.'
-                      : `This order would take you $${userBudget.overage.toFixed(2)} over your personal monthly limit.`}
+                      : `This order would take you ${formatMoney(userBudget.overage)} over your personal monthly limit.`}
                   </div>
                 )}
 
@@ -751,13 +760,9 @@ export default function CartPage() {
               total={total}
               totalLabel="Total"
               size="lg"
-              // Tax is not modelled by the API, so none is shown rather than
-              // estimated.
-              totalNote={
-                shipping
-                  ? 'Excl. tax · on account'
-                  : 'Excl. tax · shipping added at checkout'
-              }
+              // The GST basis is the account's, not a constant — see
+              // `useTaxBasisNote`.
+              totalNote={taxNote}
               leadingRows={
                 /*
                   Only when there is a difference to show. A design's price has
@@ -774,13 +779,13 @@ export default function CartPage() {
                           textDecoration: 'line-through',
                         }}
                       >
-                        ${catalogSubtotal.toFixed(2)}
+                        {formatMoney(catalogSubtotal)}
                       </span>
                     </div>
                     <div style={summaryRow}>
                       <span>Contract saving</span>
                       <strong style={{ color: '#3F9C68', fontWeight: 600 }}>
-                        -${saving.toFixed(2)}
+                        -{formatMoney(saving)}
                       </strong>
                     </div>
                   </>
@@ -797,7 +802,7 @@ export default function CartPage() {
                           fontWeight: 600,
                         }}
                       >
-                        ${(budget.remaining ?? 0).toFixed(2)}
+                        {formatMoney(budget.remaining ?? 0)}
                       </strong>
                     </div>
                   )}
@@ -810,7 +815,7 @@ export default function CartPage() {
                           fontWeight: 600,
                         }}
                       >
-                        ${(userBudget.remaining ?? 0).toFixed(2)}
+                        {formatMoney(userBudget.remaining ?? 0)}
                       </strong>
                     </div>
                   )}

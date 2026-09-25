@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import {
   damKeys,
   useDamAccess,
@@ -217,6 +218,11 @@ function DamBrowser({
   const selectMode = mode === 'select'
   const canUpload = mayUpload && allowUpload
   const queryClient = useQueryClient()
+  // The grid and the details pane are one column below 768px. Wrapping on its
+  // own is not enough: at 700-odd pixels there is still room for two columns,
+  // and both of them are then too narrow to read. No class can say this,
+  // because the split lives in a page and in a dialog of its own width.
+  const onePane = useMediaQuery('(max-width: 767px)')
 
   // --- Where we are ---------------------------------------------------------------
   const [trail, setTrail] = useState<DamCrumb[]>(() =>
@@ -272,6 +278,14 @@ function DamBrowser({
       .filter((item) => item.kind === 'folder')
       .map((item) => ({ name: item.name, path: folderHitPath(item) })),
   ])
+
+  // The raw fault is for whoever maintains this, not for someone looking for a
+  // logo: "Request failed with status code 500" and the note about CORS_ORIGINS
+  // both reached the panel as the headline message. They go to the console; the
+  // panel says what the reader can do about it.
+  useEffect(() => {
+    if (error) console.error('Image library request failed:', error)
+  }, [error])
 
   // A listing refused for want of a session means the server has just dropped
   // the Ticket-IT token; re-reading the status flips the gate to say so.
@@ -585,7 +599,17 @@ function DamBrowser({
               ? 'Search failed'
               : 'Could not open this folder'
         }
-        message={error.message}
+        message={
+          sessionLost
+            ? 'Sign in to Ticket-IT again and the library will come back.'
+            : error.code === 'NETWORK_ERROR'
+              ? 'The image library could not be reached. Check your connection, then retry.'
+              : error.code === 'UNEXPECTED_ERROR'
+                ? searching
+                  ? 'The search could not be completed. Try again in a moment, or browse to the folder instead.'
+                  : 'This folder could not be opened. Try again in a moment, or pick another folder.'
+                : error.message
+        }
         action={
           <>
             <Button
@@ -669,12 +693,8 @@ function DamBrowser({
           <section aria-label="Folders">
             <SectionLabel>Folders</SectionLabel>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns:
-                  'repeat(auto-fill, minmax(min(170px, 100%), 1fr))',
-                gap: '8px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '150px' } as React.CSSProperties}
             >
               {folderTiles.map((folder) => (
                 <DamFolderTile
@@ -696,13 +716,12 @@ function DamBrowser({
                 : 'No files in this folder.'}
             </p>
           ) : (
+            // A small minimum, so two picture tiles still fit side by side on
+            // a 360px phone. A JSX comment cannot sit here: this arm of the
+            // ternary is an expression, not a list of children.
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns:
-                  'repeat(auto-fill, minmax(min(140px, 100%), 1fr))',
-                gap: '10px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '130px' } as React.CSSProperties}
             >
               {files.map((file) => {
                 const fileFolder = fileFolderFor(file)
@@ -747,14 +766,7 @@ function DamBrowser({
       }}
     >
       {/* Toolbar: where we are, search, upload. Wraps on narrow screens. */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: '10px',
-        }}
-      >
+      <div className="row-wrap">
         <Breadcrumbs
           trail={trail}
           dimmed={searching}
@@ -773,8 +785,11 @@ function DamBrowser({
                   type="button"
                   onClick={clearSearch}
                   aria-label="Clear the search"
+                  className="touch-target"
                   style={{
                     display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     border: 'none',
                     background: 'transparent',
                     padding: 0,
@@ -831,10 +846,8 @@ function DamBrowser({
 
       {canUpload && (
         <div
+          className="row-wrap"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
             padding: '10px 12px',
             borderRadius: '12px',
             border: `1.5px dashed ${dragging ? '#F73582' : '#F0E6EC'}`,
@@ -884,12 +897,9 @@ function DamBrowser({
 
       {searching && (
         <div
+          className="row-wrap"
           style={{
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '8px',
-            flexWrap: 'wrap',
             fontSize: '0.78rem',
             color: '#6E6781',
           }}
@@ -933,8 +943,9 @@ function DamBrowser({
           style={{
             flexGrow: 999,
             flexBasis: 0,
-            // Below 55% of the row the details wrap underneath instead.
-            minWidth: '55%',
+            // Below 55% of the row the details wrap underneath instead; on a
+            // phone the grid takes the whole row, so they always do.
+            minWidth: onePane ? '100%' : '55%',
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
@@ -1098,9 +1109,7 @@ function NewFolderDialog({
             {error}
           </span>
         )}
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <Button
             type="button"
             variant="ghost"
@@ -1158,9 +1167,7 @@ function DeleteFileDialog({
             {error}
           </span>
         )}
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <Button
             type="button"
             variant="ghost"
@@ -1177,6 +1184,7 @@ function DeleteFileDialog({
             disabled={busy}
             onClick={onConfirm}
             aria-label={`Delete ${file?.file.name ?? 'this file'} permanently`}
+            className="touch-target"
             style={{
               padding: '0.5rem 0.9rem',
               borderRadius: '10px',
@@ -1292,6 +1300,7 @@ function Breadcrumbs({
                   aria-label={
                     i === 0 ? 'Go to the library root' : `Go to ${crumb.name}`
                   }
+                  className="touch-target"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1338,14 +1347,8 @@ function Pager({
 }) {
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '8px',
-        flexWrap: 'wrap',
-        paddingTop: '4px',
-      }}
+      className="row-wrap"
+      style={{ justifyContent: 'space-between', paddingTop: '4px' }}
     >
       <Button
         type="button"
@@ -1418,8 +1421,11 @@ function Banner({
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss message"
+        className="touch-target"
         style={{
           display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           flexShrink: 0,
           border: 'none',
           background: 'transparent',
@@ -1439,11 +1445,8 @@ function LoadingGrid() {
     <div
       role="status"
       aria-label="Loading files"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(min(140px, 100%), 1fr))',
-        gap: '10px',
-      }}
+      className="grid-auto"
+      style={{ ['--min']: '130px' } as React.CSSProperties}
     >
       {Array.from({ length: 8 }, (_, i) => (
         <Skeleton

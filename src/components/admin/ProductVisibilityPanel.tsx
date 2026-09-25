@@ -113,7 +113,7 @@ export function ProductVisibilityPanel({
 
       {!canManage ? (
         <ReadOnlyNotice>
-          Changing visibility needs the Catalog Manage permission.
+          Changing visibility needs the Catalogue Manage permission.
         </ReadOnlyNotice>
       ) : (
         <>
@@ -197,7 +197,7 @@ export function ProductVisibilityPanel({
           {error && <Notice tone="error">{error}</Notice>}
           {saved && <Notice tone="success">{saved}</Notice>}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
             <ActionButton
               variant="primary"
               pending={pending}
@@ -344,11 +344,13 @@ export function AccountPicker({
           accounts.map((account) => (
             <label
               key={account.id}
+              className="touch-target"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px',
                 padding: '8px 12px',
+                minWidth: 0,
                 borderBottom: '1px solid #F5EEF2',
                 fontSize: '0.84rem',
                 color: '#2B253E',
@@ -361,7 +363,13 @@ export function AccountPicker({
                 disabled={disabled}
                 onChange={() => onToggle(account.id, account.name)}
               />
-              <span style={{ flex: 1, minWidth: 0 }}>{account.name}</span>
+              <span
+                className="truncate"
+                title={account.name}
+                style={{ flex: 1 }}
+              >
+                {account.name}
+              </span>
               <span
                 style={{
                   fontFamily: 'monospace',

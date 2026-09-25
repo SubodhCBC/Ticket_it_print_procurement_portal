@@ -293,7 +293,7 @@ export function ReviewPanel({
               cursor: 'pointer',
             }}
           />
-          I have authorization to use the design, I have reviewed and approve
+          I have authorisation to use the design, I have reviewed and approve
           it.
         </label>
 
@@ -315,6 +315,7 @@ export function ReviewPanel({
           <button
             type="button"
             onClick={onContinue}
+            className="touch-target"
             style={{ ...primaryButton(), width: '100%', padding: '12px 18px' }}
           >
             Continue
@@ -322,6 +323,7 @@ export function ReviewPanel({
           <button
             type="button"
             onClick={onEdit}
+            className="touch-target"
             style={{
               ...secondaryButton(),
               width: '100%',

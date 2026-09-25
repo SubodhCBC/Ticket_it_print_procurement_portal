@@ -7,7 +7,8 @@ import type { CartItem } from '@/store/cartSlice'
 import { readOrderBackName, readOrderPreview } from '@/lib/design/order-artwork'
 import { LineChips } from './LineChips'
 import { LineThumbnail } from './LineThumbnail'
-import { formatMoney, packsAndUnits, priceBasis } from './line-format'
+import { formatMoney } from '@/lib/format'
+import { packsAndUnits, priceBasis } from './line-format'
 
 /**
  * One basket line, as the basket page, the cart drawer and the review step all
@@ -20,6 +21,12 @@ import { formatMoney, packsAndUnits, priceBasis } from './line-format'
  * - `page`: roomy row; quantity control and remove sit on the right.
  * - `drawer`: narrow panel; the controls drop under the details.
  * - `review`: read-only; the total alone on the right.
+ *
+ * Below 768px the `page` and `review` rows stack (`.stack-sm`): the picture and
+ * the details read as a block, and the quantity, the line total and Remove sit
+ * together on a full-width row under them. Nothing is dropped on a phone — a
+ * line that loses its price or its remove control is not a shorter line, it is
+ * a broken one.
  *
  * The quantity control is passed in rather than built here, so the line stays
  * a picture of the data and the screen keeps the behaviour.
@@ -57,10 +64,8 @@ export function CartLineSummary({
         fontWeight: 600,
         color: '#2B253E',
         lineHeight: 1.3,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
       }}
+      className="truncate"
       title={isDesign ? template.name : product.name}
     >
       {isDesign ? template.name : product.name}
@@ -73,10 +78,8 @@ export function CartLineSummary({
         display: 'block',
         fontSize: '0.74rem',
         color: '#6E6781',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
       }}
+      className="truncate"
     >
       {isDesign && <span>{product.name} · </span>}
       <span style={{ fontFamily: 'monospace', color: '#A39BB3' }}>
@@ -186,7 +189,11 @@ export function CartLineSummary({
                 onClick={onRemove}
                 title="Remove item"
                 aria-label="Remove item"
+                className="touch-target"
                 style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   color: '#A39BB3',
                   cursor: 'pointer',
                   backgroundColor: 'transparent',
@@ -232,21 +239,16 @@ export function CartLineSummary({
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '16px',
-        flexWrap: variant === 'page' ? 'wrap' : 'nowrap',
-      }}
-    >
+    // `.stack-sm` is the whole phone story for a basket line: a row beside its
+    // controls on a tablet and up, a block with the controls under it below
+    // 768px. It owns display/align-items/gap, so they are not set inline.
+    <div className="stack-sm" style={{ justifyContent: 'space-between' }}>
       <div
         style={{
           display: 'flex',
           alignItems: 'flex-start',
           gap: '14px',
-          minWidth: variant === 'page' ? '240px' : 0,
+          minWidth: 0,
           flex: 1,
         }}
       >
@@ -297,14 +299,12 @@ export function CartLineSummary({
         </div>
       </div>
 
+      {/* Content-width and right-aligned beside the details; full width under
+          them on a phone, where `space-between` reads as quantity on the left
+          and the money on the right. */}
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '20px',
-          flexShrink: 0,
-        }}
+        className="row-wrap"
+        style={{ justifyContent: 'space-between', flexShrink: 0 }}
       >
         {quantityControl}
 
@@ -314,9 +314,11 @@ export function CartLineSummary({
             <button
               type="button"
               onClick={onRemove}
+              className="touch-target"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'flex-end',
                 gap: '4px',
                 fontSize: '0.76rem',
                 fontWeight: 600,

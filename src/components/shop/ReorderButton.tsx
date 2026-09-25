@@ -17,7 +17,7 @@ import type {
 /** What a buyer can do about a line that did not go back in. */
 const REASON_HINTS: Partial<Record<ApiReorderReasonCode, string>> = {
   DESIGN_REQUIRED:
-    'Choose a design for this item from the template gallery, then add it to your basket.',
+    'Choose a design for this item from the design gallery, then add it to your basket.',
   DESIGN_WITHDRAWN:
     'The design is no longer published. Pick a current design from the template gallery.',
 }
@@ -80,6 +80,7 @@ export function ReorderButton({
     <>
       <button
         type="button"
+        className="touch-target"
         onClick={() => void reorder()}
         disabled={pending}
         title="Put this order's items back in your basket at today's prices"
@@ -230,9 +231,7 @@ export function ReorderButton({
             </ul>
           )}
 
-          <div
-            style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-          >
+          <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
             {notAdded.some(
               (line) =>
                 line.reasonCode === 'DESIGN_REQUIRED' ||
@@ -241,16 +240,27 @@ export function ReorderButton({
               <Link
                 href="/shop/templates"
                 onClick={close}
+                className="touch-target"
                 style={secondaryLink}
               >
                 Template gallery
               </Link>
             )}
-            <button type="button" onClick={close} style={secondaryLink}>
+            <button
+              type="button"
+              onClick={close}
+              className="touch-target"
+              style={secondaryLink}
+            >
               Close
             </button>
             {added.length > 0 && (
-              <Link href="/shop/cart" onClick={close} style={primaryLink}>
+              <Link
+                href="/shop/cart"
+                onClick={close}
+                className="touch-target"
+                style={primaryLink}
+              >
                 Go to basket
               </Link>
             )}
@@ -264,6 +274,7 @@ export function ReorderButton({
 const secondaryLink: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
+  justifyContent: 'center',
   padding: '8px 14px',
   borderRadius: '10px',
   border: '1px solid #F0E6EC',

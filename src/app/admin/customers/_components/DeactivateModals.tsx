@@ -75,8 +75,8 @@ export function AccountDeactivateModal({
             invoices and audit history are kept.
           </p>
           <p style={noteStyle}>
-            Its users and its {shown.sitesCount ?? 0} branch
-            {shown.sitesCount === 1 ? '' : 'es'} are <strong>not</strong>{' '}
+            Its users and its {shown.sitesCount ?? 0} site
+            {shown.sitesCount === 1 ? '' : 's'} are <strong>not</strong>{' '}
             deactivated with it — nothing is cascaded. Deactivate them
             separately if they should lose access.
           </p>
@@ -118,8 +118,8 @@ export function SiteDeactivateModal({
   return (
     <ConfirmActionModal
       isOpen={site !== null}
-      title="Deactivate branch"
-      confirmLabel="Deactivate branch"
+      title="Deactivate site"
+      confirmLabel="Deactivate site"
       pendingLabel="Deactivating…"
       isPending={deactivate.isPending}
       error={deactivate.error}
@@ -136,12 +136,12 @@ export function SiteDeactivateModal({
             {shown.accountName ? ` in ${shown.accountName}` : ''}?
           </p>
           <p style={noteStyle}>
-            The branch is marked inactive and removed from listings, so no new
+            The site is marked inactive and removed from listings, so no new
             orders can be placed against it. Historical orders and invoices keep
             referring to it.
           </p>
           <p style={noteStyle}>
-            Users attached to this branch are not deactivated.
+            Users attached to this site are not deactivated.
           </p>
         </>
       )}

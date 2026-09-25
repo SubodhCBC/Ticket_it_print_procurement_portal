@@ -31,9 +31,9 @@ import { toApiError } from '@/services'
 import { getShippingStatus } from '@/services/data-source/api/api-shipping.adapter'
 import type { ShipmentQueueParams } from '@/services/data-source/api/api-shipping.adapter'
 import type { ApiShippingStatus } from '@/services/data-source/api/shipping.types'
+import { formatDateTime } from '@/lib/format'
 import {
   PICKUP_STATUS_COLOR,
-  formatDateTime,
   newIdempotencyKey,
   panelStyles as s,
   trackingReferencesOf,
@@ -101,8 +101,8 @@ export default function ShippingOperationsPage() {
   if (!isAdmin) {
     return (
       <>
-        <AdminHeader title="Shipping & Pickups" />
-        <main style={{ padding: '24px' }}>
+        <AdminHeader title="Shipping and pickups" />
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <p style={s.muted}>
             NZ Post labels and pickups are managed by portal administrators.
           </p>
@@ -129,10 +129,11 @@ function ShippingOperations() {
   return (
     <>
       <AdminHeader
-        title="Shipping & Pickups"
+        title="Shipping and pickups"
         subtitle="NZ Post labels, courier pickups and integration health"
         actionButton={
           <button
+            className="touch-target"
             type="button"
             onClick={() => {
               void status.refetch()
@@ -147,8 +148,9 @@ function ShippingOperations() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -166,20 +168,20 @@ function ShippingOperations() {
 
         <div style={{ ...s.card, padding: '20px' }}>
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
               gap: '12px',
-              flexWrap: 'wrap',
               marginBottom: '12px',
             }}
           >
             <h3 style={s.title}>Label queue</h3>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {/* Five filter chips beside the heading ran off a phone. */}
+            <div className="row-wrap" style={{ gap: '6px' }}>
               {QUEUE_FILTERS.map((item) => (
                 <button
                   key={item.id}
+                  className="touch-target"
                   type="button"
                   onClick={() => {
                     setFilterId(item.id)
@@ -254,12 +256,10 @@ function IntegrationCard({
   return (
     <div style={{ ...s.card, padding: '20px' }}>
       <div
+        className="row-wrap"
         style={{
-          display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
           gap: '12px',
-          flexWrap: 'wrap',
           marginBottom: '12px',
         }}
       >
@@ -299,11 +299,8 @@ function IntegrationCard({
       ) : status ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '10px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '160px', gap: '10px' } as React.CSSProperties}
           >
             <CountTile
               label="Failed labels"
@@ -348,7 +345,7 @@ function IntegrationCard({
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          <div className="row-wrap" style={{ gap: '6px' }}>
             {status.capabilities.map((capability) => (
               <span
                 key={capability.capability}
@@ -410,15 +407,9 @@ function IntegrationCard({
             </details>
           )}
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="row-wrap">
             <button
+              className="touch-target"
               type="button"
               onClick={() => void testCredentials()}
               disabled={probing || !status.credentialsConfigured}
@@ -526,12 +517,20 @@ function LabelQueue({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {rowError && <p style={s.error}>{rowError}</p>}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      {/* Six columns of label state: it scrolls inside the card, keeping the
+          order number in view as the first column. */}
+      <div className="table-scroll">
+        <table
+          style={{
+            width: '100%',
+            minWidth: '820px',
+            borderCollapse: 'collapse',
+          }}
+        >
           <thead>
             <tr>
               <th style={th}>Order</th>
-              <th style={th}>Account / branch</th>
+              <th style={th}>Account / site</th>
               <th style={th}>Label</th>
               <th style={th}>Tracking</th>
               <th style={th}>Created</th>
@@ -661,16 +660,16 @@ function LabelQueue({
 
       {page.totalPages > 1 && (
         <div
+          className="row-wrap"
           style={{
-            display: 'flex',
             justifyContent: 'flex-end',
-            alignItems: 'center',
             gap: '8px',
             fontSize: '0.78rem',
             color: '#6E6781',
           }}
         >
           <button
+            className="touch-target"
             type="button"
             disabled={page.page <= 1}
             onClick={() => onPage(page.page - 1)}
@@ -682,6 +681,7 @@ function LabelQueue({
             Page {page.page} of {page.totalPages}
           </span>
           <button
+            className="touch-target"
             type="button"
             disabled={page.page >= page.totalPages}
             onClick={() => onPage(page.page + 1)}
@@ -812,8 +812,14 @@ function PickupsCard({
               </p>
             ) : (
               <>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-scroll">
+                  <table
+                    style={{
+                      width: '100%',
+                      minWidth: '640px',
+                      borderCollapse: 'collapse',
+                    }}
+                  >
                     <thead>
                       <tr>
                         <th style={{ ...th, width: 28 }} />
@@ -844,6 +850,7 @@ function PickupsCard({
                           </td>
                           <td style={td}>{item.parcels.length}</td>
                           <td style={td}>
+                            {/* Kilograms, not money — not `formatMoney`. */}
                             {item.parcels
                               .reduce((sum, parcel) => sum + parcel.weightKg, 0)
                               .toFixed(2)}{' '}
@@ -864,13 +871,18 @@ function PickupsCard({
                   </table>
                 </div>
 
+                {/* Time, instructions and the Book button in three fixed
+                    columns left the instructions field a few characters wide on
+                    a phone; they now wrap to as many columns as fit. */}
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(180px, 220px) 1fr auto',
-                    gap: '10px',
-                    alignItems: 'end',
-                  }}
+                  className="grid-auto"
+                  style={
+                    {
+                      ['--min']: '200px',
+                      gap: '10px',
+                      alignItems: 'end',
+                    } as React.CSSProperties
+                  }
                 >
                   <div>
                     <label style={s.label} htmlFor="pickup-at">
@@ -901,6 +913,7 @@ function PickupsCard({
                     />
                   </div>
                   <button
+                    className="touch-target"
                     type="button"
                     onClick={() => void book()}
                     disabled={mutations.isBooking || selected.length === 0}
@@ -937,8 +950,14 @@ function PickupsCard({
             {(overview?.bookings.items.length ?? 0) === 0 ? (
               <p style={s.muted}>No pickups have been booked yet.</p>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div className="table-scroll">
+                <table
+                  style={{
+                    width: '100%',
+                    minWidth: '720px',
+                    borderCollapse: 'collapse',
+                  }}
+                >
                   <thead>
                     <tr>
                       <th style={th}>Pickup</th>

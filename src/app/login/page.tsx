@@ -147,7 +147,7 @@ function LoginForm() {
               lineHeight: 1.2,
             }}
           >
-            Sign In
+            Sign in
           </h1>
           <p
             style={{

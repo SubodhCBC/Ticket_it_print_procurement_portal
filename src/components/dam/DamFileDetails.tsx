@@ -116,6 +116,7 @@ export function DamFileDetails({
           type="button"
           onClick={onClose}
           aria-label="Close file details"
+          className="touch-target"
           style={{
             flexShrink: 0,
             width: '28px',
@@ -180,12 +181,13 @@ export function DamFileDetails({
       </dl>
 
       {file.url ? (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div className="row-wrap">
           <a
             href={file.url}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open the original of ${file.name} in a new tab`}
+            className="touch-target"
             style={linkButton}
           >
             <ExternalLink size={14} />
@@ -195,6 +197,7 @@ export function DamFileDetails({
             type="button"
             onClick={() => void copyLink()}
             aria-label={`Copy the link to ${file.name}`}
+            className="touch-target"
             style={linkButton}
           >
             {copy === 'copied' ? <Check size={14} /> : <Copy size={14} />}
@@ -221,6 +224,7 @@ export function DamFileDetails({
           type="button"
           onClick={onDelete}
           aria-label={`Delete ${file.name} from the library`}
+          className="touch-target"
           style={{
             ...linkButton,
             alignSelf: 'flex-start',
@@ -252,20 +256,17 @@ export function DamFileDetails({
         ) : notes.error ? (
           <div
             role="alert"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-              fontSize: '0.76rem',
-              color: '#DC2626',
-            }}
+            className="row-wrap"
+            style={{ fontSize: '0.76rem', color: '#DC2626' }}
           >
-            <span>{toApiError(notes.error).message}</span>
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+              {toApiError(notes.error).message}
+            </span>
             <button
               type="button"
               onClick={() => void notes.refetch()}
               aria-label="Retry loading notes"
+              className="touch-target"
               style={{ ...linkButton, padding: '0.2rem 0.55rem' }}
             >
               <RefreshCw size={12} />

@@ -24,6 +24,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { useTemplates, useTemplateMutations } from '@/hooks/useTemplates'
 import type { PrintTemplate } from '@/types'
+import { formatMoney, formatNumber } from '@/lib/format'
 
 /**
  * ACCOUNT and PRIVATE templates belong to a customer; who sees them follows
@@ -93,8 +94,8 @@ export default function AdminTemplatesPage() {
     <>
       {/* 1. Header Banner */}
       <AdminHeader
-        title="Master Design Template Library"
-        subtitle="Build reusable print templates, configure typography & layouts, and define exact editable vs locked fields for Site Users."
+        title="Templates"
+        subtitle="Build print templates, set their typography and layout, and choose which fields a buyer may edit"
         actionButton={
           <Link
             href="/admin/templates/builder"
@@ -119,8 +120,9 @@ export default function AdminTemplatesPage() {
 
       {/* Main Content Area */}
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -134,26 +136,19 @@ export default function AdminTemplatesPage() {
             boxShadow:
               '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
             border: '1px solid #F0E6EC',
-            padding: '16px 20px',
+            paddingBlock: '16px',
+            paddingInline: '20px',
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '16px',
-            }}
-          >
+          <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
             <div
               style={{
                 position: 'relative',
-                flex: 1,
-                minWidth: '260px',
+                flex: '1 1 220px',
+                minWidth: 0,
                 maxWidth: '420px',
               }}
             >
@@ -188,11 +183,10 @@ export default function AdminTemplatesPage() {
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="row-wrap" style={{ gap: '12px' }}>
               <div
+                className="row-wrap"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
                   gap: '8px',
                   fontSize: '0.78rem',
                   color: '#6E6781',
@@ -201,6 +195,7 @@ export default function AdminTemplatesPage() {
                 <Filter size={16} color="#A39BB3" />
                 <span>Status:</span>
                 <select
+                  className="touch-target"
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value as any)}
                   style={{
@@ -210,6 +205,9 @@ export default function AdminTemplatesPage() {
                     backgroundColor: '#FFFFFF',
                     fontSize: '0.84rem',
                     color: '#2B253E',
+                    flex: '1 1 auto',
+                    minWidth: 0,
+                    maxWidth: '100%',
                   }}
                 >
                   <option value="ALL">All Statuses</option>
@@ -324,11 +322,8 @@ export default function AdminTemplatesPage() {
           </div>
         ) : (
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-              gap: '16px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '280px' } as React.CSSProperties}
           >
             {templates.map((tpl) => {
               // The server's counts, because a listing carries no layers to
@@ -525,9 +520,12 @@ export default function AdminTemplatesPage() {
                           alignItems: 'flex-start',
                           justifyContent: 'space-between',
                           gap: '8px',
+                          minWidth: 0,
                         }}
                       >
                         <h3
+                          className="truncate"
+                          title={tpl.name}
                           style={{
                             fontSize: '0.95rem',
                             fontWeight: 700,
@@ -566,8 +564,14 @@ export default function AdminTemplatesPage() {
                           fontWeight: 600,
                         }}
                       >
+                        {/* The price is per PACK, and that is the figure
+                            anything is charged at. The per-piece number is a
+                            division for a sense of scale only — $49.99 over
+                            250 rounds to "$0.20", which multiplies back to
+                            $50.00 — so it is marked approximate and never
+                            reconciled against. */}
                         {tpl.price != null && tpl.unitsPerPack
-                          ? `$${tpl.price.toFixed(2)} · $${(tpl.price / tpl.unitsPerPack).toFixed(2)} each / ${tpl.unitsPerPack} units`
+                          ? `${formatMoney(tpl.price)} per pack of ${formatNumber(tpl.unitsPerPack)} (≈ ${formatMoney(tpl.price / tpl.unitsPerPack)} a unit)`
                           : 'Not priced yet'}
                       </p>
                     </div>
@@ -576,9 +580,8 @@ export default function AdminTemplatesPage() {
                         icons already tell the two counts apart, so they no
                         longer need a boxed tile or green and red text. */}
                     <div
+                      className="row-wrap"
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
                         gap: '8px',
                         fontSize: '0.76rem',
                         color: '#6E6781',
@@ -611,24 +614,18 @@ export default function AdminTemplatesPage() {
 
                     {/* Footer Actions */}
                     <div
+                      className="row-wrap"
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
                         justifyContent: 'space-between',
                         borderTop: '1px solid #F5EEF2',
                         paddingTop: '12px',
                         marginTop: 'auto',
                       }}
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
+                      <div className="row-wrap" style={{ gap: '6px' }}>
                         <Link
                           href={`/admin/templates/${tpl.id}/edit`}
+                          className="touch-target"
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -659,6 +656,7 @@ export default function AdminTemplatesPage() {
                               onClick={() => setVisibilityTarget(tpl)}
                               title="Visibility"
                               aria-label={`Set visibility for ${tpl.name}`}
+                              className="touch-target"
                               style={{
                                 padding: '6px',
                                 borderRadius: '10px',
@@ -675,6 +673,7 @@ export default function AdminTemplatesPage() {
                         <button
                           onClick={() => handleDelete(tpl.id, tpl.name)}
                           title="Delete Template"
+                          className="touch-target"
                           style={{
                             padding: '6px',
                             borderRadius: '10px',
@@ -690,6 +689,7 @@ export default function AdminTemplatesPage() {
 
                       <button
                         onClick={() => handleTogglePublish(tpl)}
+                        className="touch-target"
                         style={{
                           padding: '6px 4px',
                           borderRadius: '10px',

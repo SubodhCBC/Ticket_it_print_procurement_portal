@@ -5,6 +5,8 @@ import React, { useState } from 'react'
 import { Plus, Minus, AlertCircle } from 'lucide-react'
 import type { OrderableProduct } from '@/types'
 import { validateProductQty } from '@/store/cartSlice'
+import { formatNumber } from '@/lib/format'
+import { packCount, packSizeOf } from './cart/line-format'
 
 interface QuantitySelectorProps {
   product: OrderableProduct
@@ -25,6 +27,10 @@ export function QuantitySelector({
 }: QuantitySelectorProps) {
   const moq = product.moq || 1
   const multiple = product.orderMultiple || 1
+  // The numeric pack size, which the label beside it cannot supply. Only a
+  // pack of more than one is worth saying twice.
+  const packSize = packSizeOf(product.unitsPerPack ?? product.packSize)
+  const packsHeld = packSize !== null && packSize > 1 ? packSize : null
   const [inputValue, setInputValue] = useState<string>(String(value))
   const [error, setError] = useState<string | null>(() =>
     validateProductQty(product, value)
@@ -87,7 +93,7 @@ export function QuantitySelector({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+      <div className="row-wrap">
         <div
           style={{
             display: 'flex',
@@ -101,6 +107,7 @@ export function QuantitySelector({
         >
           <button
             type="button"
+            className="touch-target"
             onClick={() => handleStep('down')}
             disabled={disabled || value <= moq}
             aria-label="Decrease quantity"
@@ -128,6 +135,7 @@ export function QuantitySelector({
             disabled={disabled}
             min={moq}
             step={multiple}
+            className="touch-target"
             style={{
               width: `${dims.inputWidth}px`,
               height: `${dims.btn}px`,
@@ -146,6 +154,7 @@ export function QuantitySelector({
 
           <button
             type="button"
+            className="touch-target"
             onClick={() => handleStep('up')}
             disabled={disabled}
             aria-label="Increase quantity"
@@ -169,15 +178,18 @@ export function QuantitySelector({
         {/* UOM / Pack size */}
         <span
           style={{
-            marginLeft: '8px',
             fontSize: '0.74rem',
             fontWeight: 500,
             color: '#A39BB3',
             whiteSpace: 'nowrap',
           }}
         >
-          {product.uom || 'units'}
-          {product.packSize ? ` (${product.packSize})` : ''}
+          {/* What the number in the box counts. The field held a quantity of
+              PACKS while this said "PK (Pack of 250)" — a stock code and a
+              shelf label, neither of which names the thing being counted. */}
+          {packsHeld !== null
+            ? `packs · ${formatNumber(packsHeld)} units each`
+            : product.packSize || 'units'}
         </span>
       </div>
 
@@ -209,9 +221,12 @@ export function QuantitySelector({
               }}
             >
               <span>
-                {moq > 1 && `MOQ: ${moq}`}
+                {/* A buyer's words, not the warehouse's. "MOQ" and "Multiple
+                    of 5" are internal shorthand; what they mean is the
+                    smallest order and the step it goes up in. */}
+                {moq > 1 && `Minimum order ${packCount(moq)}`}
                 {moq > 1 && multiple > 1 && ' • '}
-                {multiple > 1 && `Multiple of ${multiple}`}
+                {multiple > 1 && `Sold in ${packCount(multiple)}`}
               </span>
             </div>
           ) : null}
