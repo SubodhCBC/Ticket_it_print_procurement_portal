@@ -2,6 +2,7 @@
 'use client'
 
 import { SkeletonDetail } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/TableState'
 import { DocketButton } from '@/components/orders/DocketButton'
 import { LineNote } from '@/components/shop/cart/LineNote'
 import { useState } from 'react'
@@ -18,6 +19,7 @@ import { LineChips } from '@/components/shop/cart/LineChips'
 import { STANDARD_DELIVERY_LABEL } from '@/components/shop/cart/line-format'
 import { ShipmentLabelPanel } from '@/components/shipping/ShipmentLabelPanel'
 import { TrackingTimeline } from '@/components/shipping/TrackingTimeline'
+import { formatMoney, formatDate } from '@/lib/format'
 
 /** The shared card: hairline border and a soft shadow, as on the admin dashboard. */
 const card: React.CSSProperties = {
@@ -72,8 +74,8 @@ export default function SingleOrderDetailPage() {
   if (isLoading) {
     return (
       <>
-        <AdminHeader title="Order Detail" />
-        <main style={{ padding: '24px' }}>
+        <AdminHeader title="Order details" />
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <SkeletonDetail label="Loading order" />
         </main>
       </>
@@ -83,7 +85,7 @@ export default function SingleOrderDetailPage() {
   if (!order) {
     return (
       <>
-        <AdminHeader title="Order Not Found" />
+        <AdminHeader title="Order not found" />
         <div
           style={{
             padding: '32px',
@@ -128,7 +130,7 @@ export default function SingleOrderDetailPage() {
         order.status === 'PROCESSING' ||
         order.status === 'DISPATCHED' ||
         order.status === 'DELIVERED',
-      date: order.status !== 'RECEIVED' ? order.updatedAt : undefined,
+      date: order.status !== 'APPROVED' ? order.updatedAt : undefined,
     },
     {
       label: 'Dispatched',
@@ -146,10 +148,11 @@ export default function SingleOrderDetailPage() {
     <>
       <AdminHeader
         title={`Order ${order.orderNumber}`}
-        subtitle={`Branch: ${order.siteName} • PO: ${order.poReference || 'None'}`}
+        subtitle={`Site: ${order.siteName} • PO: ${order.poReference || 'None'}`}
         actionButton={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap" style={{ gap: '8px' }}>
             <Link
+              className="touch-target"
               href={backHref}
               style={{
                 display: 'flex',
@@ -173,6 +176,7 @@ export default function SingleOrderDetailPage() {
               // A pink border rather than none, so it stands the same height
               // as the outlined Back link beside it.
               <button
+                className="touch-target"
                 type="button"
                 onClick={() => setIsModalOpen(true)}
                 style={{
@@ -211,8 +215,9 @@ export default function SingleOrderDetailPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -221,15 +226,14 @@ export default function SingleOrderDetailPage() {
         {/* Status Stepper Card */}
         <div style={{ ...card, padding: '20px' }}>
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
               gap: '12px',
               marginBottom: '20px',
             }}
           >
-            <div style={cardTitle}>Operational Fulfillment Lifecycle</div>
+            <div style={cardTitle}>Fulfilment progress</div>
             <StatusPill status={order.status} size="lg" />
           </div>
 
@@ -246,7 +250,7 @@ export default function SingleOrderDetailPage() {
           >
             {steps.map((step, idx) => (
               <div
-                key={idx}
+                key={step.label}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -312,7 +316,7 @@ export default function SingleOrderDetailPage() {
                       marginTop: '2px',
                     }}
                   >
-                    {new Date(step.date).toLocaleDateString()}
+                    {formatDate(step.date)}
                   </div>
                 )}
               </div>
@@ -324,14 +328,10 @@ export default function SingleOrderDetailPage() {
             order never needed one. */}
         <OrderApprovalPanel orderId={order.id} />
 
-        {/* Breakdown Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '2fr 1fr',
-            gap: '20px',
-          }}
-        >
+        {/* Breakdown Grid. The fixed 2fr/1fr pair kept the logistics column
+            beside the lines on a phone, squeezing both to a few words wide; the
+            two now stack below 768px. */}
+        <div className="grid-2" style={{ gap: '20px' }}>
           {/* Left: Line items. The gutter lives on the title, the cells and the
               total rather than on the card, so the row rules run edge to edge
               as they do on the dashboard's table. */}
@@ -339,107 +339,126 @@ export default function SingleOrderDetailPage() {
             <h3 style={{ ...cardTitle, padding: '16px 20px 6px' }}>
               Order Line Items ({order.lineItems.length})
             </h3>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                textAlign: 'left',
-                fontSize: '0.84rem',
-              }}
-            >
-              <thead>
-                <tr>
-                  <th style={thEdge}>Item</th>
-                  <th style={th}>SKU</th>
-                  <th style={{ ...th, textAlign: 'center' }}>Qty</th>
-                  <th style={{ ...th, textAlign: 'right' }}>Price</th>
-                  <th style={{ ...thEdge, textAlign: 'right' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.lineItems.map((item, idx) => (
-                  <tr key={idx} style={{ borderTop: '1px solid #F5EEF2' }}>
-                    <td
-                      style={{
-                        padding: '12px 20px',
-                        fontWeight: 600,
-                        color: '#2B253E',
-                      }}
+            {/* Item, SKU, qty, price and total will not fit a phone: the lines
+                scroll sideways inside the card rather than the page. */}
+            <div className="table-scroll">
+              <table
+                style={{
+                  width: '100%',
+                  minWidth: '560px',
+                  borderCollapse: 'collapse',
+                  textAlign: 'left',
+                  fontSize: '0.84rem',
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={thEdge}>Item</th>
+                    <th style={th}>SKU</th>
+                    <th style={{ ...th, textAlign: 'center' }}>Qty</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Price</th>
+                    <th style={{ ...thEdge, textAlign: 'right' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.lineItems.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ padding: 0 }}>
+                        <EmptyState
+                          icon={Package}
+                          title="No line items on this order"
+                          detail="Nothing was recorded against it — check the order history below before dispatching."
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  {order.lineItems.map((item) => (
+                    <tr
+                      key={item.id}
+                      style={{ borderTop: '1px solid #F5EEF2' }}
                     >
-                      <div
+                      <td
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
+                          padding: '12px 20px',
+                          fontWeight: 600,
+                          color: '#2B253E',
                         }}
                       >
-                        {item.thumbnailUrl && (
-                          <img
-                            src={item.thumbnailUrl}
-                            alt={item.productName}
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '6px',
-                              objectFit: 'cover',
-                            }}
-                          />
-                        )}
-                        <div>
-                          <div>{item.productName}</div>
-                          <LineChips
-                            options={item.options}
-                            style={{ marginTop: '4px' }}
-                          />
-                          <LineNote
-                            note={item.notes}
-                            style={{ marginTop: '4px' }}
-                          />
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                          }}
+                        >
+                          {item.thumbnailUrl && (
+                            <img
+                              src={item.thumbnailUrl}
+                              alt={item.productName}
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '6px',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          )}
+                          <div>
+                            <div>{item.productName}</div>
+                            <LineChips
+                              options={item.options}
+                              style={{ marginTop: '4px' }}
+                            />
+                            <LineNote
+                              note={item.notes}
+                              style={{ marginTop: '4px' }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 14px',
-                        fontFamily: 'monospace',
-                        fontSize: '0.78rem',
-                        color: '#6E6781',
-                      }}
-                    >
-                      {item.sku}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 14px',
-                        textAlign: 'center',
-                        color: '#2B253E',
-                      }}
-                    >
-                      {item.qty}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 14px',
-                        textAlign: 'right',
-                        color: '#6E6781',
-                      }}
-                    >
-                      ${item.unitPrice.toFixed(2)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 20px',
-                        textAlign: 'right',
-                        fontWeight: 600,
-                        color: '#2B253E',
-                      }}
-                    >
-                      ${item.lineTotal.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 14px',
+                          fontFamily: 'monospace',
+                          fontSize: '0.78rem',
+                          color: '#6E6781',
+                        }}
+                      >
+                        {item.sku}
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 14px',
+                          textAlign: 'center',
+                          color: '#2B253E',
+                        }}
+                      >
+                        {item.qty}
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 14px',
+                          textAlign: 'right',
+                          color: '#6E6781',
+                        }}
+                      >
+                        {formatMoney(item.unitPrice)}
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 20px',
+                          textAlign: 'right',
+                          fontWeight: 600,
+                          color: '#2B253E',
+                        }}
+                      >
+                        {formatMoney(item.lineTotal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {/* What the lines came to and what delivery added, above the
                 total they make. */}
@@ -465,11 +484,10 @@ export default function SingleOrderDetailPage() {
                     color: '#2B253E',
                   }}
                 >
-                  $
-                  {(
+                  {formatMoney(
                     order.subtotalAmount ??
-                    order.totalAmount - (order.shippingCost ?? 0)
-                  ).toFixed(2)}
+                      order.totalAmount - (order.shippingCost ?? 0)
+                  )}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '16px' }}>
@@ -485,7 +503,7 @@ export default function SingleOrderDetailPage() {
                     color: '#2B253E',
                   }}
                 >
-                  ${(order.shippingCost ?? 0).toFixed(2)}
+                  {formatMoney(order.shippingCost ?? 0)}
                 </span>
               </div>
             </div>
@@ -509,7 +527,7 @@ export default function SingleOrderDetailPage() {
                   color: '#F73582',
                 }}
               >
-                ${order.totalAmount.toFixed(2)}
+                {formatMoney(order.totalAmount)}
               </span>
             </div>
           </div>
@@ -540,7 +558,7 @@ export default function SingleOrderDetailPage() {
                     {order.shippingMethodLabel ?? STANDARD_DELIVERY_LABEL}
                   </strong>{' '}
                   <span style={{ color: '#6E6781' }}>
-                    · ${(order.shippingCost ?? 0).toFixed(2)}
+                    · {formatMoney(order.shippingCost ?? 0)}
                   </span>
                 </div>
                 <div>
@@ -591,14 +609,18 @@ export default function SingleOrderDetailPage() {
 
             <div style={{ ...card, padding: '20px' }}>
               <div style={{ ...cardTitle, marginBottom: '12px' }}>
-                Ordering Organization
+                Ordering account
               </div>
+              {/* An email or a bill-to line has no spaces to break at and used
+                  to run past the card on a phone. */}
               <div
                 style={{
                   fontSize: '0.84rem',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '6px',
+                  minWidth: 0,
+                  overflowWrap: 'anywhere',
                 }}
               >
                 <div>

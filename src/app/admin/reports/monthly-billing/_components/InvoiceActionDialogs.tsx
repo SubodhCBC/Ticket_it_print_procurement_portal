@@ -4,11 +4,11 @@
 import React, { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { InlineAlert } from './invoice-ui'
+import { formatMoney } from '@/lib/format'
 import {
   controlStyle,
   dangerButton,
   disabledWhen,
-  formatMoney,
   labelStyle,
   primaryButton,
   secondaryButton,
@@ -74,11 +74,12 @@ function ActionShell({
 
         {error && <InlineAlert>{error}</InlineAlert>}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        {/* Two long confirm labels ("Issue invoice", "Void invoice") beside
+            Cancel overflowed the dialog at 360px. */}
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
+            className="touch-target"
             onClick={onClose}
             disabled={isPending}
             style={disabledWhen(secondaryButton, isPending)}
@@ -87,6 +88,7 @@ function ActionShell({
           </button>
           <button
             type="submit"
+            className="touch-target"
             disabled={blocked}
             style={disabledWhen(
               tone === 'danger'
@@ -157,6 +159,7 @@ export function IssueInvoiceDialog({
         </label>
         <input
           id="invoice-payment-terms"
+          className="touch-target"
           type="number"
           min={0}
           max={365}
@@ -226,6 +229,7 @@ export function MarkPaidDialog({
         </label>
         <input
           id="invoice-paid-at"
+          className="touch-target"
           type="date"
           value={paidOn}
           max={todayInputValue()}
@@ -243,6 +247,7 @@ export function MarkPaidDialog({
         </label>
         <input
           id="invoice-payment-reference"
+          className="touch-target"
           type="text"
           value={reference}
           maxLength={120}

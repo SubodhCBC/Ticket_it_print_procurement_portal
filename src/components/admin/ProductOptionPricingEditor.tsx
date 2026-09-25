@@ -7,6 +7,7 @@ import {
   type OptionValuePrices,
 } from '@/hooks/useProducts'
 import type { Product, ProductOptionAxis } from '@/types'
+import { formatMoney } from '@/lib/format'
 
 /** The server's ceiling on one value's surcharge. Kept in step deliberately. */
 const MAX_SURCHARGE = 100_000
@@ -22,6 +23,7 @@ function toDraft(axes: ProductOptionAxis[]): Draft {
         axis.values.map((value) => {
           const amount = axis.valuePrices[value] ?? 0
           // Blank, not "0.00": an included stock reads as nothing to add.
+          // A form field's value, so two bare decimals — not `formatMoney`.
           return [value, amount > 0 ? amount.toFixed(2) : '']
         })
       ),
@@ -61,12 +63,33 @@ const card: CSSProperties = {
   gap: '18px',
 }
 
+/*
+ * Value, price, and what that price means.
+ *
+ * Columns of 180px and 110px beside the value used to add up to more than a
+ * phone's width, so the row itself pushed the page sideways. As a wrapping flex
+ * row the price box keeps a usable minimum and drops to its own line instead.
+ */
 const row: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) 180px 110px',
+  display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
   gap: '12px',
+  minWidth: 0,
 }
+
+/** The value's name: takes the slack, truncates rather than widening. */
+const rowLabel: CSSProperties = { flex: '1 1 120px', minWidth: 0 }
+
+/** The price box: 180px where there is room, never under 120px. */
+const rowField: CSSProperties = {
+  flex: '0 1 180px',
+  minWidth: '120px',
+  position: 'relative',
+}
+
+/** The "+$1.20" / "Included" note beside it. */
+const rowNote: CSSProperties = { flex: '0 1 110px', minWidth: 0 }
 
 export function ProductOptionPricingEditor({
   product,
@@ -104,7 +127,7 @@ export function ProductOptionPricingEditor({
   const handleSave = async () => {
     if (invalid.length > 0) {
       setError(
-        `Enter an amount of 0 or more (up to $${MAX_SURCHARGE.toLocaleString()}) for ${invalid.join(', ')}.`
+        `Enter an amount of 0 or more (up to ${formatMoney(MAX_SURCHARGE)}) for ${invalid.join(', ')}.`
       )
       return
     }
@@ -196,7 +219,9 @@ export function ProductOptionPricingEditor({
                 }}
               >
                 <div
+                  className="truncate"
                   style={{
+                    ...rowLabel,
                     fontSize: '0.84rem',
                     fontWeight: 600,
                     color: '#2B253E',
@@ -206,6 +231,7 @@ export function ProductOptionPricingEditor({
                 </div>
                 <div
                   style={{
+                    ...rowField,
                     fontSize: '0.74rem',
                     color: '#A39BB3',
                     fontWeight: 500,
@@ -213,7 +239,7 @@ export function ProductOptionPricingEditor({
                 >
                   + price per pack
                 </div>
-                <div />
+                <div style={rowNote} />
               </div>
 
               {axis.values.map((value) => {
@@ -222,17 +248,17 @@ export function ProductOptionPricingEditor({
                 return (
                   <div key={value} style={row}>
                     <div
+                      className="truncate"
+                      title={value}
                       style={{
+                        ...rowLabel,
                         fontSize: '0.84rem',
                         color: '#2B253E',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
                       }}
                     >
                       {value}
                     </div>
-                    <div style={{ position: 'relative' }}>
+                    <div style={rowField}>
                       <span
                         aria-hidden="true"
                         style={{
@@ -275,6 +301,7 @@ export function ProductOptionPricingEditor({
                     </div>
                     <div
                       style={{
+                        ...rowNote,
                         fontSize: '0.76rem',
                         color: amount === null ? '#DC2626' : '#A39BB3',
                         fontWeight: 500,
@@ -283,7 +310,7 @@ export function ProductOptionPricingEditor({
                       {amount === null
                         ? 'Invalid'
                         : amount > 0
-                          ? `+$${amount.toFixed(2)}`
+                          ? `+${formatMoney(amount)}`
                           : 'Included'}
                     </div>
                   </div>

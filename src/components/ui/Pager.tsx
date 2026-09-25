@@ -2,6 +2,7 @@
 'use client'
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { formatNumber } from '@/lib/format'
 
 /**
  * Previous / next for a server-paged list. Renders nothing for a single page,
@@ -31,25 +32,30 @@ export function Pager({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '12px',
+        gap: '10px 12px',
         flexWrap: 'wrap',
-        padding: '12px 20px',
+        paddingBlock: '12px',
         fontSize: '0.8rem',
         color: '#6E6781',
         ...style,
       }}
+      // .page-pad matches the gutter of the card the pager sits in; the count
+      // line and the buttons wrap onto separate rows on a phone rather than
+      // pushing "Next" off the edge.
+      className="page-pad"
     >
-      <span>
+      <span style={{ minWidth: 0, flex: '1 1 auto' }}>
         Page {page} of {totalPages}
-        {total !== undefined ? ` · ${total.toLocaleString()} in total` : ''}
+        {total !== undefined ? ` · ${formatNumber(total)} in total` : ''}
         {isFetching ? ' · updating…' : ''}
       </span>
-      <div style={{ display: 'flex', gap: '6px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
         <button
           type="button"
           onClick={() => onChange(Math.max(1, page - 1))}
           disabled={page <= 1}
-          style={button}
+          className="touch-target"
+          style={buttonStyle(page <= 1)}
         >
           <ChevronLeft size={14} /> Previous
         </button>
@@ -57,7 +63,8 @@ export function Pager({
           type="button"
           onClick={() => onChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages}
-          style={button}
+          className="touch-target"
+          style={buttonStyle(page >= totalPages)}
         >
           Next <ChevronRight size={14} />
         </button>
@@ -66,16 +73,24 @@ export function Pager({
   )
 }
 
-const button: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '4px',
-  padding: '6px 10px',
-  borderRadius: '8px',
-  border: '1px solid #F0E6EC',
-  backgroundColor: '#FFFFFF',
-  color: '#2B253E',
-  fontSize: '0.78rem',
-  fontWeight: 600,
-  cursor: 'pointer',
+/**
+ * On the first page, "Previous" was still drawn as a live button — full
+ * contrast and a pointer cursor — so it invited a click that did nothing.
+ */
+function buttonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    justifyContent: 'center',
+    padding: '6px 10px',
+    borderRadius: '8px',
+    border: '1px solid #F0E6EC',
+    backgroundColor: '#FFFFFF',
+    color: disabled ? '#A39BB3' : '#2B253E',
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.55 : 1,
+  }
 }

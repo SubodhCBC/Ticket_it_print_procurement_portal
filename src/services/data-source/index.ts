@@ -12,23 +12,18 @@ import * as apiTemplates from './api/api-templates.adapter'
 /**
  * Where each domain's data comes from.
  *
- * Modules move from the mock adapters to the API one at a time, and this is the
- * seam they move at: the adapters share a signature, so a screen never learns
- * which side it is talking to. `isMock` reports whether anything is still on a
- * fixture, which is what the "Mock Service Layer" badge in the admin sidebar
- * shows.
+ * This is the seam every screen reads its data through, so a screen never
+ * learns which side it is talking to. Every domain is served by the API: the
+ * fixture adapters this seam used to be able to switch to are gone, along with
+ * the order and tracking numbers they invented.
  *
- * Every domain is now served by the API. `REMAINING_MOCK_DOMAINS` is kept
- * rather than deleted: it is the list the sidebar's badge reads, and an empty
- * one is the honest way to say "nothing is a fixture any more" — a badge that
- * disappeared because its source was removed would look the same as a badge
- * that was never wired up.
+ * `isMock` and `mockDomains` went with them, and so did the sidebar badge that
+ * was their only reader — with nothing left to be a fixture, it could only ever
+ * report LIVE.
  *
  * The cart has no entry here: it is not a fixture-shaped domain, so it goes
  * through the store (`store/cartSlice.ts`) straight to `/cart`.
  */
-const REMAINING_MOCK_DOMAINS = [] as const
-
 export function getDataSource() {
   return {
     products: apiProducts,
@@ -40,7 +35,5 @@ export function getDataSource() {
     reports: apiReports,
     audit: apiAudit,
     dam: apiDam,
-    isMock: (REMAINING_MOCK_DOMAINS as readonly string[]).length > 0,
-    mockDomains: REMAINING_MOCK_DOMAINS,
   }
 }

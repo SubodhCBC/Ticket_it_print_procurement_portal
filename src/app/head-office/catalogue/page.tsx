@@ -2,7 +2,10 @@
 'use client'
 
 import { SkeletonCardGrid } from '@/components/ui/Skeleton'
-import { useState } from 'react'
+import { Pager } from '@/components/ui/Pager'
+import { EmptyState } from '@/components/ui/TableState'
+import { formatNumber } from '@/lib/format'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import {
   Package,
@@ -16,29 +19,65 @@ import { useAuth } from '@/hooks/useAuth'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useProducts } from '@/hooks/useProducts'
 
+/** One screenful of cards per tab. */
+const PAGE_SIZE = 12
+
+const emptyCard: React.CSSProperties = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: '14px',
+  boxShadow:
+    '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
+  border: '1px solid #F0E6EC',
+}
+
 export default function HeadOfficeCataloguePage() {
   const { user } = useAuth()
   const [selectedTab, setSelectedTab] = useState<'products' | 'templates'>(
     'products'
   )
   const [searchQuery, setSearchQuery] = useState('')
+  // Both lists are server-paged. This page asked for page 1 and nothing else,
+  // so a catalogue of two hundred products showed the first pageful and
+  // offered no way to reach the rest — and the tab counts, taken from
+  // `items.length`, reported the page size as the size of the catalogue.
+  const [productsPage, setProductsPage] = useState(1)
+  const [templatesPage, setTemplatesPage] = useState(1)
 
-  const { data: productsData, isLoading: isProductsLoading } = useProducts({
-    search: searchQuery || undefined,
-  })
+  useEffect(() => {
+    setProductsPage(1)
+    setTemplatesPage(1)
+  }, [searchQuery])
 
-  const { data: templatesData, isLoading: isTemplatesLoading } = useTemplates({
+  const {
+    data: productsData,
+    isLoading: isProductsLoading,
+    isFetching: isProductsFetching,
+  } = useProducts(
+    {
+      search: searchQuery || undefined,
+      page: productsPage,
+      pageSize: PAGE_SIZE,
+    },
+    // The grid stays on screen while the next page arrives, rather than
+    // collapsing to a skeleton and throwing the scroll position away.
+    { keepPreviousPage: true }
+  )
+
+  const {
+    data: templatesData,
+    total: templatesTotal,
+    isLoading: isTemplatesLoading,
+  } = useTemplates({
     status: 'PUBLISHED',
     search: searchQuery || undefined,
+    page: templatesPage,
+    pageSize: PAGE_SIZE,
   })
 
-  const products = productsData?.items || []
-  const templates = templatesData || []
-  const isLoading = isProductsLoading || isTemplatesLoading
-
-  if (isLoading) {
-    return <SkeletonCardGrid count={8} label="Loading the catalogue" />
-  }
+  const products = productsData?.items ?? []
+  const templates = templatesData ?? []
+  const productsTotal = productsData?.total ?? 0
+  const templatesTotalPages = Math.max(1, Math.ceil(templatesTotal / PAGE_SIZE))
 
   return (
     <div
@@ -49,15 +88,7 @@ export default function HeadOfficeCataloguePage() {
       }}
     >
       {/* 1. Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
         <div style={{ minWidth: 0 }}>
           <div
             style={{
@@ -71,9 +102,7 @@ export default function HeadOfficeCataloguePage() {
             }}
           >
             <Building2 size={14} />
-            <span>
-              {user?.organization ?? 'Your account'} • Head Office Governance
-            </span>
+            <span>{user?.organization ?? 'Your account'} • Head Office</span>
           </div>
 
           <h1
@@ -85,19 +114,19 @@ export default function HeadOfficeCataloguePage() {
               margin: 0,
             }}
           >
-            Corporate Approved Print Catalogue & Templates
+            Approved catalogue and templates
           </h1>
 
           <p
             style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}
           >
-            Read-only master view of approved marketing collateral, materials,
-            rate cards, and design templates available to branch sites.
+            A read-only view of the approved products, materials, rate cards and
+            templates available to your sites.
           </p>
         </div>
 
         {/* Read-Only Badge */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div className="row-wrap">
           <div
             style={{
               display: 'inline-flex',
@@ -119,18 +148,11 @@ export default function HeadOfficeCataloguePage() {
 
       {/* 2. Tab Switcher & Search. A plain row rather than a card: these are
           the controls for the grid below, not content of their own. */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', gap: '4px' }}>
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
+        <div className="row-wrap">
           <button
             onClick={() => setSelectedTab('products')}
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -147,11 +169,13 @@ export default function HeadOfficeCataloguePage() {
             }}
           >
             <Package size={16} />
-            Print Products ({products.length})
+            Print Products (
+            {isProductsLoading ? '...' : formatNumber(productsTotal, '0')})
           </button>
 
           <button
             onClick={() => setSelectedTab('templates')}
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -168,12 +192,18 @@ export default function HeadOfficeCataloguePage() {
             }}
           >
             <LayoutTemplate size={16} />
-            Master Templates ({templates.length})
+            Master Templates (
+            {isTemplatesLoading ? '...' : formatNumber(templatesTotal, '0')})
           </button>
         </div>
 
         <div
-          style={{ position: 'relative', minWidth: '280px', maxWidth: '400px' }}
+          style={{
+            position: 'relative',
+            flex: '1 1 260px',
+            minWidth: 0,
+            maxWidth: '400px',
+          }}
         >
           <Search
             size={16}
@@ -190,6 +220,7 @@ export default function HeadOfficeCataloguePage() {
             placeholder="Search items by name or SKU..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            className="touch-target"
             style={{
               width: '100%',
               paddingLeft: '36px',
@@ -207,158 +238,198 @@ export default function HeadOfficeCataloguePage() {
         </div>
       </div>
 
-      {/* 3. Content Display */}
+      {/* 3. Content Display. The skeleton lives here rather than replacing the
+          whole screen, so the header, tabs and search box stay put while a page
+          loads and the reader keeps their place. */}
       {selectedTab === 'products' ? (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '20px',
-          }}
-        >
-          {products.map((prod) => (
-            <div
-              key={prod.id}
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '14px',
-                boxShadow:
-                  '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
-                border: '1px solid #F0E6EC',
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
+        isProductsLoading ? (
+          <SkeletonCardGrid count={8} label="Loading the catalogue" />
+        ) : products.length === 0 ? (
+          <div style={emptyCard}>
+            <EmptyState
+              icon={Package}
+              title={
+                searchQuery
+                  ? 'No products match that search'
+                  : 'No approved products yet'
+              }
+              detail={
+                searchQuery
+                  ? 'Try a shorter search, or clear it to see the whole approved catalogue.'
+                  : 'Products your print administrator publishes to this account appear here for your sites to order.'
+              }
+            />
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '20px',
+            }}
+          >
+            {products.map((prod) => (
               <div
+                key={prod.id}
                 style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: '180px',
-                  backgroundColor: '#F5EEF2',
-                }}
-              >
-                <Image
-                  src={prod.thumbnailUrl}
-                  alt={prod.name}
-                  fill
-                  unoptimized
-                  style={{ objectFit: 'cover' }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '10px',
-                    padding: '2px 8px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#FFFFFF',
-                    color: '#5C566E',
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  {prod.categoryName || 'Print Collateral'}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  padding: '16px',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '14px',
+                  boxShadow:
+                    '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
+                  border: '1px solid #F0E6EC',
+                  overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '6px',
-                  flex: 1,
                 }}
               >
                 <div
                   style={{
-                    fontSize: '0.74rem',
-                    color: '#A39BB3',
-                    fontWeight: 500,
+                    position: 'relative',
+                    width: '100%',
+                    height: '180px',
+                    backgroundColor: '#F5EEF2',
                   }}
                 >
-                  SKU: {prod.sku}
+                  <Image
+                    src={prod.thumbnailUrl}
+                    alt={prod.name}
+                    fill
+                    unoptimized
+                    style={{ objectFit: 'cover' }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '10px',
+                      left: '10px',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#FFFFFF',
+                      color: '#5C566E',
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {prod.categoryName || 'Print Collateral'}
+                  </div>
                 </div>
-                <h3
-                  style={{
-                    fontSize: '0.95rem',
-                    fontWeight: 700,
-                    color: '#2B253E',
-                    margin: 0,
-                  }}
-                >
-                  {prod.name}
-                </h3>
-                <p
-                  style={{
-                    fontSize: '0.8rem',
-                    color: '#6E6781',
-                    lineHeight: 1.45,
-                    margin: 0,
-                  }}
-                >
-                  {prod.description}
-                </p>
 
                 <div
                   style={{
-                    marginTop: 'auto',
-                    borderTop: '1px solid #F5EEF2',
-                    paddingTop: '12px',
+                    padding: '16px',
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    flex: 1,
                   }}
                 >
-                  {/*
+                  <div
+                    style={{
+                      fontSize: '0.74rem',
+                      color: '#A39BB3',
+                      fontWeight: 500,
+                    }}
+                  >
+                    SKU: {prod.sku}
+                  </div>
+                  <h3
+                    style={{
+                      fontSize: '0.95rem',
+                      fontWeight: 700,
+                      color: '#2B253E',
+                      margin: 0,
+                    }}
+                  >
+                    {prod.name}
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: '0.8rem',
+                      color: '#6E6781',
+                      lineHeight: 1.45,
+                      margin: 0,
+                    }}
+                  >
+                    {prod.description}
+                  </p>
+
+                  <div
+                    style={{
+                      marginTop: 'auto',
+                      borderTop: '1px solid #F5EEF2',
+                      paddingTop: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {/*
                     No price. A product is stock, and what a job costs is set by
                     the design printed on it — so the price lives on the design
                     and this card shows what the stock actually is instead.
                   */}
-                  <div>
+                    <div>
+                      <span
+                        style={{
+                          fontSize: '0.74rem',
+                          color: '#A39BB3',
+                          display: 'block',
+                        }}
+                      >
+                        Supplied as
+                      </span>
+                      <strong
+                        style={{
+                          fontSize: '0.84rem',
+                          fontWeight: 600,
+                          color: '#2B253E',
+                        }}
+                      >
+                        {prod.packSize || '1'} per {prod.uom || 'unit'}
+                      </strong>
+                    </div>
                     <span
                       style={{
-                        fontSize: '0.74rem',
-                        color: '#A39BB3',
-                        display: 'block',
-                      }}
-                    >
-                      Supplied as
-                    </span>
-                    <strong
-                      style={{
-                        fontSize: '0.84rem',
+                        fontSize: '0.7rem',
                         fontWeight: 600,
-                        color: '#2B253E',
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        backgroundColor: '#F5EEF2',
+                        color: '#5C566E',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {prod.packSize || '1'} per {prod.uom || 'unit'}
-                    </strong>
+                      MOQ {prod.moq}
+                    </span>
                   </div>
-                  <span
-                    style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      borderRadius: '9999px',
-                      backgroundColor: '#F5EEF2',
-                      color: '#5C566E',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    MOQ {prod.moq}
-                  </span>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        )
+      ) : isTemplatesLoading ? (
+        <SkeletonCardGrid count={8} label="Loading the templates" />
+      ) : templates.length === 0 ? (
+        <div style={emptyCard}>
+          <EmptyState
+            icon={LayoutTemplate}
+            title={
+              searchQuery
+                ? 'No templates match that search'
+                : 'No published templates yet'
+            }
+            detail={
+              searchQuery
+                ? 'Try a shorter search, or clear it to see every published template.'
+                : 'Templates appear here once your print administrator publishes them.'
+            }
+          />
         </div>
       ) : (
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
             gap: '20px',
           }}
         >
@@ -498,6 +569,26 @@ export default function HeadOfficeCataloguePage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* The pager for whichever tab is showing. It draws nothing when the
+          list fits on a single page. */}
+      {selectedTab === 'products' ? (
+        <Pager
+          page={productsPage}
+          totalPages={productsData?.totalPages ?? 1}
+          total={productsData?.total}
+          isFetching={isProductsFetching}
+          onChange={setProductsPage}
+        />
+      ) : (
+        <Pager
+          page={templatesPage}
+          totalPages={templatesTotalPages}
+          total={templatesTotal}
+          isFetching={isTemplatesLoading}
+          onChange={setTemplatesPage}
+        />
       )}
     </div>
   )

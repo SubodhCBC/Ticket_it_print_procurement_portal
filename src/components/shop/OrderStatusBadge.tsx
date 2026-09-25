@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FileText,
+  HelpCircle,
 } from 'lucide-react'
 
 interface OrderStatusBadgeProps {
@@ -18,8 +19,19 @@ interface OrderStatusBadgeProps {
   showIcon?: boolean
 }
 
-// The in-production icons used to spin. A badge that moves reads as something
-// happening on the page right now, which a status held for days is not.
+/**
+ * The order's fulfilment status, as a chip.
+ *
+ * The nine values are the server's lifecycle (`src/server/orders/order-status.ts`)
+ * and nothing else. `PAID` was here once and should not have been: payment is a
+ * separate axis, and on Net 30 terms an order is routinely delivered a month
+ * before it is paid — showing it as a fulfilment badge told the buyer one axis
+ * while the other was the one that had moved. `ORDER_PLACED`, `IN_PRODUCTION`
+ * and `RECEIVED` were fixture-era display states the API never sends.
+ *
+ * The in-production icons used to spin. A badge that moves reads as something
+ * happening on the page right now, which a status held for days is not.
+ */
 export function OrderStatusBadge({
   status,
   size = 'md',
@@ -65,27 +77,6 @@ export function OrderStatusBadge({
       border: 'rgba(16, 185, 129, 0.35)',
       icon: <CheckCircle2 size={iconSize} color="#047857" />,
     },
-    PAID: {
-      label: 'Payment Authorized',
-      bg: 'rgba(16, 185, 129, 0.12)',
-      text: '#047857',
-      border: 'rgba(16, 185, 129, 0.35)',
-      icon: <CheckCircle2 size={iconSize} color="#047857" />,
-    },
-    ORDER_PLACED: {
-      label: 'Order Placed',
-      bg: 'rgba(59, 130, 246, 0.08)',
-      text: '#2563eb',
-      border: 'rgba(59, 130, 246, 0.25)',
-      icon: <CheckCircle2 size={iconSize} color="#2563eb" />,
-    },
-    IN_PRODUCTION: {
-      label: 'In Production',
-      bg: 'rgba(245, 158, 11, 0.08)',
-      text: '#d97706',
-      border: 'rgba(245, 158, 11, 0.25)',
-      icon: <RefreshCw size={iconSize} color="#d97706" />,
-    },
     REJECTED: {
       label: 'Rejected',
       bg: 'rgba(239, 68, 68, 0.12)',
@@ -99,13 +90,6 @@ export function OrderStatusBadge({
       text: '#5C566E',
       border: 'rgba(100, 116, 139, 0.3)',
       icon: <Clock size={iconSize} color="#5C566E" />,
-    },
-    RECEIVED: {
-      label: 'Order Received',
-      bg: 'rgba(59, 130, 246, 0.08)',
-      text: '#2563eb',
-      border: 'rgba(59, 130, 246, 0.25)',
-      icon: <Clock size={iconSize} color="#2563eb" />,
     },
     PROCESSING: {
       label: 'In Fulfilment',
@@ -122,7 +106,7 @@ export function OrderStatusBadge({
       icon: <Truck size={iconSize} color="#7c3aed" />,
     },
     DELIVERED: {
-      label: 'Delivered to Site',
+      label: 'Delivered to branch',
       bg: 'rgba(88, 185, 125, 0.08)',
       text: '#16a34a',
       border: 'rgba(88, 185, 125, 0.25)',
@@ -130,7 +114,16 @@ export function OrderStatusBadge({
     },
   }
 
-  const current = configs[status] || configs.RECEIVED
+  // A status the API grew and this build has not learned yet. Neutral on
+  // purpose: the old fallback was RECEIVED, so anything unrecognised — a
+  // rejection, a cancellation — was announced to the buyer as a live order.
+  const current = configs[status] ?? {
+    label: 'Unknown',
+    bg: 'rgba(100, 116, 139, 0.08)',
+    text: '#6E6781',
+    border: 'rgba(100, 116, 139, 0.25)',
+    icon: <HelpCircle size={iconSize} color="#6E6781" />,
+  }
 
   const sizeStyles = {
     sm: { fontSize: '0.7rem', padding: '2px 8px', gap: '4px' },

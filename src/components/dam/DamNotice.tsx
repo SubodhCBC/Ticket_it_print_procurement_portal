@@ -88,13 +88,8 @@ export function DamNotice({
       {children}
       {action && (
         <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            marginTop: '4px',
-          }}
+          className="row-wrap"
+          style={{ justifyContent: 'center', marginTop: '4px' }}
         >
           {action}
         </div>

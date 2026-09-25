@@ -2,6 +2,7 @@
 'use client'
 
 import { Skeleton as UiSkeleton } from '@/components/ui/Skeleton'
+import { ErrorState } from '@/components/ui/TableState'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,6 +14,7 @@ import { ReportDownloadButtons } from '@/components/reports/ReportDownloadButton
 import { useAuth } from '@/hooks/useAuth'
 import { StatusPill } from '@/components/admin/StatusPill'
 import type { OrderStatus } from '@/types'
+import { formatMoney, formatDate } from '@/lib/format'
 
 const STATUSES: Array<{ id: OrderStatus | 'ALL'; label: string }> = [
   { id: 'ALL', label: 'All Statuses' },
@@ -35,6 +37,9 @@ const field: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
   color: '#2B253E',
   outline: 'none',
+  // A select sizes itself to its widest option, and "SITE-014 — Auckland
+  // Central Distribution" was wider than a phone, taking the page with it.
+  maxWidth: '100%',
 }
 
 /** A table cell's padding; `edge` columns carry the table's 20px gutter. */
@@ -94,6 +99,8 @@ export default function HOOrdersAllPage() {
     data: ordersData,
     isLoading,
     isFetching,
+    error: ordersError,
+    refetch,
   } = useOrders({
     accountId: accountId || undefined,
     status: statusFilter,
@@ -141,12 +148,10 @@ export default function HOOrdersAllPage() {
     >
       {/* Header */}
       <div
+        className="stack-sm"
         style={{
-          display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-end',
           flexWrap: 'wrap',
-          gap: '12px',
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -171,9 +176,7 @@ export default function HOOrdersAllPage() {
               Dashboard
             </Link>
             <ChevronRight size={13} />
-            <span style={{ color: '#6E6781', fontWeight: 500 }}>
-              Cross-Site Orders
-            </span>
+            <span style={{ color: '#6E6781', fontWeight: 500 }}>Orders</span>
           </div>
           <h1
             style={{
@@ -184,7 +187,7 @@ export default function HOOrdersAllPage() {
               margin: 0,
             }}
           >
-            Cross-Site Order List
+            Orders across your sites
           </h1>
           <p
             style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}
@@ -201,6 +204,7 @@ export default function HOOrdersAllPage() {
 
       {/* Filters */}
       <div
+        className="row-wrap"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '14px',
@@ -208,14 +212,10 @@ export default function HOOrdersAllPage() {
             '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
           padding: '14px 16px',
           border: '1px solid #F0E6EC',
-          display: 'flex',
-          gap: '10px',
-          flexWrap: 'wrap',
-          alignItems: 'flex-end',
         }}
       >
         {/* Search */}
-        <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
+        <div style={{ position: 'relative', flex: '1', minWidth: '180px' }}>
           <Search
             size={16}
             style={{
@@ -230,6 +230,7 @@ export default function HOOrdersAllPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             aria-label="Search orders"
+            className="touch-target"
             placeholder="Search order #, PO or customer reference..."
             style={{
               ...field,
@@ -242,6 +243,7 @@ export default function HOOrdersAllPage() {
         <select
           value={siteFilter}
           aria-label="Site"
+          className="touch-target"
           onChange={(e) => {
             setSiteFilter(e.target.value)
             setPage(1)
@@ -259,6 +261,7 @@ export default function HOOrdersAllPage() {
         <select
           value={statusFilter}
           aria-label="Status"
+          className="touch-target"
           onChange={(e) => {
             setStatusFilter(e.target.value as OrderStatus | 'ALL')
             setPage(1)
@@ -272,11 +275,12 @@ export default function HOOrdersAllPage() {
           ))}
         </select>
         {/* Date range */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="row-wrap" style={{ flex: '0 1 auto' }}>
           <input
             type="date"
             value={startDate}
             aria-label="From date"
+            className="touch-target"
             onChange={(e) => {
               setStartDate(e.target.value)
               setPage(1)
@@ -288,6 +292,7 @@ export default function HOOrdersAllPage() {
             type="date"
             value={endDate}
             aria-label="To date"
+            className="touch-target"
             onChange={(e) => {
               setEndDate(e.target.value)
               setPage(1)
@@ -298,6 +303,7 @@ export default function HOOrdersAllPage() {
         {hasFilters && (
           <button
             onClick={clearFilters}
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -344,7 +350,7 @@ export default function HOOrdersAllPage() {
           overflow: 'hidden',
         }}
       >
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-scroll">
           <table
             style={{
               width: '100%',
@@ -402,6 +408,20 @@ export default function HOOrdersAllPage() {
                     ))}
                   </tr>
                 ))
+              ) : ordersError ? (
+                // Before the empty check: a failed fetch used to render "No
+                // orders match your filters", which invites the reader to widen
+                // a filter that was never the problem.
+                <tr>
+                  <td colSpan={9} style={{ padding: 0 }}>
+                    <ErrorState
+                      title="Orders could not be loaded"
+                      detail="The orders service did not respond. Your filters are still set — try again."
+                      error={ordersError}
+                      onRetry={() => refetch()}
+                    />
+                  </td>
+                </tr>
               ) : (
                 <AnimatePresence mode="popLayout">
                   {filteredOrders.length === 0 ? (
@@ -422,6 +442,7 @@ export default function HOOrdersAllPage() {
                         <div>No orders match your filters</div>
                         <button
                           onClick={clearFilters}
+                          className="touch-target"
                           style={{
                             marginTop: '6px',
                             color: '#F73582',
@@ -501,11 +522,7 @@ export default function HOOrdersAllPage() {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {new Date(o.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
+                          {formatDate(o.createdAt)}
                         </td>
                         <td
                           style={{
@@ -525,10 +542,7 @@ export default function HOOrdersAllPage() {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          $
-                          {o.totalAmount.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                          })}
+                          {formatMoney(o.totalAmount)}
                         </td>
                         <td style={{ padding: '12px 14px' }}>
                           <StatusPill status={o.status as OrderStatus} />
@@ -564,14 +578,14 @@ export default function HOOrdersAllPage() {
               )}
             </tbody>
           </table>
-          <Pager
-            page={page}
-            totalPages={ordersData?.totalPages ?? 1}
-            isFetching={isFetching}
-            onChange={setPage}
-            style={{ borderTop: '1px solid #F5EEF2' }}
-          />
         </div>
+        <Pager
+          page={page}
+          totalPages={ordersData?.totalPages ?? 1}
+          isFetching={isFetching}
+          onChange={setPage}
+          style={{ borderTop: '1px solid #F5EEF2' }}
+        />
       </div>
 
       <style>{`

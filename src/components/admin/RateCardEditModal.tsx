@@ -198,11 +198,8 @@ export function RateCardEditModal({
         </div>
 
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: '14px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '150px' } as React.CSSProperties}
         >
           <div>
             <label htmlFor="rc-edit-from" style={labelStyle}>
@@ -356,11 +353,10 @@ export function RateCardEditModal({
           </div>
         )}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
+            className="touch-target"
             onClick={onClose}
             disabled={isPending}
             style={{
@@ -379,6 +375,7 @@ export function RateCardEditModal({
           </button>
           <button
             type="submit"
+            className="touch-target"
             disabled={isPending}
             style={{
               padding: '8px 14px',

@@ -2,6 +2,7 @@
 'use client'
 
 import { Skeleton as UiSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState, ErrorState } from '@/components/ui/TableState'
 import React from 'react'
 import Link from 'next/link'
 import { DashboardPdfButton } from '@/components/reports/DashboardPdfButton'
@@ -24,6 +25,7 @@ import { useHODashboardKPIs } from '@/hooks/useHeadOffice'
 import { useOrders } from '@/hooks/useOrders'
 import { StatusPill } from '@/components/admin/StatusPill'
 import type { OrderStatus } from '@/types'
+import { formatMoney, formatDate } from '@/lib/format'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -235,9 +237,13 @@ function SiteSpendBar({
           justifyContent: 'space-between',
           gap: '12px',
           marginBottom: '6px',
+          minWidth: 0,
         }}
       >
-        <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#2B253E' }}>
+        <span
+          className="truncate"
+          style={{ fontSize: '0.8rem', fontWeight: 500, color: '#2B253E' }}
+        >
           {siteName}
         </span>
         <span
@@ -248,11 +254,7 @@ function SiteSpendBar({
             whiteSpace: 'nowrap',
           }}
         >
-          $
-          {spend.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          {formatMoney(spend)}
         </span>
       </div>
       <div
@@ -286,6 +288,7 @@ function KPICard({
   deltaPositive,
   icon,
   subtitle,
+  note,
 }: {
   label: string
   value: string
@@ -293,6 +296,8 @@ function KPICard({
   deltaPositive?: boolean
   icon: React.ReactNode
   subtitle?: string
+  /** Stands in for the delta when there is no prior period to compare with. */
+  note?: string
 }) {
   return (
     <motion.div variants={cardVariants} style={{ ...card, padding: '18px' }}>
@@ -370,6 +375,18 @@ function KPICard({
           {delta} vs last month
         </div>
       )}
+      {!delta && note && (
+        <div
+          style={{
+            marginTop: '4px',
+            fontSize: '0.76rem',
+            fontWeight: 600,
+            color: '#A39BB3',
+          }}
+        >
+          {note}
+        </div>
+      )}
     </motion.div>
   )
 }
@@ -383,7 +400,11 @@ export default function HODashboardPage() {
   const { data: kpis, isLoading } = useHODashboardKPIs(accountId)
   // The order list is its own query rather than part of the KPI bundle, so it
   // shares a cache key with every other screen showing recent orders.
-  const { data: ordersData } = useOrders({ pageSize: 6 })
+  const {
+    data: ordersData,
+    error: ordersError,
+    refetch: refetchOrders,
+  } = useOrders({ pageSize: 6 })
   const recentOrders = ordersData?.items ?? []
 
   return (
@@ -399,11 +420,9 @@ export default function HODashboardPage() {
           "customer head office · multi-site visibility" chip; the account name
           is the one thing it said that the sidebar doesn't, so it is the title. */}
       <div
+        className="stack-sm"
         style={{
-          display: 'flex',
-          alignItems: 'flex-end',
           justifyContent: 'space-between',
-          gap: '12px',
           flexWrap: 'wrap',
         }}
       >
@@ -430,14 +449,7 @@ export default function HODashboardPage() {
             monthly billing & reporting.
           </p>
         </div>
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            flexWrap: 'wrap',
-            alignItems: 'flex-start',
-          }}
-        >
+        <div className="row-wrap">
           {/* The same filters this dashboard is fetched with. */}
           <DashboardPdfButton
             params={{
@@ -446,13 +458,25 @@ export default function HODashboardPage() {
               topSites: 20,
             }}
           />
-          <Link href="/head-office/approvals" style={secondaryButton}>
+          <Link
+            href="/head-office/approvals"
+            className="touch-target"
+            style={secondaryButton}
+          >
             <Scale size={16} /> Approvals Queue
           </Link>
-          <Link href="/head-office/orders/all" style={secondaryButton}>
+          <Link
+            href="/head-office/orders/all"
+            className="touch-target"
+            style={secondaryButton}
+          >
             <ShoppingCart size={16} /> All Orders
           </Link>
-          <Link href="/head-office/billing/monthly" style={primaryButton}>
+          <Link
+            href="/head-office/billing/monthly"
+            className="touch-target"
+            style={primaryButton}
+          >
             <FileSpreadsheet size={16} /> Monthly Billing
           </Link>
         </div>
@@ -463,11 +487,8 @@ export default function HODashboardPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '14px',
-        }}
+        className="grid-auto"
+        style={{ ['--min']: '220px' } as React.CSSProperties}
       >
         {isLoading ? (
           [0, 1, 2, 3].map((i) => (
@@ -493,17 +514,34 @@ export default function HODashboardPage() {
               // Money always carries its cents. `minimumFractionDigits: 0`
               // rendered a real 3505.60 as "$3,505.6", which reads as a
               // truncation rather than a total.
-              value={`$${(kpis?.totalSpendThisMonth ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              delta={`${Math.abs(kpis?.spendDeltaPct ?? 0).toFixed(1)}%`}
+              value={formatMoney(kpis?.totalSpendThisMonth ?? 0)}
+              // Null, not zero, when there is no prior month to compare
+              // against: the card then says so instead of drawing a green
+              // "+0.0%" over a comparison nobody can make.
+              delta={
+                kpis?.spendDeltaPct == null
+                  ? undefined
+                  : `${Math.abs(kpis.spendDeltaPct).toFixed(1)}%`
+              }
               deltaPositive={(kpis?.spendDeltaPct ?? 0) >= 0}
+              note={
+                kpis?.spendDeltaPct == null ? '— no prior period' : undefined
+              }
               icon={<DollarSign size={16} />}
               subtitle="Across all account sites"
             />
             <KPICard
               label="Orders This Month"
               value={String(kpis?.orderCountThisMonth ?? 0)}
-              delta={`${Math.abs(kpis?.ordersDeltaPct ?? 0).toFixed(1)}%`}
+              delta={
+                kpis?.ordersDeltaPct == null
+                  ? undefined
+                  : `${Math.abs(kpis.ordersDeltaPct).toFixed(1)}%`
+              }
               deltaPositive={(kpis?.ordersDeltaPct ?? 0) >= 0}
+              note={
+                kpis?.ordersDeltaPct == null ? '— no prior period' : undefined
+              }
               icon={<ShoppingCart size={16} />}
               subtitle={`vs ${kpis?.orderCountLastMonth ?? 0} last month`}
             />
@@ -515,9 +553,11 @@ export default function HODashboardPage() {
             />
             <KPICard
               label="Top Ordering Site"
-              value={kpis?.topSite?.siteCode ?? '—'}
+              // The branch's NAME. `siteCode` is `sublabel ?? id` in the
+              // adapter, so a branch with no code put a raw cuid on the card.
+              value={kpis?.topSite?.siteName || '—'}
               icon={<TrendingUp size={16} />}
-              subtitle={`$${(kpis?.topSite?.spend ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} this month`}
+              subtitle={`${formatMoney(kpis?.topSite?.spend ?? 0)} this month`}
             />
           </>
         )}
@@ -687,8 +727,23 @@ export default function HODashboardPage() {
               <Skeleton h="1.25rem" w="80px" br="9999px" />
             </div>
           ))
+        ) : ordersError ? (
+          // A failed fetch used to fall through to an empty table, so an outage
+          // read as "this account has never ordered".
+          <ErrorState
+            title="Recent orders could not be loaded"
+            detail="The orders service did not respond. Nothing has been lost — try again."
+            error={ordersError}
+            onRetry={() => refetchOrders()}
+          />
+        ) : recentOrders.length === 0 ? (
+          <EmptyState
+            icon={ShoppingCart}
+            title="No orders yet"
+            detail="Orders placed by any site on this account appear here as they are submitted."
+          />
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-scroll">
             <table
               style={{
                 width: '100%',
@@ -780,10 +835,7 @@ export default function HODashboardPage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {new Date(o.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
+                      {formatDate(o.createdAt)}
                     </td>
                     <td
                       style={{
@@ -794,11 +846,7 @@ export default function HODashboardPage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      $
-                      {o.totalAmount.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {formatMoney(o.totalAmount)}
                     </td>
                     <td style={{ padding: '12px 14px' }}>
                       <StatusPill status={o.status as OrderStatus} />

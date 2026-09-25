@@ -124,16 +124,8 @@ export function DamFolderTile({
       }}
     >
       <Folder size={18} color="#F73582" style={{ flexShrink: 0 }} />
-      <span
-        style={{
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {name}
-      </span>
+      {/* Folder names are data-supplied: truncated, never widening the tile. */}
+      <span className="truncate">{name}</span>
     </button>
   )
 }
@@ -202,14 +194,11 @@ export function DamFileTile({
         </Badge>
       )}
       <DamPreview file={file} crossOrigin={corsPreview} />
+      {/* A file name can be very long; it truncates rather than widening the
+          tile and, with it, the grid. */}
       <span
-        style={{
-          fontSize: '0.78rem',
-          fontWeight: 600,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
+        className="truncate"
+        style={{ fontSize: '0.78rem', fontWeight: 600 }}
       >
         {file.name}
       </span>
@@ -226,14 +215,7 @@ export function DamFileTile({
         <Badge variant="outline" size="sm">
           {damTypeLabel(file)}
         </Badge>
-        <span
-          style={{
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <span className="truncate">
           {disabledReason ?? formatDamBytes(file.sizeBytes)}
         </span>
       </span>

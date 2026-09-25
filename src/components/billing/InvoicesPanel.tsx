@@ -22,6 +22,7 @@ import {
   type InvoiceFormat,
 } from '@/services/data-source/api/api-reports.adapter'
 import type { ApiInvoice } from '@/services/data-source/api/report.types'
+import { formatMoney, formatDate } from '@/lib/format'
 
 const invoicesKey = (billingPeriod: string, accountId?: string) =>
   ['billing', 'invoices', billingPeriod, accountId ?? ''] as const
@@ -136,8 +137,10 @@ export function InvoicesPanel({
             : ' It appears here once it has been issued.'}
         </p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={table}>
+        <div className="table-scroll">
+          {/* Nine columns, two of them rows of buttons: it keeps its width and
+              scrolls inside the card rather than widening the page. */}
+          <table style={{ ...table, minWidth: '1040px' }}>
             <thead>
               <tr>
                 <th style={thEdge}>Account</th>
@@ -188,17 +191,19 @@ export function InvoicesPanel({
                   <td style={{ ...td, textAlign: 'center' }}>
                     {invoice.siteCount}
                   </td>
-                  <td style={{ ...td, ...amount }}>{money(invoice.total)}</td>
+                  <td style={{ ...td, ...amount }}>
+                    {formatMoney(invoice.total)}
+                  </td>
                   <td style={{ ...td, whiteSpace: 'nowrap' }}>
                     {invoice.paidAt ? (
                       <>
-                        Paid {shortDate(invoice.paidAt)}
+                        Paid {formatDate(invoice.paidAt)}
                         {invoice.paymentReference && (
                           <div style={small}>{invoice.paymentReference}</div>
                         )}
                       </>
                     ) : invoice.dueAt ? (
-                      `Due ${shortDate(invoice.dueAt)}`
+                      `Due ${formatDate(invoice.dueAt)}`
                     ) : (
                       <span style={{ color: '#A39BB3' }}>—</span>
                     )}
@@ -207,6 +212,7 @@ export function InvoicesPanel({
                     <div style={buttonRow}>
                       <button
                         type="button"
+                        className="touch-target"
                         onClick={() => setViewing(invoice)}
                         style={primarySmall}
                         aria-label={`View invoice ${invoice.invoiceNumber ?? 'draft'}`}
@@ -240,6 +246,7 @@ export function InvoicesPanel({
                           <>
                             <button
                               type="button"
+                              className="touch-target"
                               style={secondarySmall}
                               disabled={busy !== null}
                               title="Rebuild the draft from the orders now in the period"
@@ -258,6 +265,7 @@ export function InvoicesPanel({
                             </button>
                             <button
                               type="button"
+                              className="touch-target"
                               style={primarySmall}
                               onClick={() =>
                                 setDialog({ kind: 'issue', invoice })
@@ -270,6 +278,7 @@ export function InvoicesPanel({
                         {invoice.status === 'ISSUED' && (
                           <button
                             type="button"
+                            className="touch-target"
                             style={secondarySmall}
                             onClick={() => setDialog({ kind: 'paid', invoice })}
                           >
@@ -280,6 +289,7 @@ export function InvoicesPanel({
                           invoice.status === 'PAID') && (
                           <button
                             type="button"
+                            className="touch-target"
                             style={{ ...secondarySmall, color: '#B91C1C' }}
                             onClick={() => setDialog({ kind: 'void', invoice })}
                           >
@@ -377,16 +387,10 @@ function BuildDraft({
   const [chosen, setChosen] = useState('')
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        flexWrap: 'wrap',
-      }}
-    >
+    <div className="row-wrap" style={{ gap: '8px' }}>
       {needsAccount && (
         <select
+          className="touch-target"
           aria-label="Account to bill"
           value={chosen}
           onChange={(e) => setChosen(e.target.value)}
@@ -404,6 +408,7 @@ function BuildDraft({
       )}
       <button
         type="button"
+        className="touch-target"
         style={primarySmall}
         disabled={busy || (needsAccount && !chosen)}
         title={`Build or rebuild the ${billingPeriod} draft`}
@@ -443,7 +448,7 @@ function IssueDialog({
           Issuing gives the {invoice.accountName} invoice for{' '}
           {invoice.billingPeriod} its number and freezes its{' '}
           {invoice.orderCount} order{invoice.orderCount === 1 ? '' : 's'} at{' '}
-          {money(invoice.total)}. After that the amount cannot change; a
+          {formatMoney(invoice.total)}. After that the amount cannot change; a
           correction means voiding it.
         </p>
         <label style={fieldLabel}>
@@ -491,7 +496,7 @@ function PaidDialog({
       <div style={dialogBody}>
         <p style={dialogText}>
           {invoice.invoiceNumber} · {invoice.accountName} ·{' '}
-          {money(invoice.total)}
+          {formatMoney(invoice.total)}
         </p>
         <label style={fieldLabel}>
           Payment reference (optional)
@@ -548,8 +553,8 @@ function VoidDialog({
       <div style={dialogBody}>
         <p style={dialogText}>
           Voiding {invoice.invoiceNumber} ({invoice.accountName},{' '}
-          {money(invoice.total)}) cannot be undone. The number stays used, and
-          the reason is kept on the invoice and in the audit log.
+          {formatMoney(invoice.total)}) cannot be undone. The number stays used,
+          and the reason is kept on the invoice and in the audit log.
         </p>
         <label style={fieldLabel}>
           Reason
@@ -590,12 +595,19 @@ function DialogActions({
   onConfirm: () => void
 }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-      <button type="button" style={secondarySmall} onClick={onClose}>
+    /* Cancel beside a long confirm label did not fit a 360px dialog. */
+    <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
+      <button
+        type="button"
+        className="touch-target"
+        style={secondarySmall}
+        onClick={onClose}
+      >
         Cancel
       </button>
       <button
         type="button"
+        className="touch-target"
         style={
           danger
             ? {
@@ -630,6 +642,7 @@ function DocButton({
       type="button"
       onClick={onClick}
       disabled={busy}
+      className="touch-target"
       aria-label={`Download ${label}`}
       style={secondarySmall}
     >
@@ -646,21 +659,6 @@ function documentName(invoice: ApiInvoice): string {
     invoice.invoiceNumber ??
     `draft-${invoice.accountCode}-${invoice.billingPeriod}`
   return base.replace(/[^A-Za-z0-9._-]/g, '')
-}
-
-function money(value: string): string {
-  const figure = Number(value)
-  return Number.isFinite(figure)
-    ? `$${figure.toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : value
-}
-
-function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
 }
 
 function truncate(text: string, max: number): string {
@@ -756,8 +754,10 @@ const alertBox: React.CSSProperties = {
   fontSize: '0.8rem',
   fontWeight: 500,
 }
+/** Four document buttons in one cell: they wrap rather than stretch the row. */
 const buttonRow: React.CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap',
   justifyContent: 'flex-end',
   gap: '6px',
 }

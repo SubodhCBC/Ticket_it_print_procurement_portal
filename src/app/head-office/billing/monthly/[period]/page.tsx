@@ -2,6 +2,7 @@
 'use client'
 
 import { Skeleton as UiSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/TableState'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -11,6 +12,7 @@ import { useHOMonthlyBillingReport } from '@/hooks/useHeadOffice'
 import { useAuth } from '@/hooks/useAuth'
 import { InvoicesPanel } from '@/components/billing/InvoicesPanel'
 import { exportBackingLinesCSV } from '@/utils/export/csv'
+import { formatMoney, formatDate } from '@/lib/format'
 
 /** The page's placeholder bar, drawn by the shared skeleton. */
 function Skeleton({
@@ -47,15 +49,7 @@ export default function HOBillingPeriodPage() {
     >
       {/* Header. The breadcrumb sits over the title rather than as a row of its
           own, so the page opens on one block instead of two. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
         <div style={{ minWidth: 0 }}>
           {/* Breadcrumb */}
           <div
@@ -126,6 +120,7 @@ export default function HOBillingPeriodPage() {
                 report.accountName
               )
             }
+            className="touch-target"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -148,11 +143,8 @@ export default function HOBillingPeriodPage() {
       {isLoading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '14px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '220px' } as React.CSSProperties}
           >
             {[0, 1, 2, 3].map((i) => (
               <div
@@ -230,16 +222,13 @@ export default function HOBillingPeriodPage() {
         >
           {/* Summary Cards */}
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '14px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '220px' } as React.CSSProperties}
           >
             {[
               {
                 label: 'Total Amount Owed',
-                value: `$${report.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+                value: formatMoney(report.totalSpend),
                 sub: `Invoice: ${report.invoiceRef}`,
               },
               {
@@ -344,7 +333,7 @@ export default function HOBillingPeriodPage() {
                 Site Breakdown — {report.periodLabel}
               </h2>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll">
               <table
                 style={{
                   width: '100%',
@@ -386,6 +375,16 @@ export default function HOBillingPeriodPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {report.siteBreakdowns.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ padding: 0 }}>
+                        <EmptyState
+                          title="No site spend this period"
+                          detail="Each site that orders in this period appears here with its share of the invoice."
+                        />
+                      </td>
+                    </tr>
+                  )}
                   {report.siteBreakdowns.map((s) => (
                     <tr
                       key={s.siteId}
@@ -428,10 +427,7 @@ export default function HOBillingPeriodPage() {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        $
-                        {s.totalSpend.toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                        })}
+                        {formatMoney(s.totalSpend)}
                       </td>
                       <td
                         style={{
@@ -461,14 +457,11 @@ export default function HOBillingPeriodPage() {
             }}
           >
             <div
+              className="row-wrap"
               style={{
                 padding: '16px 20px',
                 borderBottom: '1px solid #F5EEF2',
-                display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '12px',
-                flexWrap: 'wrap',
               }}
             >
               <div>
@@ -501,6 +494,7 @@ export default function HOBillingPeriodPage() {
                     report.accountName
                   )
                 }
+                className="touch-target"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -519,11 +513,8 @@ export default function HOBillingPeriodPage() {
               </button>
             </div>
             <div
-              style={{
-                overflowX: 'auto',
-                maxHeight: '560px',
-                overflowY: 'auto',
-              }}
+              className="table-scroll"
+              style={{ maxHeight: '560px', overflowY: 'auto' }}
             >
               <table
                 style={{
@@ -588,6 +579,16 @@ export default function HOBillingPeriodPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {report.lineItems.length === 0 && (
+                    <tr>
+                      <td colSpan={14} style={{ padding: 0 }}>
+                        <EmptyState
+                          title="No backing lines for this period"
+                          detail="Every billed item appears here once orders are placed — one row per product, with its SKU, quantity and price."
+                        />
+                      </td>
+                    </tr>
+                  )}
                   {report.lineItems.map((li, i) => (
                     <tr
                       key={`${li.orderNumber}-${li.sku}-${i}`}
@@ -619,10 +620,7 @@ export default function HOBillingPeriodPage() {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {new Date(li.orderDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                        {formatDate(li.orderDate)}
                       </td>
                       <td
                         style={{
@@ -687,7 +685,7 @@ export default function HOBillingPeriodPage() {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        ${li.unitPrice.toFixed(2)}
+                        {formatMoney(li.unitPrice)}
                       </td>
                       <td
                         style={{
@@ -697,7 +695,7 @@ export default function HOBillingPeriodPage() {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        ${li.lineValue.toFixed(2)}
+                        {formatMoney(li.lineValue)}
                       </td>
                       <td
                         style={{
@@ -707,7 +705,7 @@ export default function HOBillingPeriodPage() {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        ${li.orderTotal.toFixed(2)}
+                        {formatMoney(li.orderTotal)}
                       </td>
                       <td
                         style={{
@@ -748,6 +746,7 @@ export default function HOBillingPeriodPage() {
           <div>
             <Link
               href="/head-office/billing/monthly"
+              className="touch-target"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

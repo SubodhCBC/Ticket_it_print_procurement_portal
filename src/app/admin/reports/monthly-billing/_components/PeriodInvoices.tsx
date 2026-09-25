@@ -2,7 +2,7 @@
 'use client'
 
 import { SkeletonTable } from '@/components/ui/Skeleton'
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FilePlus, ChevronRight } from 'lucide-react'
@@ -10,6 +10,7 @@ import { AuditAccountPicker } from '@/components/admin/AuditAccountPicker'
 import { generateInvoice } from '@/services/data-source/api/api-reports.adapter'
 import type { ApiInvoice } from '@/services/data-source/api/report.types'
 import { InlineAlert, InvoiceStatusBadge } from './invoice-ui'
+import { formatDate, formatMoney } from '@/lib/format'
 import {
   card,
   cardSubtitle,
@@ -17,8 +18,6 @@ import {
   controlStyle,
   disabledWhen,
   errorMessage,
-  formatDate,
-  formatMoney,
   labelStyle,
   periodLabel,
   primaryButton,
@@ -59,6 +58,7 @@ export function PeriodInvoices({
   ownAccountName,
 }: PeriodInvoicesProps) {
   const router = useRouter()
+  const accountFieldId = useId()
   const [accountId, setAccountId] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
@@ -98,6 +98,9 @@ export function PeriodInvoices({
       </div>
 
       {canManage && (
+        /* Kept as its own flex row rather than `.row-wrap`: the Generate
+           button is aligned with the bottom of the account field, which
+           centring would undo. */
         <div
           style={{
             padding: '16px 20px',
@@ -106,14 +109,17 @@ export function PeriodInvoices({
             alignItems: 'flex-end',
             gap: '12px',
             flexWrap: 'wrap',
+            minWidth: 0,
           }}
         >
           {isAdmin && (
-            <div style={{ minWidth: '240px', flex: '0 1 320px' }}>
-              <label htmlFor="audit-account" style={labelStyle}>
+            // A 240px floor plus the card's gutter did not fit a 360px phone.
+            <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+              <label htmlFor={accountFieldId} style={labelStyle}>
                 Account to bill
               </label>
               <AuditAccountPicker
+                id={accountFieldId}
                 value={accountId}
                 ownAccountId={ownAccountId}
                 ownAccountName={ownAccountName}
@@ -125,6 +131,7 @@ export function PeriodInvoices({
           <div>
             <button
               type="button"
+              className="touch-target"
               onClick={handleGenerate}
               disabled={isGenerating}
               style={disabledWhen(primaryButton, isGenerating)}
@@ -173,10 +180,13 @@ export function PeriodInvoices({
           </div>
         )
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-scroll">
+          {/* Eight columns of invoice, account, dates and money — it scrolls
+              inside the card instead of crushing the account name. */}
           <table
             style={{
               width: '100%',
+              minWidth: '860px',
               borderCollapse: 'collapse',
               textAlign: 'left',
               fontSize: '0.84rem',
@@ -199,6 +209,17 @@ export function PeriodInvoices({
                 <tr
                   key={invoice.id}
                   onClick={() => router.push(detailHref(invoice.id))}
+                  tabIndex={0}
+                  aria-label={`Open invoice ${invoice.invoiceNumber ?? 'draft'}`}
+                  onKeyDown={(event) => {
+                    // Only the row's own keystrokes: the invoice link inside
+                    // it navigates on its own.
+                    if (event.target !== event.currentTarget) return
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      router.push(detailHref(invoice.id))
+                    }
+                  }}
                   style={{ borderTop: '1px solid #F5EEF2', cursor: 'pointer' }}
                 >
                   <td style={{ padding: '12px 20px' }}>

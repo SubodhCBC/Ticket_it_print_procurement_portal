@@ -16,6 +16,7 @@ import {
 import { AdminHeader } from '@/components/admin/AdminHeader'
 import { ApprovalConfirmDialog } from '@/components/admin/ApprovalConfirmDialog'
 import { ApprovalRuleFormDrawer } from '@/components/admin/ApprovalRuleFormDrawer'
+import { formatMoney } from '@/lib/format'
 import {
   APPROVAL_COLORS,
   approvalCard,
@@ -27,7 +28,6 @@ import {
   errorBanner,
   errorMessage,
   fieldControl,
-  formatMoney,
   primaryButton,
   ROLE_LABELS,
   secondaryButton,
@@ -144,8 +144,8 @@ export default function ApprovalRulesPage() {
   if (!canManage) {
     return (
       <>
-        <AdminHeader title="Approval Rules" />
-        <main style={{ padding: '24px' }}>
+        <AdminHeader title="Approval rules" />
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <div style={{ ...approvalCard, ...emptyState }}>
             <ShieldCheck
               size={24}
@@ -167,13 +167,14 @@ export default function ApprovalRulesPage() {
   return (
     <>
       <AdminHeader
-        title="Approval Rules"
+        title="Approval rules"
         subtitle="Which orders need approving, and who approves them"
         actionButton={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap">
             {canSeeQueue && (
               <Link
                 href="/admin/orders/approvals"
+                className="touch-target"
                 style={{ ...secondaryButton, textDecoration: 'none' }}
               >
                 <ClipboardCheck size={15} />
@@ -182,6 +183,7 @@ export default function ApprovalRulesPage() {
             )}
             <button
               type="button"
+              className="touch-target"
               onClick={() => openForm(null)}
               disabled={!accountId}
               style={{
@@ -198,22 +200,20 @@ export default function ApprovalRulesPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
         }}
       >
         <div
+          className="row-wrap"
           style={{
             ...approvalCard,
             padding: '12px 16px',
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
           }}
         >
           <div style={{ fontSize: '0.8rem', color: C.secondary }}>
@@ -228,7 +228,12 @@ export default function ApprovalRulesPage() {
                 setPickedAccountId(event.target.value)
                 setNotice(null)
               }}
-              style={{ ...fieldControl, width: 'auto', minWidth: '220px' }}
+              style={{
+                ...fieldControl,
+                width: 'auto',
+                minWidth: '220px',
+                maxWidth: '100%',
+              }}
             >
               {accountOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -250,6 +255,7 @@ export default function ApprovalRulesPage() {
             <span>{notice}</span>
             <button
               type="button"
+              className="touch-target"
               aria-label="Dismiss"
               onClick={() => setNotice(null)}
               style={{
@@ -286,6 +292,7 @@ export default function ApprovalRulesPage() {
             </span>
             <button
               type="button"
+              className="touch-target"
               onClick={() => void refetch()}
               style={secondaryButton}
             >
@@ -318,6 +325,7 @@ export default function ApprovalRulesPage() {
                 </div>
                 <button
                   type="button"
+                  className="touch-target"
                   onClick={() => openForm(null)}
                   disabled={!accountId}
                   style={{
@@ -332,10 +340,11 @@ export default function ApprovalRulesPage() {
               </div>
             )
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll">
               <table
                 style={{
                   width: '100%',
+                  minWidth: '840px',
                   borderCollapse: 'collapse',
                   textAlign: 'left',
                   fontSize: '0.84rem',
@@ -508,13 +517,12 @@ export default function ApprovalRulesPage() {
                           }}
                         >
                           <div
-                            style={{
-                              display: 'inline-flex',
-                              gap: '6px',
-                            }}
+                            className="row-wrap"
+                            style={{ justifyContent: 'flex-end' }}
                           >
                             <button
                               type="button"
+                              className="touch-target"
                               onClick={() => openForm(rule)}
                               style={{
                                 ...secondaryButton,
@@ -527,6 +535,7 @@ export default function ApprovalRulesPage() {
                             </button>
                             <button
                               type="button"
+                              className="touch-target"
                               onClick={() => {
                                 setRetireError(null)
                                 setRetiring(rule)

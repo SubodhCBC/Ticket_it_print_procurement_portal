@@ -37,6 +37,7 @@ import {
   useProductMutations,
 } from '@/hooks/useProducts'
 import type { Product } from '@/types'
+import { formatMoney } from '@/lib/format'
 
 const PAGE_SIZE = 20
 
@@ -51,6 +52,59 @@ const thStyle = (
   whiteSpace: 'nowrap',
   textAlign: align,
 })
+
+const THUMB_SIZE = 40
+
+/**
+ * A row's picture, or a neutral square where one would be.
+ *
+ * `thumbnailUrl` is optional on a product and often unset on one an operator
+ * has only just created, so an unguarded `<img>` rendered the browser's broken
+ * -image glyph down the whole first column. `onError` covers the other half of
+ * the problem: a URL that is set but no longer resolves (an asset deleted from
+ * storage) fails at load time, not at render time. Same approach as the shop's
+ * `ProductCard`.
+ */
+function ProductThumb({ src, name }: { src?: string; name: string }) {
+  const [failed, setFailed] = useState(false)
+  const box: React.CSSProperties = {
+    width: `${THUMB_SIZE}px`,
+    height: `${THUMB_SIZE}px`,
+    borderRadius: '10px',
+    border: '1px solid #F0E6EC',
+    flexShrink: 0,
+  }
+
+  if (!src || failed) {
+    return (
+      <div
+        role="img"
+        aria-label={`${name}: no picture`}
+        title={`${name}: no picture`}
+        style={{
+          ...box,
+          backgroundColor: '#FCF7FA',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#CFC6D6',
+        }}
+      >
+        <Package size={18} />
+      </div>
+    )
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={`Thumbnail of ${name}`}
+      onError={() => setFailed(true)}
+      style={{ ...box, objectFit: 'cover' }}
+    />
+  )
+}
 
 const iconButton: React.CSSProperties = {
   width: '32px',
@@ -184,8 +238,8 @@ export default function ProductsCataloguePage() {
   return (
     <>
       <AdminHeader
-        title="Product Catalogue & DAM"
-        subtitle="Manage collateral products, packaging specifications, MOQ rules, and pricing"
+        title="Products"
+        subtitle="Products, packaging specifications, MOQ rules and pricing"
         actionButton={
           canManage ? (
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -249,8 +303,9 @@ export default function ProductsCataloguePage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -260,18 +315,16 @@ export default function ProductsCataloguePage() {
 
         {/* Filter Bar */}
         <div
+          className="row-wrap"
           style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '14px',
             boxShadow:
               '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
-            padding: '16px 20px',
-            display: 'flex',
-            alignItems: 'center',
+            paddingBlock: '16px',
+            paddingInline: '20px',
             justifyContent: 'space-between',
-            gap: '12px',
             border: '1px solid #F0E6EC',
-            flexWrap: 'wrap',
           }}
         >
           <div
@@ -283,13 +336,15 @@ export default function ProductsCataloguePage() {
               border: '1px solid #F0E6EC',
               borderRadius: '10px',
               padding: '8px 12px',
-              flex: '1',
-              minWidth: '240px',
+              flex: '1 1 200px',
+              minWidth: 0,
             }}
           >
             <Search size={16} color="#A39BB3" />
             <input
+              id="product-search"
               type="text"
+              aria-label="Search products"
               placeholder="Search products by name or SKU..."
               value={searchQuery}
               onChange={(e) => {
@@ -306,18 +361,21 @@ export default function ProductsCataloguePage() {
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
+          <div className="row-wrap" style={{ gap: '8px', flex: '1 1 160px' }}>
+            <label
+              htmlFor="product-category-filter"
               style={{ fontSize: '0.78rem', color: '#6E6781', fontWeight: 500 }}
             >
               Category:
-            </span>
+            </label>
             <select
+              id="product-category-filter"
               value={selectedCategory}
               onChange={(e) => {
                 setSelectedCategory(e.target.value)
                 setPage(1)
               }}
+              className="touch-target"
               style={{
                 padding: '8px 12px',
                 borderRadius: '10px',
@@ -325,6 +383,9 @@ export default function ProductsCataloguePage() {
                 fontSize: '0.84rem',
                 backgroundColor: '#FFFFFF',
                 color: '#2B253E',
+                flex: '1 1 auto',
+                minWidth: 0,
+                maxWidth: '100%',
               }}
             >
               <option value="All">
@@ -338,18 +399,21 @@ export default function ProductsCataloguePage() {
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
+          <div className="row-wrap" style={{ gap: '8px', flex: '1 1 160px' }}>
+            <label
+              htmlFor="product-status-filter"
               style={{ fontSize: '0.78rem', color: '#6E6781', fontWeight: 500 }}
             >
               Status:
-            </span>
+            </label>
             <select
+              id="product-status-filter"
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value as Product['status'] | 'ALL')
                 setPage(1)
               }}
+              className="touch-target"
               style={{
                 padding: '8px 12px',
                 borderRadius: '10px',
@@ -357,6 +421,9 @@ export default function ProductsCataloguePage() {
                 fontSize: '0.84rem',
                 backgroundColor: '#FFFFFF',
                 color: '#2B253E',
+                flex: '1 1 auto',
+                minWidth: 0,
+                maxWidth: '100%',
               }}
             >
               <option value="ALL">All Statuses</option>
@@ -401,10 +468,11 @@ export default function ProductsCataloguePage() {
               description="Try adjusting your search query or filters."
             />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll">
               <table
                 style={{
                   width: '100%',
+                  minWidth: '880px',
                   borderCollapse: 'collapse',
                   textAlign: 'left',
                   fontSize: '0.84rem',
@@ -449,19 +517,11 @@ export default function ProductsCataloguePage() {
                               gap: '12px',
                             }}
                           >
-                            <img
+                            <ProductThumb
                               src={prod.thumbnailUrl}
-                              alt={prod.name}
-                              style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '10px',
-                                objectFit: 'cover',
-                                border: '1px solid #F0E6EC',
-                                flexShrink: 0,
-                              }}
+                              name={prod.name}
                             />
-                            <div>
+                            <div style={{ minWidth: 0 }}>
                               <Link
                                 href={`/admin/catalogue/products/${prod.id}`}
                                 style={{
@@ -471,20 +531,24 @@ export default function ProductsCataloguePage() {
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: '6px',
+                                  minWidth: 0,
                                 }}
                               >
-                                <span>{prod.name}</span>
-                                <ExternalLink size={12} color="#A39BB3" />
+                                <span className="truncate">{prod.name}</span>
+                                <ExternalLink
+                                  size={12}
+                                  color="#A39BB3"
+                                  style={{ flexShrink: 0 }}
+                                />
                               </Link>
                               <div
+                                className="truncate"
+                                title={prod.description}
                                 style={{
                                   fontSize: '0.76rem',
                                   color: '#A39BB3',
                                   marginTop: '2px',
                                   maxWidth: '320px',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
                                 }}
                               >
                                 {prod.description}
@@ -525,7 +589,7 @@ export default function ProductsCataloguePage() {
                             color: '#2B253E',
                           }}
                         >
-                          ${prod.basePrice.toFixed(2)}
+                          {formatMoney(prod.basePrice)}
                         </td>
                         <td style={{ padding: '12px 14px' }}>
                           <StatusPill status={prod.status} />
@@ -544,6 +608,7 @@ export default function ProductsCataloguePage() {
                             <Link
                               href={`/admin/catalogue/products/${prod.id}`}
                               title="View Full Details"
+                              className="touch-target"
                               style={iconButton}
                             >
                               <Eye size={14} />
@@ -560,6 +625,7 @@ export default function ProductsCataloguePage() {
                                   }
                                   title="Edit Product"
                                   disabled={prod.status === 'SUPERSEDED'}
+                                  className="touch-target"
                                   style={{
                                     ...iconButton,
                                     opacity:
@@ -582,6 +648,7 @@ export default function ProductsCataloguePage() {
                                         ? 'Archive (mark unavailable)'
                                         : 'Already archived — manage it from the product page'
                                   }
+                                  className="touch-target"
                                   style={{
                                     ...iconButton,
                                     color: '#DC2626',

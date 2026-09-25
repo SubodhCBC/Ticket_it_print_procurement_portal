@@ -33,14 +33,14 @@ export function errorMessage(error: unknown, fallback: string): string {
     }
     return error.message || fallback
   }
-  if (error instanceof Error && error.message) return error.message
+  // Anything that is not an ApiError is a transport or programming fault whose
+  // text ("Failed to fetch", "Unexpected token <") is for the console, not for
+  // an administrator who wants to know what to do next.
+  if (error) console.error('Catalogue request failed:', error)
   return fallback
 }
 
-export function formatMoney(value: string | number | null | undefined): string {
-  const amount = Number(value ?? 0)
-  return `$${Number.isFinite(amount) ? amount.toFixed(2) : '0.00'}`
-}
+// Money and dates are formatted by `@/lib/format`; import them from there.
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -48,12 +48,6 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024)
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
-
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
 }
 
 /** "Category Code", "category_code" and "categoryCode" all read the same. */

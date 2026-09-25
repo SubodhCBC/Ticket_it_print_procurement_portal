@@ -11,7 +11,7 @@ import {
   Truck,
 } from 'lucide-react'
 import type { ProductOptionAxis } from '@/types'
-import { money } from './order-options'
+import { formatMoney } from '@/lib/format'
 import {
   OVERLAY_CLASS,
   T,
@@ -69,7 +69,7 @@ const selectStyle = {
 } as const
 
 const addOn = (price: number | undefined) =>
-  price && price > 0 ? `+${money(price)}` : 'Included'
+  price && price > 0 ? `+${formatMoney(price)}` : 'Included'
 
 export function FinalStepsPanel({
   headingId,
@@ -93,6 +93,7 @@ export function FinalStepsPanel({
         <button
           type="button"
           onClick={onBack}
+          className="touch-target"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -265,6 +266,7 @@ export function FinalStepsPanel({
                   id={`${headingId}-quantity`}
                   value={packs}
                   onChange={(e) => onPacksChange(Number(e.target.value))}
+                  className="touch-target"
                   style={selectStyle}
                 >
                   {packChoices.map((choice) => (
@@ -369,6 +371,7 @@ export function FinalStepsPanel({
                     id={`${headingId}-axis-${axis.id}`}
                     value={options[axis.name] ?? ''}
                     onChange={(e) => onOptionChange(axis.name, e.target.value)}
+                    className="touch-target"
                     style={selectStyle}
                   >
                     {axis.values.map((value) => {
@@ -376,7 +379,9 @@ export function FinalStepsPanel({
                       return (
                         <option key={value} value={value}>
                           {value}
-                          {price && price > 0 ? ` (+${money(price)})` : ''}
+                          {price && price > 0
+                            ? ` (+${formatMoney(price)})`
+                            : ''}
                         </option>
                       )
                     })}
@@ -431,7 +436,14 @@ export function FinalStepsPanel({
           >
             <span style={{ color: T.secondary }}>{row.label}</span>
             <span
-              style={{ color: T.text, fontWeight: 600, textAlign: 'right' }}
+              style={{
+                color: T.text,
+                fontWeight: 600,
+                textAlign: 'right',
+                // A long stock name wraps inside its own half of the row
+                // instead of widening the card on a phone.
+                minWidth: 0,
+              }}
             >
               {row.value}
             </span>
@@ -510,7 +522,7 @@ export function OrderBar({
                 lineHeight: 1.2,
               }}
             >
-              {total != null ? money(total) : 'Priced in your cart'}
+              {total != null ? formatMoney(total) : 'Priced in your cart'}
             </span>
             {eachLine && (
               <span style={{ fontSize: '0.78rem', color: T.secondary }}>
@@ -559,6 +571,7 @@ export function OrderBar({
               onClick={onSubmit}
               disabled={disabled || busy}
               aria-busy={busy}
+              className="touch-target"
               style={{
                 ...primaryButton(disabled || busy),
                 padding: '12px 26px',
@@ -674,7 +687,12 @@ export function AddedPanel({
           >
             <span style={{ color: T.secondary }}>{row.label}</span>
             <span
-              style={{ color: T.text, fontWeight: 600, textAlign: 'right' }}
+              style={{
+                color: T.text,
+                fontWeight: 600,
+                textAlign: 'right',
+                minWidth: 0,
+              }}
             >
               {row.value}
             </span>
@@ -694,7 +712,7 @@ export function AddedPanel({
           >
             <span style={{ color: T.text, fontWeight: 600 }}>Item total</span>
             <span style={{ color: T.text, fontWeight: 700 }}>
-              {money(total)}
+              {formatMoney(total)}
             </span>
           </div>
         )}
@@ -703,6 +721,7 @@ export function AddedPanel({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <Link
           href="/shop/cart"
+          className="touch-target"
           style={{
             ...primaryButton(),
             width: '100%',
@@ -714,6 +733,7 @@ export function AddedPanel({
         </Link>
         <Link
           href="/shop/templates"
+          className="touch-target"
           style={{
             ...secondaryButton(),
             width: '100%',
@@ -726,6 +746,7 @@ export function AddedPanel({
         <button
           type="button"
           onClick={onKeepEditing}
+          className="touch-target"
           style={{
             background: 'none',
             border: 'none',

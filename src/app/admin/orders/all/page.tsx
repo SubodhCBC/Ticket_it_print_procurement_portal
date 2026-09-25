@@ -2,6 +2,7 @@
 'use client'
 
 import { SkeletonTable } from '@/components/ui/Skeleton'
+import { EmptyState, ErrorState } from '@/components/ui/TableState'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ShoppingCart, Search, ExternalLink, Truck, Eye } from 'lucide-react'
@@ -13,6 +14,7 @@ import { Pager } from '@/components/ui/Pager'
 import { ReportDownloadButtons } from '@/components/reports/ReportDownloadButtons'
 import type { Order, OrderStatus } from '@/types'
 import { useAuth } from '@/hooks/useAuth'
+import { formatMoney, formatDate } from '@/lib/format'
 
 /** A column label, as on the admin dashboard: grey, regular weight, no band. */
 const th: React.CSSProperties = {
@@ -50,6 +52,7 @@ export default function AllOrdersPage() {
     data: ordersData,
     isLoading,
     isFetching,
+    error: ordersError,
     refetch,
   } = useOrders({
     status: selectedStatus,
@@ -90,10 +93,10 @@ export default function AllOrdersPage() {
   return (
     <>
       <AdminHeader
-        title="Live Orders & Fulfilment Log"
-        subtitle="Operational command center: monitor branch orders, inspect line items, assign dispatch tracking"
+        title="All orders"
+        subtitle="Every order across all accounts, with line items and dispatch tracking"
         actionButton={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap" style={{ gap: '8px' }}>
             {/* Every matching order from the server, not the page showing.
                 Search is not an export filter; status is. */}
             <ReportDownloadButtons
@@ -129,8 +132,9 @@ export default function AllOrdersPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -138,6 +142,7 @@ export default function AllOrdersPage() {
       >
         {/* Status Filter Tabs & Search Bar */}
         <div
+          className="row-wrap"
           style={{
             backgroundColor: '#FFFFFF',
             border: '1px solid #F0E6EC',
@@ -145,19 +150,17 @@ export default function AllOrdersPage() {
             boxShadow:
               '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
             padding: '12px 16px',
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
             gap: '12px',
-            flexWrap: 'wrap',
           }}
         >
           {/* Status Pills Tabs. The selected tab is told apart by its white
-              face and pink label; it no longer needs a shadow to lift it. */}
+              face and pink label; it no longer needs a shadow to lift it.
+              Five tabs in one unwrapping row pushed "Delivered" off a 360px
+              screen, so the strip wraps to a second line instead. */}
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
-              alignItems: 'center',
               gap: '2px',
               backgroundColor: '#F5EEF2',
               padding: '3px',
@@ -169,6 +172,7 @@ export default function AllOrdersPage() {
               return (
                 <button
                   key={tab.id}
+                  className="touch-target"
                   type="button"
                   onClick={() => {
                     setSelectedStatus(tab.id)
@@ -190,7 +194,8 @@ export default function AllOrdersPage() {
             })}
           </div>
 
-          {/* Search Box */}
+          {/* Search Box. The 280px floor was wider than the room left on a
+              phone, so the field grows and shrinks with the bar instead. */}
           <div
             style={{
               display: 'flex',
@@ -200,7 +205,8 @@ export default function AllOrdersPage() {
               border: '1px solid #F0E6EC',
               borderRadius: '10px',
               padding: '8px 12px',
-              minWidth: '280px',
+              flex: '1 1 200px',
+              minWidth: 0,
             }}
           >
             <Search size={16} color="#A39BB3" />
@@ -216,6 +222,7 @@ export default function AllOrdersPage() {
                 fontSize: '0.84rem',
                 color: '#2B253E',
                 width: '100%',
+                minWidth: 0,
               }}
             />
           </div>
@@ -234,29 +241,35 @@ export default function AllOrdersPage() {
         >
           {isLoading ? (
             <SkeletonTable rows={10} columns={7} label="Loading orders" />
+          ) : ordersError ? (
+            // Ahead of the empty check on purpose: a failed request used to
+            // fall through to "No orders matching current filter", which reads
+            // as a filter that found nothing rather than a service that is
+            // down.
+            <ErrorState
+              title="Orders could not be loaded"
+              detail="The orders service did not respond. Your filters are still set — try again."
+              error={ordersError}
+              onRetry={() => refetch()}
+            />
           ) : !ordersData?.items.length ? (
-            <div
-              style={{
-                padding: '32px',
-                textAlign: 'center',
-                color: '#A39BB3',
-                fontSize: '0.84rem',
-              }}
-            >
-              <ShoppingCart
-                size={24}
-                color="#DCD3E0"
-                style={{ margin: '0 auto 8px auto' }}
-              />
-              <div style={{ fontWeight: 500, color: '#6E6781' }}>
-                No orders matching current filter
-              </div>
-            </div>
+            <EmptyState
+              icon={ShoppingCart}
+              title="No orders matching current filter"
+              detail={
+                selectedStatus === 'ALL' && !search
+                  ? 'Orders placed by any site appear here as soon as they are submitted.'
+                  : 'Try another status tab, or clear the search to see every order.'
+              }
+            />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            // Eight columns cannot fit a phone: the table keeps its width and
+            // scrolls inside the card rather than widening the page.
+            <div className="table-scroll">
               <table
                 style={{
                   width: '100%',
+                  minWidth: '960px',
                   borderCollapse: 'collapse',
                   textAlign: 'left',
                   fontSize: '0.84rem',
@@ -266,7 +279,7 @@ export default function AllOrdersPage() {
                   <tr>
                     <th style={thEdge}>Order #</th>
                     <th style={th}>Date Placed</th>
-                    <th style={th}>Branch & Org</th>
+                    <th style={th}>Site & account</th>
                     <th style={th}>PO Reference</th>
                     <th style={th}>Status</th>
                     <th style={th}>Logistics / Waybill</th>
@@ -279,6 +292,17 @@ export default function AllOrdersPage() {
                     <tr
                       key={order.id}
                       onClick={() => handleOpenOrder(order)}
+                      tabIndex={0}
+                      aria-label={`Open order ${order.orderNumber}`}
+                      onKeyDown={(e) => {
+                        // Only the row's own keystrokes: a link or button
+                        // inside it must not also open the dialog.
+                        if (e.target !== e.currentTarget) return
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleOpenOrder(order)
+                        }
+                      }}
                       style={{
                         borderTop: '1px solid #F5EEF2',
                         cursor: 'pointer',
@@ -314,7 +338,7 @@ export default function AllOrdersPage() {
                         </Link>
                       </td>
                       <td style={{ padding: '12px 14px', color: '#6E6781' }}>
-                        {new Date(order.createdAt).toLocaleDateString()}
+                        {formatDate(order.createdAt)}
                       </td>
                       <td style={{ padding: '12px 14px', color: '#2B253E' }}>
                         <div>{order.siteName}</div>
@@ -364,7 +388,7 @@ export default function AllOrdersPage() {
                           color: '#2B253E',
                         }}
                       >
-                        ${order.totalAmount.toFixed(2)}
+                        {formatMoney(order.totalAmount)}
                       </td>
                       <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                         {isAdmin ? (
@@ -398,6 +422,7 @@ export default function AllOrdersPage() {
                               <span>Full Details</span>
                             </Link>
                             <button
+                              className="touch-target"
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation()

@@ -6,7 +6,8 @@ import { useState } from 'react'
 import { CheckCircle2, MapPin, RefreshCw, Truck } from 'lucide-react'
 import { toApiError } from '@/services'
 import { useOrderTracking, useShippingMutations } from '@/hooks/useShipping'
-import { formatDateTime, panelStyles as s } from './shipping-format'
+import { formatDateTime } from '@/lib/format'
+import { panelStyles as s } from './shipping-format'
 
 /**
  * An order's NZ Post tracking, newest scan first (decision D5).
@@ -71,22 +72,14 @@ export function TrackingTimeline({
 
   const content = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
         <h3
           style={{ ...s.title, display: 'flex', alignItems: 'center', gap: 8 }}
         >
           <Truck size={16} color="#A39BB3" />
           Courier Tracking
         </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="row-wrap">
           {delivered && (
             <span
               style={{
@@ -109,6 +102,7 @@ export function TrackingTimeline({
               type="button"
               onClick={() => void refresh()}
               disabled={isRefreshing}
+              className="touch-target"
               style={{ ...s.button, opacity: isRefreshing ? 0.5 : 1 }}
             >
               <RefreshCw
@@ -147,7 +141,15 @@ export function TrackingTimeline({
             {(references.length > 0 || tracking.trackingNumber) && (
               <>
                 {' · '}
-                <span style={{ fontFamily: 'monospace', color: '#2B253E' }}>
+                {/* Several references run past a phone's width: they wrap
+                    rather than widening the card. */}
+                <span
+                  style={{
+                    fontFamily: 'monospace',
+                    color: '#2B253E',
+                    overflowWrap: 'anywhere',
+                  }}
+                >
                   {references.length > 0
                     ? references.join(', ')
                     : tracking.trackingNumber}
@@ -177,7 +179,9 @@ export function TrackingTimeline({
                   key={`${event.trackingReference}-${event.occurredAt}-${index}`}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '14px 1fr',
+                    // minmax(0, …) so a long depot or signature line wraps
+                    // instead of pushing the column past the card.
+                    gridTemplateColumns: '14px minmax(0, 1fr)',
                     gap: '10px',
                     paddingBottom:
                       index === tracking.events.length - 1 ? 0 : '12px',
@@ -198,11 +202,23 @@ export function TrackingTimeline({
                           : '#DCD3E0',
                     }}
                   />
-                  <div style={{ fontSize: '0.8rem' }}>
-                    <div style={{ color: '#2B253E', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.8rem', minWidth: 0 }}>
+                    <div
+                      style={{
+                        color: '#2B253E',
+                        fontWeight: 600,
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
                       {event.description ?? event.status ?? 'Scanned'}
                     </div>
-                    <div style={{ color: '#A39BB3', fontSize: '0.74rem' }}>
+                    <div
+                      style={{
+                        color: '#A39BB3',
+                        fontSize: '0.74rem',
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
                       {formatDateTime(event.occurredAt)}
                       {event.depotName && (
                         <>

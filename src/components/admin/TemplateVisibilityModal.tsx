@@ -241,8 +241,8 @@ export function TemplateVisibilityModal({
           border: `1px solid ${isSelected ? '#F73582' : '#F0E6EC'}`,
           backgroundColor: isSelected ? '#FDE8F1' : '#FFFFFF',
           cursor: isPending ? 'not-allowed' : 'pointer',
-          flex: 1,
-          minWidth: '180px',
+          flex: '1 1 200px',
+          minWidth: 0,
         }}
       >
         <input
@@ -348,7 +348,7 @@ export function TemplateVisibilityModal({
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="row-wrap" style={{ alignItems: 'stretch' }}>
               {radioCard(
                 'ALL_ACCOUNTS',
                 'All accounts',
@@ -564,11 +564,13 @@ export function TemplateVisibilityModal({
                       return (
                         <label
                           key={account.id}
+                          className="touch-target"
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '10px',
                             padding: '8px 12px',
+                            minWidth: 0,
                             borderBottom: '1px solid #F5EEF2',
                             cursor: disabled ? 'not-allowed' : 'pointer',
                             opacity: disabled && !checked ? 0.5 : 1,
@@ -583,6 +585,8 @@ export function TemplateVisibilityModal({
                             style={{ accentColor: '#F73582' }}
                           />
                           <span
+                            className="truncate"
+                            title={account.name}
                             style={{
                               flex: 1,
                               fontSize: '0.82rem',
@@ -641,9 +645,7 @@ export function TemplateVisibilityModal({
           </div>
         )}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
             onClick={onClose}

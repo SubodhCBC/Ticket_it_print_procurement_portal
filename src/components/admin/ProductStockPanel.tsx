@@ -148,6 +148,7 @@ export function ProductStockPanel({
             Variant stock
           </div>
           <AdminTable
+            minWidth={680}
             head={
               <>
                 <Th first>Variant SKU</Th>
@@ -405,9 +406,7 @@ function StockAdjustmentDialog({
 
         {error && <Notice tone="error">{error}</Notice>}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <ActionButton onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>

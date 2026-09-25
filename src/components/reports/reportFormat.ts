@@ -2,39 +2,7 @@
 
 /** Small formatting helpers shared by the report screens. */
 
-export function formatMoney(value: string | number | null | undefined): string {
-  const amount = Number(value ?? 0)
-  return `$${(Number.isFinite(amount) ? amount : 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
-
-export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-      })
-}
-
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-}
+// Money and dates are formatted by `@/lib/format`; import them from there.
 
 export function formatHours(hours: number | null | undefined): string {
   if (hours === null || hours === undefined || !Number.isFinite(hours))

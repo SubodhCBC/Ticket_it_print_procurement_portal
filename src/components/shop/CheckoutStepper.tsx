@@ -7,24 +7,31 @@ import { Check } from 'lucide-react'
 export function CheckoutStepper() {
   const pathname = usePathname()
 
+  // `short` is what a phone shows instead of the full label: three columns of
+  // "Branch & PO reference" at 360px is four wrapped lines of stepper above the
+  // step the buyer is actually filling in. The sublabel is a gloss on the
+  // label, so a phone drops it rather than stacking two truncated lines.
   const steps = [
     {
       id: 'details',
-      label: 'Site & PO Reference',
+      label: 'Branch & PO reference',
+      short: 'Details',
       sublabel: 'Account details',
       href: '/shop/checkout/details',
       number: 1,
     },
     {
       id: 'delivery',
-      label: 'Delivery & Addresses',
+      label: 'Delivery & addresses',
+      short: 'Delivery',
       sublabel: 'Bill-to & Ship-to',
       href: '/shop/checkout/delivery',
       number: 2,
     },
     {
       id: 'review',
-      label: 'Review & Submit',
+      label: 'Review & submit',
+      short: 'Review',
       sublabel: 'On-account checkout',
       href: '/shop/checkout/review',
       number: 3,
@@ -128,6 +135,7 @@ export function CheckoutStepper() {
 
               <div style={{ marginTop: '6px', textAlign: 'center' }}>
                 <span
+                  className="hide-sm"
                   style={{
                     fontSize: '0.78rem',
                     fontWeight: isCurrent ? 600 : 500,
@@ -142,6 +150,22 @@ export function CheckoutStepper() {
                   {step.label}
                 </span>
                 <span
+                  className="show-sm"
+                  style={{
+                    fontSize: '0.78rem',
+                    fontWeight: isCurrent ? 600 : 500,
+                    display: 'block',
+                    color: isCurrent
+                      ? '#2B253E'
+                      : isCompleted
+                        ? '#6E6781'
+                        : '#A39BB3',
+                  }}
+                >
+                  {step.short}
+                </span>
+                <span
+                  className="hide-sm"
                   style={{
                     fontSize: '0.72rem',
                     color: '#A39BB3',

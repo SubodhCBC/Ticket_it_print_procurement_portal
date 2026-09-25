@@ -24,13 +24,8 @@ import type {
   ApprovalActivityParams,
 } from '@/services/data-source/api/governance.types'
 import { ReportDownloadButtons } from './ReportDownloadButtons'
-import {
-  dateInputToIso,
-  formatDateTime,
-  formatHours,
-  formatMoney,
-  OUTCOME_LABELS,
-} from './reportFormat'
+import { formatDateTime, formatMoney } from '@/lib/format'
+import { dateInputToIso, formatHours, OUTCOME_LABELS } from './reportFormat'
 
 const OUTCOME_COLOURS: Record<ApiApprovalOutcome, string> = {
   APPROVED: '#047857',
@@ -88,11 +83,8 @@ export function ApprovalActivityReport({
           }
         />
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '180px', gap: '12px' } as React.CSSProperties}
         >
           <Field label="From" htmlFor="approval-from">
             <TextInput
@@ -159,7 +151,7 @@ export function ApprovalActivityReport({
         <AdminCard>
           <SkeletonTable
             rows={6}
-            columns={6}
+            columns={7}
             label="Loading approval activity"
           />
         </AdminCard>
@@ -175,11 +167,8 @@ export function ApprovalActivityReport({
           <AdminCard>
             <SectionHeading title="Summary" />
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                gap: '12px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '150px', gap: '12px' } as React.CSSProperties}
             >
               <StatTile label="Decisions" value={data.totals.decisions} />
               <StatTile
@@ -277,9 +266,12 @@ export function ApprovalActivityReport({
               <AdminTable
                 head={
                   <>
-                    <Th first>Decided</Th>
-                    <Th>Order</Th>
-                    <Th>Branch</Th>
+                    {/* The order number leads the row: a bare timestamp in the
+                        first column told the reader nothing once the table was
+                        scrolled sideways on a phone. */}
+                    <Th first>Order</Th>
+                    <Th>Decided</Th>
+                    <Th>Site</Th>
                     <Th align="right">Total</Th>
                     <Th>Approver</Th>
                     <Th>Route</Th>
@@ -294,10 +286,7 @@ export function ApprovalActivityReport({
                     key={`${row.orderId}-${row.tier ?? 'hold'}-${index}`}
                     style={{ borderTop: '1px solid #F5EEF2' }}
                   >
-                    <Td first style={{ whiteSpace: 'nowrap' }}>
-                      {formatDateTime(row.decidedAt)}
-                    </Td>
-                    <Td>
+                    <Td first>
                       <Link
                         href={orderHref(row.orderId)}
                         style={{
@@ -309,6 +298,9 @@ export function ApprovalActivityReport({
                       >
                         {row.orderNumber}
                       </Link>
+                    </Td>
+                    <Td style={{ whiteSpace: 'nowrap' }}>
+                      {formatDateTime(row.decidedAt)}
                     </Td>
                     <Td>
                       {row.siteName}{' '}

@@ -28,7 +28,8 @@ import {
   TextInput,
 } from './ProductAdminUi'
 import { FIELD_RED } from '@/components/ui/FormField'
-import { errorMessage, formatMoney, MONEY_PATTERN } from './ProductAdminUtils'
+import { formatMoney } from '@/lib/format'
+import { errorMessage, MONEY_PATTERN } from './ProductAdminUtils'
 import { ProductOptionAxesEditor } from './ProductOptionAxesEditor'
 
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
@@ -92,7 +93,7 @@ export function ProductVariantsPanel({
     <AdminCard>
       {!canManage && (
         <ReadOnlyNotice>
-          Editing options and variants needs the Catalog Manage permission.
+          Editing options and variants needs the Catalogue Manage permission.
         </ReadOnlyNotice>
       )}
 
@@ -137,6 +138,7 @@ export function ProductVariantsPanel({
         />
       ) : (
         <AdminTable
+          minWidth={780}
           head={
             <>
               <Th first>SKU</Th>
@@ -471,9 +473,7 @@ function AddVariantDialog({
 
         {error && <Notice tone="error">{error}</Notice>}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <ActionButton onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>
@@ -652,9 +652,7 @@ function EditVariantDialog({
 
         {error && <Notice tone="error">{error}</Notice>}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <ActionButton onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>

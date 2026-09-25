@@ -63,15 +63,7 @@ export default function ShopTemplateGalleryPage() {
     >
       {/* 1. Page header. The site chip and the two reassurances from the old
           banner stay, as the lead of the description and a line of grey meta. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="stack-sm" style={{ justifyContent: 'space-between' }}>
         <div style={{ minWidth: 0, maxWidth: '680px' }}>
           <h1
             style={{
@@ -84,9 +76,9 @@ export default function ShopTemplateGalleryPage() {
           >
             {productId
               ? productName
-                ? `Designs For ${productName}`
-                : 'Designs For This Product'
-              : 'Design Template Library — Signs, Posters & Banners'}
+                ? `Designs for ${productName}`
+                : 'Designs for this product'
+              : 'Design library'}
           </h1>
 
           <p
@@ -103,9 +95,8 @@ export default function ShopTemplateGalleryPage() {
                 : 'Your account'}
             </span>
             {' · '}
-            Choose a pre-approved professional master template. Personalize your
-            branch name, contact details, logo, and QR codes while adhering to
-            strict brand design guidelines.
+            Choose a pre-approved design, then personalise your branch name,
+            contact details, logo and QR codes within the brand guidelines.
           </p>
 
           {/* Filtered by a product, and saying so. A gallery that has quietly
@@ -113,8 +104,10 @@ export default function ShopTemplateGalleryPage() {
           {productId && (
             <Link
               href="/shop/templates"
+              className="touch-target"
               style={{
-                display: 'inline-block',
+                display: 'inline-flex',
+                alignItems: 'center',
                 marginTop: '8px',
                 fontSize: '0.8rem',
                 fontWeight: 600,
@@ -127,11 +120,8 @@ export default function ShopTemplateGalleryPage() {
           )}
 
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              flexWrap: 'wrap',
               marginTop: '8px',
               fontSize: '0.76rem',
               color: '#A39BB3',
@@ -139,20 +129,22 @@ export default function ShopTemplateGalleryPage() {
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <CheckCircle2 size={14} color="#A39BB3" />
-              Zero Site User Payment Required
+              No payment from your branch
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <CheckCircle2 size={14} color="#A39BB3" />
-              Submitted Direct to Head Office for Approval
+              Sent to Head Office for approval
             </span>
           </div>
         </div>
 
         <Link
           href="/shop/catalogue"
+          className="touch-target"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             padding: '8px 14px',
             borderRadius: '10px',
             backgroundColor: '#FFFFFF',
@@ -164,7 +156,7 @@ export default function ShopTemplateGalleryPage() {
             whiteSpace: 'nowrap',
           }}
         >
-          Browse Products Catalogue →
+          Browse the catalogue →
         </Link>
       </div>
 
@@ -182,20 +174,12 @@ export default function ShopTemplateGalleryPage() {
           gap: '12px',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
           <div
             style={{
               position: 'relative',
-              flex: 1,
-              minWidth: '260px',
+              flex: '1 1 220px',
+              minWidth: 0,
               maxWidth: '440px',
             }}
           >
@@ -211,9 +195,10 @@ export default function ShopTemplateGalleryPage() {
             />
             <input
               type="text"
-              placeholder="Search templates by product, occasion, or format..."
+              placeholder="Search designs by product, occasion or format..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              className="touch-target"
               style={{
                 width: '100%',
                 paddingLeft: '36px',
@@ -254,6 +239,7 @@ export default function ShopTemplateGalleryPage() {
             return (
               <button
                 key={cat}
+                className="touch-target"
                 onClick={() => setSelectedCategory(cat)}
                 style={{
                   padding: '5px 12px',
@@ -320,11 +306,8 @@ export default function ShopTemplateGalleryPage() {
         </div>
       ) : (
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '16px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '220px' } as React.CSSProperties}
         >
           {templates.map((tpl, index) => {
             const editableCount = tpl.layers.filter(
@@ -516,6 +499,7 @@ export default function ShopTemplateGalleryPage() {
                       style={{
                         display: 'flex',
                         alignItems: 'baseline',
+                        flexWrap: 'wrap',
                         gap: '8px',
                       }}
                     >
@@ -566,7 +550,7 @@ export default function ShopTemplateGalleryPage() {
                       style={{ flexShrink: 0, marginTop: '1px' }}
                     />
                     <span>
-                      {editableCount} Customizable Fields (Logo, Phone, Text,
+                      {editableCount} customisable fields (logo, phone, text,
                       QR)
                     </span>
                   </div>
@@ -574,6 +558,7 @@ export default function ShopTemplateGalleryPage() {
                   {/* Button */}
                   <Link
                     href={`/shop/templates/customize/${tpl.id}`}
+                    className="touch-target"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -596,7 +581,7 @@ export default function ShopTemplateGalleryPage() {
                       e.currentTarget.style.backgroundColor = '#F73582'
                     }}
                   >
-                    <span>Customize This Design</span>
+                    <span>Personalise this design</span>
                     <ArrowRight size={14} />
                   </Link>
                 </div>

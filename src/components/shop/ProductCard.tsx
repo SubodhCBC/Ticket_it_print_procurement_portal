@@ -7,12 +7,21 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { Eye, Tag, ShieldAlert, Palette, Package } from 'lucide-react'
 import type { EffectiveProduct } from '@/types'
-import { useTemplates } from '@/hooks/useTemplates'
 import { stockLabel } from './stock-label'
+import { packCount } from './cart/line-format'
 
 interface ProductCardProps {
   product: EffectiveProduct
   index?: number
+  /**
+   * How many published designs this product has, counted once by the page.
+   *
+   * `null` means "not known" — either the counts are still loading or the
+   * catalogue declined to count them — and the tile then says "Browse designs"
+   * rather than a number it cannot stand behind. It is deliberately NOT a
+   * query of this component's own: one per tile is 24 requests on a full page.
+   */
+  designCount?: number | null
 }
 
 /**
@@ -24,7 +33,11 @@ interface ProductCardProps {
  * designs for this product, and quoting the stock's own price here would be
  * quoting a number nobody is ever charged.
  */
-export function ProductCard({ product, index = 0 }: ProductCardProps) {
+export function ProductCard({
+  product,
+  index = 0,
+  designCount = null,
+}: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   // A tile with no picture says so, rather than borrowing a stock photo that
   // looks like the product and is not.
@@ -33,20 +46,6 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const stock = stockLabel(product)
 
   const isAvailable = product.status === 'ACTIVE'
-
-  // The real number of published designs for this product.
-  //
-  // The tile used to render `product.templatesCount || 4`, and no API has ever
-  // populated `templatesCount` — so every tile in the catalogue has always
-  // claimed four designs, whatever it actually had. Asking for a single row and
-  // reading the total is cheap, and now that the designs are the only way to
-  // order the product, the count is the tile's most important number.
-  const { total: designCountRaw, isLoading: designsLoading } = useTemplates({
-    productId: product.id,
-    status: 'PUBLISHED',
-    pageSize: 1,
-  })
-  const designCount = designsLoading ? null : designCountRaw
 
   return (
     <motion.div
@@ -268,13 +267,14 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: '8px',
+              minWidth: 0,
               fontSize: '0.74rem',
               fontFamily: 'monospace',
               color: '#A39BB3',
               marginBottom: '6px',
             }}
           >
-            <span>SKU: {product.sku}</span>
+            <span className="truncate">SKU: {product.sku}</span>
             <span
               style={{
                 fontFamily: 'inherit',
@@ -285,6 +285,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 padding: '2px 8px',
                 borderRadius: '9999px',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
               {product.packSize || `1 ${product.uom}`}
@@ -342,6 +343,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             <>
               <Link
                 href={`/shop/templates?product=${product.id}`}
+                className="touch-target"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -384,17 +386,19 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
               {/* Order rules mini pill */}
               {(product.moq > 1 || product.orderMultiple > 1) && (
                 <div
+                  className="row-wrap"
                   style={{
                     fontSize: '0.74rem',
                     color: '#A39BB3',
-                    display: 'flex',
-                    alignItems: 'center',
                     justifyContent: 'space-between',
                   }}
                 >
-                  <span>MOQ: {product.moq}</span>
+                  {/* Said the way a buyer would say it. "MOQ: 5" is the
+                      warehouse's shorthand for "you have to order at least
+                      five packs", and the tile is not read by the warehouse. */}
+                  <span>Minimum order {packCount(product.moq)}</span>
                   {product.orderMultiple > 1 && (
-                    <span>Multiple: {product.orderMultiple}</span>
+                    <span>Sold in {packCount(product.orderMultiple)}</span>
                   )}
                 </div>
               )}
@@ -411,7 +415,11 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
               {product.status === 'SUPERSEDED' && product.supersededBy ? (
                 <Link
                   href={`/shop/catalogue/${product.supersededBy.id}`}
+                  className="touch-target"
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     fontSize: '0.76rem',
                     fontWeight: 600,
                     color: '#F73582',

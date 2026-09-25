@@ -62,18 +62,18 @@ const field: React.CSSProperties = {
 }
 import { useAuth } from '@/hooks/useAuth'
 import { usePendingApprovals, useOrderMutations } from '@/hooks/useOrders'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { StatusPill } from '@/components/admin/StatusPill'
 import { ApprovalArtwork } from '@/components/approvals/ApprovalArtwork'
+import { TextField } from '@/components/ui/FormField'
 import type { Order, CorporatePaymentMethod } from '@/types'
-
-/** A statement reference for a payment, generated when the dialog opens. */
-function newStatementReference(): string {
-  return `CORP-STMT-${Math.floor(100000 + Math.random() * 900000)}`
-}
 
 export default function HeadOfficeApprovalsPage() {
   const { user } = useAuth()
   const accountId = user?.accountId ?? ''
+  // The one thing no toolkit class can say: the financial column's rule sits
+  // to its left beside the artwork, and above it once the card has stacked.
+  const isPhone = useMediaQuery('(max-width: 767px)')
 
   const { orders, isLoading, refetch } = usePendingApprovals(accountId)
   const { approveOrder, rejectOrder, requestChanges, payOrder, isPending } =
@@ -88,7 +88,15 @@ export default function HeadOfficeApprovalsPage() {
   const [actionNotes, setActionNotes] = useState('')
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<CorporatePaymentMethod>('CORPORATE_INVOICE')
+  /**
+   * The reference the payment actually carries on the corporate statement.
+   * It starts empty and stays empty until the approver types it: this box used
+   * to open pre-filled with a `CORP-STMT-…` number invented by `Math.random()`,
+   * which showed an approver a bank reference nobody had issued and recorded it
+   * against the order when they confirmed.
+   */
   const [paymentRefNumber, setPaymentRefNumber] = useState('')
+  const [paymentRefError, setPaymentRefError] = useState<string | null>(null)
   const [feedbackMessage, setFeedbackMessage] = useState<{
     type: 'success' | 'error'
     text: string
@@ -118,7 +126,8 @@ export default function HeadOfficeApprovalsPage() {
         'Approved by Head Office Financial Controller for procurement.'
       )
     } else if (type === 'PAY') {
-      setPaymentRefNumber(newStatementReference())
+      setPaymentRefNumber('')
+      setPaymentRefError(null)
     } else {
       setActionNotes('')
     }
@@ -127,6 +136,16 @@ export default function HeadOfficeApprovalsPage() {
   const handleConfirmAction = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedOrder || !actionType) return
+
+    // A settled payment is only auditable if the reference on it is the real
+    // one, so an empty box refuses here rather than being filled in for them.
+    const trimmedRef = paymentRefNumber.trim()
+    if (actionType === 'PAY' && !trimmedRef) {
+      setPaymentRefError(
+        'Enter the payment reference from the corporate statement or card authorisation.'
+      )
+      return
+    }
 
     try {
       const approverName = user?.name || 'Elena Rostova (Head Office)'
@@ -141,7 +160,7 @@ export default function HeadOfficeApprovalsPage() {
         await requestChanges(
           selectedOrder.id,
           approverName,
-          actionNotes || 'Please adjust branch address and quantities.'
+          actionNotes || 'Please adjust the site address and quantities.'
         )
         setFeedbackMessage({
           type: 'error',
@@ -149,11 +168,7 @@ export default function HeadOfficeApprovalsPage() {
         })
       } else if (actionType === 'PAY') {
         // The payer is the bearer token's answer, not the browser's.
-        await payOrder(
-          selectedOrder.id,
-          selectedPaymentMethod,
-          paymentRefNumber
-        )
+        await payOrder(selectedOrder.id, selectedPaymentMethod, trimmedRef)
         setFeedbackMessage({
           type: 'success',
           text: `Corporate payment settled for PO ${selectedOrder.poReference || selectedOrder.orderNumber}. Order sent to print production!`,
@@ -189,12 +204,10 @@ export default function HeadOfficeApprovalsPage() {
     >
       {/* 1. Header */}
       <div
+        className="stack-sm"
         style={{
-          display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-end',
           flexWrap: 'wrap',
-          gap: '12px',
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -210,10 +223,7 @@ export default function HeadOfficeApprovalsPage() {
             }}
           >
             <Building2 size={14} />
-            <span>
-              {user?.organization || 'Your account'} • Head Office Approvals &
-              Financial Control
-            </span>
+            <span>{user?.organization || 'Your account'} • Head Office</span>
           </div>
 
           <h1
@@ -225,14 +235,14 @@ export default function HeadOfficeApprovalsPage() {
               margin: 0,
             }}
           >
-            Purchase Order Approvals & Corporate Payments
+            Purchase order approvals
           </h1>
 
           <p
             style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}
           >
-            Step 9, 10 & 11: Review customized artwork proofs, approve purchase
-            orders, and authorize corporate payments to initiate production.
+            Review customised artwork proofs, approve purchase orders and
+            authorise payment so production can start.
           </p>
         </div>
 
@@ -299,6 +309,7 @@ export default function HeadOfficeApprovalsPage() {
           <span>{feedbackMessage.text}</span>
           <button
             onClick={() => setFeedbackMessage(null)}
+            className="touch-target"
             style={{
               background: 'none',
               border: 'none',
@@ -314,6 +325,7 @@ export default function HeadOfficeApprovalsPage() {
 
       {/* 2. Search & Filter Bar */}
       <div
+        className="row-wrap"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '14px',
@@ -321,18 +333,14 @@ export default function HeadOfficeApprovalsPage() {
             '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
           border: '1px solid #F0E6EC',
           padding: '14px 16px',
-          display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
         }}
       >
         <div
           style={{
             position: 'relative',
             flex: 1,
-            minWidth: '240px',
+            minWidth: '180px',
             maxWidth: '440px',
           }}
         >
@@ -348,6 +356,7 @@ export default function HeadOfficeApprovalsPage() {
           />
           <input
             type="text"
+            className="touch-target"
             placeholder="Search by PO #, Order ID, or Site Name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -431,13 +440,8 @@ export default function HeadOfficeApprovalsPage() {
               >
                 {/* Top Row: PO Meta & Status */}
                 <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '12px',
-                  }}
+                  className="row-wrap"
+                  style={{ justifyContent: 'space-between' }}
                 >
                   <div
                     style={{
@@ -481,18 +485,15 @@ export default function HeadOfficeApprovalsPage() {
                 {/* Middle Row: Artwork Thumbnail, Specifications & Financials.
                     A subtle fill rather than a second bordered card. */}
                 <div
+                  className="row-wrap"
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '80px 1fr 220px',
-                    gap: '16px',
                     backgroundColor: '#FCF7FA',
                     borderRadius: '10px',
                     padding: '14px',
-                    alignItems: 'center',
                   }}
                 >
                   {/* The order's own artwork and first line. */}
-                  <div style={{ gridColumn: 'span 2', minWidth: 0 }}>
+                  <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                     <ApprovalArtwork orderId={order.id} />
                     {order.deliveryNotes && (
                       <div
@@ -510,9 +511,19 @@ export default function HeadOfficeApprovalsPage() {
                   {/* Financials & Payer Note */}
                   <div
                     style={{
-                      textAlign: 'right',
-                      borderLeft: '1px solid #F0E6EC',
-                      paddingLeft: '16px',
+                      flex: '1 1 180px',
+                      minWidth: 0,
+                      textAlign: isPhone ? 'left' : 'right',
+                      ...(isPhone
+                        ? {
+                            width: '100%',
+                            borderTop: '1px solid #F0E6EC',
+                            paddingTop: '10px',
+                          }
+                        : {
+                            borderLeft: '1px solid #F0E6EC',
+                            paddingLeft: '16px',
+                          }),
                     }}
                   >
                     <span
@@ -553,16 +564,12 @@ export default function HeadOfficeApprovalsPage() {
 
                 {/* Bottom Row: Actions */}
                 <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '8px',
-                  }}
+                  className="row-wrap"
+                  style={{ justifyContent: 'flex-end' }}
                 >
                   <button
                     onClick={() => handleOpenAction(order, 'REJECT')}
+                    className="touch-target"
                     style={destructiveButton}
                   >
                     Reject PO
@@ -570,6 +577,7 @@ export default function HeadOfficeApprovalsPage() {
 
                   <button
                     onClick={() => handleOpenAction(order, 'CHANGES')}
+                    className="touch-target"
                     style={secondaryButton}
                   >
                     Request Changes
@@ -578,6 +586,7 @@ export default function HeadOfficeApprovalsPage() {
                   {!isApproved && (
                     <button
                       onClick={() => handleOpenAction(order, 'APPROVE')}
+                      className="touch-target"
                       style={primaryButton}
                     >
                       Approve PO
@@ -588,10 +597,12 @@ export default function HeadOfficeApprovalsPage() {
                       is approved — until then approval is the next step. */}
                   <button
                     onClick={() => handleOpenAction(order, 'PAY')}
+                    className="touch-target"
                     style={{
                       ...(isApproved ? primaryButton : secondaryButton),
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px',
                     }}
                   >
@@ -609,6 +620,7 @@ export default function HeadOfficeApprovalsPage() {
       <AnimatePresence>
         {selectedOrder && actionType && (
           <div
+            className="page-pad"
             style={{
               position: 'fixed',
               inset: 0,
@@ -617,7 +629,7 @@ export default function HeadOfficeApprovalsPage() {
               alignItems: 'center',
               justifyContent: 'center',
               zIndex: 1000,
-              padding: '24px',
+              paddingBlock: '16px',
             }}
           >
             <motion.div
@@ -625,6 +637,7 @@ export default function HeadOfficeApprovalsPage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.98, opacity: 0 }}
               transition={{ duration: 0.2 }}
+              className="dialog-cap"
               style={{
                 backgroundColor: '#FFFFFF',
                 borderRadius: '14px',
@@ -632,6 +645,7 @@ export default function HeadOfficeApprovalsPage() {
                 padding: '20px',
                 maxWidth: '560px',
                 width: '100%',
+                overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '20px',
@@ -640,6 +654,9 @@ export default function HeadOfficeApprovalsPage() {
             >
               <form
                 onSubmit={handleConfirmAction}
+                // The reference field owns its own error, under the field.
+                // Without this the browser's bubble gets there first.
+                noValidate
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -650,7 +667,9 @@ export default function HeadOfficeApprovalsPage() {
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    minWidth: 0,
                   }}
                 >
                   <h3
@@ -671,6 +690,8 @@ export default function HeadOfficeApprovalsPage() {
                   </h3>
                   <button
                     type="button"
+                    aria-label="Close"
+                    className="touch-target"
                     onClick={() => {
                       setSelectedOrder(null)
                       setActionType(null)
@@ -681,6 +702,7 @@ export default function HeadOfficeApprovalsPage() {
                       fontSize: '16px',
                       color: '#A39BB3',
                       cursor: 'pointer',
+                      flexShrink: 0,
                     }}
                   >
                     ✕
@@ -719,6 +741,7 @@ export default function HeadOfficeApprovalsPage() {
                       </label>
                       <select
                         value={selectedPaymentMethod}
+                        className="touch-target"
                         onChange={(e) =>
                           setSelectedPaymentMethod(
                             e.target.value as CorporatePaymentMethod
@@ -741,17 +764,22 @@ export default function HeadOfficeApprovalsPage() {
                       </select>
                     </div>
 
-                    <div>
-                      <label style={fieldLabel}>
-                        Payment Reference / Authorization Code
-                      </label>
-                      <input
-                        type="text"
-                        value={paymentRefNumber}
-                        onChange={(e) => setPaymentRefNumber(e.target.value)}
-                        style={field}
-                      />
-                    </div>
+                    <TextField
+                      id="payment-reference"
+                      name="paymentReference"
+                      label="Payment reference / authorisation code"
+                      type="text"
+                      isRequired
+                      autoComplete="off"
+                      value={paymentRefNumber}
+                      onChange={(e) => {
+                        setPaymentRefNumber(e.target.value)
+                        if (paymentRefError) setPaymentRefError(null)
+                      }}
+                      error={paymentRefError}
+                      placeholder="e.g. CORP-STMT-483927"
+                      hint="The reference as it appears on the corporate statement or card authorisation — not a number generated here."
+                    />
 
                     <div
                       style={{
@@ -762,7 +790,7 @@ export default function HeadOfficeApprovalsPage() {
                         color: '#3F9C68',
                       }}
                     >
-                      Authorizing this payment will immediately settle PO #
+                      Authorising this payment will immediately settle PO #
                       {selectedOrder.poReference} and transition the order to{' '}
                       <strong>&quot;Paid → In Production&quot;</strong>.
                     </div>
@@ -781,15 +809,12 @@ export default function HeadOfficeApprovalsPage() {
                 )}
 
                 <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: '8px',
-                    marginTop: '4px',
-                  }}
+                  className="row-wrap"
+                  style={{ justifyContent: 'flex-end', marginTop: '4px' }}
                 >
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => {
                       setSelectedOrder(null)
                       setActionType(null)
@@ -804,6 +829,7 @@ export default function HeadOfficeApprovalsPage() {
                   <button
                     type="submit"
                     disabled={isPending}
+                    className="touch-target"
                     style={{
                       ...primaryButton,
                       backgroundColor:

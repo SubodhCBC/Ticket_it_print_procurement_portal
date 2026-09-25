@@ -156,8 +156,8 @@ export default function CategoriesPage() {
   return (
     <>
       <AdminHeader
-        title="Catalogue Categories"
-        subtitle="Organize collateral types, packaging groups, and visibility classifications"
+        title="Catalogue categories"
+        subtitle="Organise product types, packaging groups and who can see them"
         actionButton={
           canManage ? (
             <ActionButton
@@ -176,8 +176,9 @@ export default function CategoriesPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -185,7 +186,8 @@ export default function CategoriesPage() {
       >
         {!canManage && (
           <ReadOnlyNotice>
-            Creating and editing categories needs the Catalog Manage permission.
+            Creating and editing categories needs the Catalogue Manage
+            permission.
           </ReadOnlyNotice>
         )}
 
@@ -204,11 +206,8 @@ export default function CategoriesPage() {
                 Add New Product Category
               </div>
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                  gap: '14px',
-                }}
+                className="grid-auto"
+                style={{ ['--min']: '200px' } as React.CSSProperties}
               >
                 <Field
                   label="Category Name *"
@@ -328,20 +327,18 @@ export default function CategoriesPage() {
 
         {/* Filters */}
         <div
+          className="row-wrap"
           style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '14px',
             boxShadow:
               '0 1px 2px rgba(43, 37, 62, 0.04), 0 6px 16px rgba(43, 37, 62, 0.05)',
-            padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '20px',
+            paddingBlock: '14px',
+            paddingInline: '20px',
             border: '1px solid #F0E6EC',
-            flexWrap: 'wrap',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap" style={{ gap: '8px' }}>
             <span
               style={{ fontSize: '0.78rem', color: '#6E6781', fontWeight: 500 }}
             >
@@ -349,7 +346,7 @@ export default function CategoriesPage() {
             </span>
             <SelectInput
               value={statusFilter}
-              style={{ width: 'auto' }}
+              style={{ width: 'auto', maxWidth: '100%' }}
               onChange={(e) =>
                 setStatusFilter(e.target.value as CatalogCategoryStatus | 'ALL')
               }
@@ -359,7 +356,7 @@ export default function CategoriesPage() {
               <option value="INACTIVE">Inactive only</option>
             </SelectInput>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap" style={{ gap: '8px' }}>
             <span
               style={{ fontSize: '0.78rem', color: '#6E6781', fontWeight: 500 }}
             >
@@ -367,7 +364,7 @@ export default function CategoriesPage() {
             </span>
             <SelectInput
               value={visibilityFilter}
-              style={{ width: 'auto' }}
+              style={{ width: 'auto', maxWidth: '100%' }}
               onChange={(e) =>
                 setVisibilityFilter(e.target.value as CatalogVisibility | 'ALL')
               }
@@ -437,11 +434,8 @@ export default function CategoriesPage() {
           </AdminCard>
         ) : (
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '16px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '260px' } as React.CSSProperties}
           >
             {categories.map((cat) => (
               <div
@@ -751,11 +745,8 @@ function EditCategoryDialog({
           />
         </Field>
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: '12px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '160px' } as React.CSSProperties}
         >
           <Field
             label="Sort order"
@@ -806,9 +797,7 @@ function EditCategoryDialog({
 
         {error && <Notice tone="error">{error}</Notice>}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <ActionButton onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>
@@ -1027,9 +1016,7 @@ function CategoryVisibilityDialog({
 
         {error && !confirming && <Notice tone="error">{error}</Notice>}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <ActionButton onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>

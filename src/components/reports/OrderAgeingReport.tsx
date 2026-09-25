@@ -21,12 +21,8 @@ import type {
   OrderAgeingParams,
 } from '@/services/data-source/api/governance.types'
 import { ReportDownloadButtons } from './ReportDownloadButtons'
-import {
-  formatDate,
-  formatDateTime,
-  formatMoney,
-  ORDER_STATUS_LABELS,
-} from './reportFormat'
+import { formatDate, formatDateTime, formatMoney } from '@/lib/format'
+import { ORDER_STATUS_LABELS } from './reportFormat'
 
 const OPEN_STATUSES: ApiOpenOrderStatus[] = [
   'PENDING_APPROVAL',
@@ -179,7 +175,7 @@ export function OrderAgeingReport({
                 <Th>Status</Th>
                 <Th align="right">Days in status</Th>
                 <Th align="right">Days open</Th>
-                <Th>Branch</Th>
+                <Th>Site</Th>
                 <Th>Placed by</Th>
                 <Th>PO</Th>
                 <Th align="right">Total</Th>

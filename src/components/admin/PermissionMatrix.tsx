@@ -158,9 +158,7 @@ export function PermissionMatrix() {
       {/* ── Header ── */}
       <div style={S.head}>
         <div>
-          <div style={S.title}>
-            Role-Based Access Control (RBAC) Governance Matrix
-          </div>
+          <div style={S.title}>What each role can do</div>
           <div style={S.subtitle}>
             The baseline each role carries. Compiled into the API — per-user
             departures are grants on the Users screen, not edits here.
@@ -173,7 +171,7 @@ export function PermissionMatrix() {
       </div>
 
       {/* ── Controls ── */}
-      <div style={S.controls}>
+      <div className="row-wrap" style={S.controls}>
         <div style={S.searchWrap}>
           <Search
             size={16}
@@ -198,6 +196,7 @@ export function PermissionMatrix() {
           onClick={() =>
             setOpen(allOpen ? new Set() : new Set(groups.map(([g]) => g)))
           }
+          className="touch-target"
           disabled={!catalog || Boolean(needle)}
           style={{
             ...S.ghostBtn,
@@ -225,6 +224,7 @@ export function PermissionMatrix() {
       {catalog && visible.length > 0 && (
         <div
           ref={scrollerRef}
+          className="table-scroll"
           style={{
             ...S.scroller,
             // Until the first measurement, unbounded: a wrong guess that
@@ -408,10 +408,6 @@ const S: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   controls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    flexWrap: 'wrap',
     padding: '12px 20px',
     borderBottom: '1px solid #F5EEF2',
   },
@@ -446,10 +442,15 @@ const S: Record<string, React.CSSProperties> = {
    * The matrix scrolls inside its own box, so the settings page keeps a fixed
    * height whatever the catalogue grows to and the tab rail stays in view. The
    * height itself is measured at runtime — see `maxHeight` above.
+   *
+   * Both axes: a column per role means five or six roles are already wider
+   * than a laptop, and scrolling only vertically pushed that overflow out onto
+   * the page, which then scrolled sideways as a whole.
    */
   scroller: { overflowY: 'auto' },
   table: {
     width: '100%',
+    minWidth: '760px',
     borderCollapse: 'collapse',
     textAlign: 'left',
     fontSize: '0.84rem',
@@ -473,13 +474,30 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     fontSize: '0.74rem',
   },
-  thName: { width: '46%', paddingLeft: '20px' },
+  thName: {
+    width: '46%',
+    minWidth: '260px',
+    paddingLeft: '20px',
+    position: 'sticky',
+    left: 0,
+    zIndex: 2,
+    backgroundColor: '#FFFFFF',
+    boxShadow: 'inset -1px 0 0 #F0E6EC, inset 0 -1px 0 #F0E6EC',
+  },
   thRole: { textAlign: 'center', width: '13.5%' },
   roleName: { fontWeight: 600, color: '#2B253E', fontSize: '0.76rem' },
   roleTally: { fontSize: '0.7rem', color: '#A39BB3', fontWeight: 500 },
 
   groupRow: { borderTop: '1px solid #F5EEF2' },
-  groupCell: { padding: '10px 14px 10px 20px', color: '#2B253E' },
+  groupCell: {
+    padding: '10px 14px 10px 20px',
+    color: '#2B253E',
+    position: 'sticky',
+    left: 0,
+    zIndex: 1,
+    backgroundColor: '#FFFFFF',
+    boxShadow: 'inset -1px 0 0 #F0E6EC, inset 0 1px 0 #F5EEF2',
+  },
   groupInner: { display: 'flex', alignItems: 'center', gap: '8px' },
   groupName: { fontWeight: 600, fontSize: '0.84rem' },
   groupCount: {
@@ -502,7 +520,14 @@ const S: Record<string, React.CSSProperties> = {
 
   row: { borderTop: '1px solid #F5EEF2' },
   // Indented to line up with the group name: 20px gutter, 14px chevron, 8px gap.
-  nameCell: { padding: '8px 14px 8px 42px' },
+  nameCell: {
+    padding: '8px 14px 8px 42px',
+    position: 'sticky',
+    left: 0,
+    zIndex: 1,
+    backgroundColor: '#FFFFFF',
+    boxShadow: 'inset -1px 0 0 #F0E6EC, inset 0 1px 0 #F5EEF2',
+  },
   permDesc: {
     fontSize: '0.74rem',
     color: '#A39BB3',

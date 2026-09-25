@@ -7,8 +7,8 @@ import { HeadOfficeReportScope } from '@/components/reports/ReportScopes'
 export default function HeadOfficeApprovalActivityPage() {
   return (
     <HeadOfficeReportScope
-      title="Approval Activity"
-      subtitle="Every approval decision across your branches, by approver and outcome, with the approval cycle time"
+      title="Approval activity"
+      subtitle="Every approval decision across your sites, by approver and outcome, with the approval cycle time"
       permission="REPORT_VIEW"
     >
       <ApprovalActivityReport orderHref={(id) => `/head-office/orders/${id}`} />

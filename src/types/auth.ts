@@ -157,35 +157,35 @@ export const ROLE_DETAILS: Record<
 > = {
   admin: {
     title: 'Admin',
-    subtitle: 'Full Operations HQ',
+    subtitle: 'Platform administration',
     description:
-      'Central platform administration, carrying the full operational workload to see and action every order in full detail and update statuses.',
+      'Runs the portal: sees and actions every order in full detail, and updates their statuses.',
     defaultRedirect: '/admin/dashboard',
     themeColor: '#059669',
     buttonColor: '#059669',
-    buttonText: 'Enter Admin Portal',
-    badgeText: 'Admin • Operations HQ',
+    buttonText: 'Go to the admin portal',
+    badgeText: 'Admin',
   },
   head_office: {
     title: 'Head Office',
-    subtitle: 'Consolidated Billing',
+    subtitle: 'Consolidated billing',
     description:
-      'Inheriting a read-only status view across all sites, feeding the monthly consolidated billing report and transaction-level spreadsheet backing.',
+      'A read-only view across every site, with the monthly consolidated invoice and its transaction-level backing file.',
     defaultRedirect: '/head-office/dashboard',
     themeColor: '#2563eb',
     buttonColor: '#2563eb',
-    buttonText: 'Enter Head Office Portal',
-    badgeText: 'Head Office • All Sites',
+    buttonText: 'Go to the Head Office portal',
+    badgeText: 'Head Office • all sites',
   },
   site_user: {
     title: 'Site User',
-    subtitle: 'Branch Asset Orders',
+    subtitle: 'Branch orders',
     description:
-      'Self-service marketing asset library and checkout with a read-only status view strictly limited to their own branch orders.',
+      'Orders products and personalised designs for their own branch, and follows those orders through to delivery.',
     defaultRedirect: '/shop/catalogue',
     themeColor: '#f73582',
     buttonColor: '#f73582',
-    buttonText: 'Enter Shop / Ordering Hub',
-    badgeText: 'Site User • Branch Ordering',
+    buttonText: 'Go to the shop',
+    badgeText: 'Site user • branch ordering',
   },
 }

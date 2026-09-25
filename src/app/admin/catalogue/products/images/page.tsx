@@ -327,7 +327,7 @@ export default function BulkProductImagesPage() {
 
   const header = (
     <AdminHeader
-      title="Bulk Image Upload"
+      title="Bulk image upload"
       subtitle="Upload many product images at once; each is matched to its product by the SKU in its file name"
       actionButton={
         <Link
@@ -357,11 +357,11 @@ export default function BulkProductImagesPage() {
     return (
       <>
         {header}
-        <main style={{ padding: '24px' }}>
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <AdminCard>
             {status === 'ready' ? (
               <ReadOnlyNotice>
-                Uploading product images needs the Catalog Manage permission.
+                Uploading product images needs the Catalogue Manage permission.
               </ReadOnlyNotice>
             ) : (
               <StateBlock title="Checking your permissions…" />
@@ -376,8 +376,9 @@ export default function BulkProductImagesPage() {
     <>
       {header}
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -503,6 +504,7 @@ export default function BulkProductImagesPage() {
             )}
 
             <AdminTable
+              minWidth={820}
               head={
                 <>
                   <Th first>Upload</Th>

@@ -30,15 +30,7 @@ export const PICKUP_STATUS_COLOR: Record<string, string> = {
   CANCELLED: '#6E6781',
 }
 
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+// Dates are formatted by `@/lib/format`; import `formatDateTime` from there.
 
 /**
  * A key that makes a create request safe to send twice. Kept for the life of

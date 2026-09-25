@@ -133,16 +133,13 @@ export function ProductOptionAxesEditor({
 
       {canManage ? (
         drafts.map((draft) => (
-          <div
-            key={draft.key}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(120px, 200px) minmax(0, 1fr) auto',
-              gap: '10px',
-              alignItems: 'end',
-            }}
-          >
-            <Field label="Option name">
+          // Name, values and Remove: a row on a wide screen, stacked lines on
+          // a phone, where three columns left the values field a slot.
+          <div key={draft.key} className="row-wrap">
+            <Field
+              label="Option name"
+              style={{ flex: '1 1 140px', minWidth: 0 }}
+            >
               <TextInput
                 value={draft.name}
                 maxLength={60}
@@ -151,7 +148,10 @@ export function ProductOptionAxesEditor({
                 onChange={(e) => update(draft.key, { name: e.target.value })}
               />
             </Field>
-            <Field label="Values (comma-separated)">
+            <Field
+              label="Values (comma-separated)"
+              style={{ flex: '2 1 200px', minWidth: 0 }}
+            >
               <TextInput
                 value={draft.values}
                 disabled={pending}
@@ -159,18 +159,20 @@ export function ProductOptionAxesEditor({
                 onChange={(e) => update(draft.key, { values: e.target.value })}
               />
             </Field>
-            <ActionButton
-              variant="ghost"
-              aria-label={`Remove option ${draft.name || ''}`}
-              disabled={pending}
-              icon={<X size={15} />}
-              onClick={() => {
-                setError(null)
-                setDrafts((prev) => prev.filter((d) => d.key !== draft.key))
-              }}
-            >
-              Remove
-            </ActionButton>
+            <div style={{ alignSelf: 'flex-end' }}>
+              <ActionButton
+                variant="ghost"
+                aria-label={`Remove option ${draft.name || ''}`}
+                disabled={pending}
+                icon={<X size={15} />}
+                onClick={() => {
+                  setError(null)
+                  setDrafts((prev) => prev.filter((d) => d.key !== draft.key))
+                }}
+              >
+                Remove
+              </ActionButton>
+            </div>
           </div>
         ))
       ) : (
@@ -195,7 +197,7 @@ export function ProductOptionAxesEditor({
       {error && <Notice tone="error">{error}</Notice>}
 
       {canManage && (
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
           <ActionButton
             icon={<Plus size={15} />}
             disabled={pending || drafts.length >= MAX_AXES}

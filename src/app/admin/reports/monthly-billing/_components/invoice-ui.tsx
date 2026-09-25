@@ -15,7 +15,17 @@ export function InvoiceStatusBadge({
   const styles = INVOICE_STATUS_STYLES[status] ?? INVOICE_STATUS_STYLES.DRAFT
 
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+    // Status and Overdue are each nowrap; held in an unwrappable row the pair
+    // pushed the invoice header card wider than a phone.
+    <span
+      style={{
+        display: 'inline-flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '6px',
+        maxWidth: '100%',
+      }}
+    >
       <span
         style={{
           display: 'inline-flex',

@@ -6,15 +6,16 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useCart } from '@/hooks/useCart'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { getSiteAddresses } from '@/services/accounts.service'
 import type { Address } from '@/types'
 import type { CheckoutState } from '@/store/cartSlice'
-import { OrderTotals } from '@/components/shop/cart/OrderTotals'
 import {
-  formatDate,
-  formatMoney,
-  shippingOptionName,
-} from '@/components/shop/cart/line-format'
+  OrderTotals,
+  useTaxBasisNote,
+} from '@/components/shop/cart/OrderTotals'
+import { formatDate, formatMoney, todayInNz } from '@/lib/format'
+import { shippingOptionName } from '@/components/shop/cart/line-format'
 import { NzPostDeliveryPanel } from '@/components/shop/checkout/NzPostDeliveryPanel'
 import { FieldError, fieldOutline } from '@/components/ui/FormField'
 import { getCartShipping } from '@/services/data-source/api/api-cart.adapter'
@@ -140,6 +141,16 @@ export default function CheckoutDeliveryPage() {
     deliveryNotesRequired,
     isLoading: isCartLoading,
   } = useCart()
+
+  // Below 1024px the delivery summary drops under the form rather than
+  // squeezing it: this step's paired fields and address tiles need the width
+  // more than the summary needs to be beside them. It stays in the flow, so
+  // it is scrolled to rather than clipped.
+  const stacked = useMediaQuery('(max-width: 1023.98px)')
+
+  // The account decides whether its prices include GST; this reads that rather
+  // than asserting a basis.
+  const taxNote = useTaxBasisNote('on account')
 
   // Whatever `getSiteAddresses` returns, rather than a second copy of its
   // shape that would drift the moment a field was added to it.
@@ -275,8 +286,11 @@ export default function CheckoutDeliveryPage() {
       setSelectedAddressId(checkoutState.shippingAddressId)
   }
 
-  /** Today as a UTC calendar day — the granularity the server compares at. */
-  const todayUtc = new Date().toISOString().slice(0, 10)
+  /**
+   * Today as a New Zealand calendar day — this is a New Zealand business, and
+   * the UTC day is still yesterday here every morning before noon.
+   */
+  const todayNz = todayInNz()
 
   // Derived: loading until this branch's addresses have been answered for.
   const isLoading = siteId !== null && loadedSiteId !== siteId
@@ -346,7 +360,7 @@ export default function CheckoutDeliveryPage() {
       found.contactEmail =
         'That does not look like an email address. Leave it blank if you would rather not give one.'
     }
-    if (requestedDate && requestedDate < todayUtc) {
+    if (requestedDate && requestedDate < todayNz) {
       found.requestedDate = 'The requested delivery date cannot be in the past.'
     }
 
@@ -491,7 +505,9 @@ export default function CheckoutDeliveryPage() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 340px',
+        gridTemplateColumns: stacked
+          ? 'minmax(0, 1fr)'
+          : 'minmax(0, 1fr) 340px',
         gap: '20px',
         alignItems: 'start',
       }}
@@ -520,10 +536,10 @@ export default function CheckoutDeliveryPage() {
             margin: 0,
           }}
         >
-          Delivery & Address Configuration
+          Delivery and addresses
         </h1>
         <p style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}>
-          Confirm where the order ships, how it travels, and who receives it at
+          Confirm where the order ships, how it travels and who receives it at
           the branch.
         </p>
       </div>
@@ -549,13 +565,7 @@ export default function CheckoutDeliveryPage() {
         >
           {/* 1. Separate Bill-To & Ship-To Displays. Two columns inside the
               card rather than two framed cards within it. */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '20px',
-            }}
-          >
+          <div className="grid-2" style={{ gap: '20px' }}>
             {/* Bill-To Card */}
             <div
               style={{
@@ -676,7 +686,7 @@ export default function CheckoutDeliveryPage() {
                     borderRadius: '9999px',
                   }}
                 >
-                  Site Receiving
+                  Branch receiving
                 </span>
               </div>
 
@@ -739,6 +749,7 @@ export default function CheckoutDeliveryPage() {
                   return (
                     <label
                       key={option.id}
+                      className="touch-target"
                       style={{
                         display: 'flex',
                         alignItems: 'flex-start',
@@ -805,6 +816,7 @@ export default function CheckoutDeliveryPage() {
                     }}
                   >
                     <label
+                      className="touch-target"
                       style={{
                         display: 'flex',
                         alignItems: 'flex-start',
@@ -857,14 +869,14 @@ export default function CheckoutDeliveryPage() {
 
                     {oneOffActive && (
                       <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns:
-                            'repeat(auto-fit, minmax(200px, 1fr))',
-                          gap: '10px',
-                          paddingLeft: '22px',
-                          fontSize: '0.78rem',
-                        }}
+                        className="grid-auto"
+                        style={
+                          {
+                            ['--min']: '200px',
+                            paddingLeft: '22px',
+                            fontSize: '0.78rem',
+                          } as React.CSSProperties
+                        }
                       >
                         {/* The third column is a hint under the box, not a
                             placeholder inside it: a placeholder disappears the
@@ -929,6 +941,7 @@ export default function CheckoutDeliveryPage() {
                               type="text"
                               value={oneOff[field]}
                               maxLength={max}
+                              className="touch-target"
                               placeholder={example || undefined}
                               aria-invalid={
                                 oneOffErrors[field] ? true : undefined
@@ -1034,11 +1047,8 @@ export default function CheckoutDeliveryPage() {
             <div
               role="radiogroup"
               aria-label="Shipping method"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '10px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '220px' } as React.CSSProperties}
             >
               {shippingOptions.map((option) => {
                 const selected = chosenMethod === option.code
@@ -1046,6 +1056,7 @@ export default function CheckoutDeliveryPage() {
                 return (
                   <label
                     key={option.code}
+                    className="touch-target"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1156,14 +1167,7 @@ export default function CheckoutDeliveryPage() {
               <span>Receiving Contact Person</span>
             </h4>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '14px',
-                fontSize: '0.78rem',
-              }}
-            >
+            <div className="grid-2" style={{ fontSize: '0.78rem' }}>
               <div>
                 <label
                   style={{
@@ -1177,6 +1181,7 @@ export default function CheckoutDeliveryPage() {
                 </label>
                 <input
                   id="deliveryContactName"
+                  className="touch-target"
                   type="text"
                   value={contactName}
                   aria-invalid={fieldErrors.contactName ? true : undefined}
@@ -1245,6 +1250,7 @@ export default function CheckoutDeliveryPage() {
                 </label>
                 <input
                   id="deliveryContactEmail"
+                  className="touch-target"
                   type="email"
                   placeholder="jane.smith@company.co.nz"
                   value={contactEmail}
@@ -1283,7 +1289,9 @@ export default function CheckoutDeliveryPage() {
                 </label>
                 <input
                   id="requestedDeliveryDate"
+                  className="touch-target"
                   type="date"
+                  min={todayNz}
                   value={requestedDate}
                   aria-invalid={fieldErrors.requestedDate ? true : undefined}
                   onChange={(e) => {
@@ -1408,18 +1416,17 @@ export default function CheckoutDeliveryPage() {
 
           {/* Action Buttons */}
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
               gap: '8px',
-              flexWrap: 'wrap',
               paddingTop: '16px',
               borderTop: '1px solid #F5EEF2',
             }}
           >
             <Link
               href="/shop/checkout/details"
+              className="touch-target"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1440,6 +1447,7 @@ export default function CheckoutDeliveryPage() {
             <button
               type="submit"
               disabled={isBusy}
+              className="touch-target"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1467,7 +1475,7 @@ export default function CheckoutDeliveryPage() {
           running totals the server priced. */}
       <div
         style={{
-          position: 'sticky',
+          position: stacked ? 'static' : 'sticky',
           top: '80px',
           backgroundColor: '#FFFFFF',
           borderRadius: '14px',
@@ -1617,7 +1625,7 @@ export default function CheckoutDeliveryPage() {
             shippingPrice={shipping ? Number(shipping.price) : null}
             total={total}
             pendingShippingText="Choose a method"
-            totalNote="Excl. tax (On-Account)"
+            totalNote={taxNote}
           />
         </div>
 

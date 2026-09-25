@@ -47,12 +47,12 @@ export default function HeadOfficeImageLibraryPage() {
             margin: 0,
           }}
         >
-          Image Library
+          Image library
         </h1>
 
         <p style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}>
           The logos, photos and PDFs held in your Ticket-IT library, ready for
-          branch templates and print artwork.
+          site templates and print artwork.
         </p>
       </div>
 

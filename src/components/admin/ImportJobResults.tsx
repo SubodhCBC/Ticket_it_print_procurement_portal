@@ -14,7 +14,7 @@ import {
   Td,
   Th,
 } from './ProductAdminUi'
-import { formatDateTime } from './ProductAdminUtils'
+import { formatDateTime, formatNumber } from '@/lib/format'
 
 const PAGE = 200
 
@@ -101,7 +101,7 @@ export function ImportJobResults({
       : truncated && filter !== 'failed'
         ? filter === 'all'
           ? 'No rows failed. Row details are not kept for imports over 1,000 rows; the counts above are exact.'
-          : `Row details are not kept for imports over 1,000 rows, so the ${countFor(filter).toLocaleString()} ${filter} row(s) are counted above but not listed.`
+          : `Row details are not kept for imports over 1,000 rows, so the ${formatNumber(countFor(filter))} ${filter} row(s) are counted above but not listed.`
         : 'No rows have this outcome.'
 
   return (
@@ -216,7 +216,7 @@ export function ImportJobResults({
                 (outcome) => (
                   <option key={outcome} value={outcome}>
                     {outcome[0].toUpperCase() + outcome.slice(1)} (
-                    {countFor(outcome).toLocaleString()}
+                    {formatNumber(countFor(outcome))}
                     {truncated && outcome !== 'failed' ? ', not listed' : ''})
                   </option>
                 )

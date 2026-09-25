@@ -42,11 +42,16 @@ export function InvoicePdfViewer({
   if (!pdf.url) return null
 
   return (
+    // An iframe is an inline replaced box with a default 300px intrinsic
+    // width: without the cap and the block display it could sit wider than
+    // its card on a phone and take the page sideways with it.
     <iframe
       title="Invoice PDF"
       src={pdf.url}
       style={{
+        display: 'block',
         width: '100%',
+        maxWidth: '100%',
         height,
         border: '1px solid #F0E6EC',
         borderRadius: '10px',

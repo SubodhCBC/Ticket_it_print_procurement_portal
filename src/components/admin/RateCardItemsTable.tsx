@@ -9,6 +9,7 @@ import { useRateCardAdminMutations, useRateCardItems } from '@/hooks/usePricing'
 import { toApiError } from '@/services'
 import type { RateCardItemRow } from '@/services/pricing.service'
 import type { PriceSource, RateCard } from '@/types'
+import { formatMoney, formatNumber } from '@/lib/format'
 
 const PAGE_SIZE = 25
 
@@ -41,13 +42,9 @@ const mutedBoxStyle: React.CSSProperties = {
   fontSize: '0.84rem',
 }
 
-function money(value: number): string {
-  return `$${value.toFixed(2)}`
-}
-
 /** What was negotiated for the line, in words. */
 function describeTerms(item: RateCardItemRow, cardDefault: number): string {
-  if (item.fixedPrice != null) return `Fixed ${money(item.fixedPrice)}`
+  if (item.fixedPrice != null) return `Fixed ${formatMoney(item.fixedPrice)}`
   if (item.itemDiscountPct != null) return `${item.itemDiscountPct}% off`
   if (item.tiers?.length) return 'Volume tiers only'
   return `Card default (${cardDefault}%)`
@@ -131,12 +128,9 @@ export function RateCardItemsTable({
   return (
     <div>
       <div
+        className="row-wrap"
         style={{
-          display: 'flex',
-          alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
           padding: '0 20px 10px',
         }}
       >
@@ -243,10 +237,11 @@ export function RateCardItemsTable({
             : `No SKU-level lines on this card. Every product is quoted at ${fallbackText}.`}
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-scroll">
           <table
             style={{
               width: '100%',
+              minWidth: '760px',
               borderCollapse: 'collapse',
               textAlign: 'left',
               fontSize: '0.84rem',
@@ -296,7 +291,7 @@ export function RateCardItemsTable({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {money(item.basePrice)}
+                    {formatMoney(item.basePrice)}
                   </td>
                   <td style={{ ...tdStyle, color: '#2B253E' }}>
                     <div>
@@ -332,7 +327,7 @@ export function RateCardItemsTable({
                         color: item.aboveCatalogPrice ? '#B45309' : '#2B253E',
                       }}
                     >
-                      {money(item.effectivePrice)}
+                      {formatMoney(item.effectivePrice)}
                     </div>
                     {item.effectiveAtQuantity != null && (
                       <div
@@ -390,6 +385,7 @@ export function RateCardItemsTable({
                     >
                       <button
                         type="button"
+                        className="touch-target"
                         onClick={() => {
                           setRemoveError(null)
                           setPendingRemove(item)
@@ -430,11 +426,9 @@ export function RateCardItemsTable({
 
       {data && total > 0 && (
         <div
+          className="row-wrap"
           style={{
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '12px',
             padding: '10px 20px 14px',
             borderTop: '1px solid #F5EEF2',
             fontSize: '0.78rem',
@@ -442,11 +436,13 @@ export function RateCardItemsTable({
           }}
         >
           <span>
-            Showing {firstRow}–{lastRow} of {total}
+            Showing {formatNumber(firstRow)}–{formatNumber(lastRow)} of{' '}
+            {formatNumber(total)} negotiated {total === 1 ? 'line' : 'lines'}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="row-wrap">
             <button
               type="button"
+              className="touch-target"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1 || isFetching}
               style={pagerButtonStyle(page <= 1 || isFetching)}
@@ -458,6 +454,7 @@ export function RateCardItemsTable({
             </span>
             <button
               type="button"
+              className="touch-target"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages || isFetching}
               style={pagerButtonStyle(page >= totalPages || isFetching)}

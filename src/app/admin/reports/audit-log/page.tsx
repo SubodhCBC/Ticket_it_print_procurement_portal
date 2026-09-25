@@ -33,6 +33,7 @@ import { useAuditLogs } from '@/hooks/useAuditLogs'
 import { useAuth } from '@/hooks/useAuth'
 import { ApiError } from '@/services/api.service'
 import type { AuditEntityType, AuditLogEntry, AuditLogQuery } from '@/types'
+import { formatNumber } from '@/lib/format'
 
 const PAGE_PATH = '/admin/reports/audit-log'
 const PAGE_SIZES = [25, 50, 100] as const
@@ -279,6 +280,12 @@ function AuditLogContent() {
     !filters.action || AUDIT_ACTIONS.includes(filters.action)
   const apiError = error instanceof ApiError ? error : null
 
+  // The page says what the reader can do about it; the cause itself belongs
+  // in the console, where whoever is debugging will look for it.
+  useEffect(() => {
+    if (error) console.error('Audit log request failed', error)
+  }, [error])
+
   const total = data?.total ?? 0
   const firstShown =
     data && data.items.length > 0 ? (data.page - 1) * data.pageSize + 1 : 0
@@ -288,11 +295,12 @@ function AuditLogContent() {
   return (
     <>
       <AdminHeader
-        title="Audit Log"
+        title="Audit log"
         subtitle="Every change the platform recorded — who did what, to which record, and when"
         actionButton={
           <button
             type="button"
+            className="touch-target"
             onClick={() => void refetch()}
             disabled={rangeInvalid || isFetching}
             style={{
@@ -307,8 +315,9 @@ function AuditLogContent() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -316,13 +325,17 @@ function AuditLogContent() {
       >
         {/* Filters — all applied by the API, and all mirrored in the URL. */}
         <section style={cardStyle} aria-label="Audit log filters">
+          {/* Ten filter fields: they fit as many per row as the screen allows
+              rather than holding a 210px minimum a 360px phone cannot pay for
+              once the card's own gutter is taken out. */}
           <div
-            style={{
-              padding: '18px 20px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: '14px',
-            }}
+            className="grid-auto"
+            style={
+              {
+                ['--min']: '180px',
+                padding: '18px 20px',
+              } as React.CSSProperties
+            }
           >
             <div>
               <label htmlFor="audit-account" style={labelStyle}>
@@ -330,6 +343,7 @@ function AuditLogContent() {
               </label>
               {isAdmin ? (
                 <AuditAccountPicker
+                  id="audit-account"
                   value={filters.accountId}
                   ownAccountId={user?.accountId}
                   ownAccountName={user?.accountName}
@@ -369,6 +383,7 @@ function AuditLogContent() {
                 />
                 <input
                   id="audit-search"
+                  className="touch-target"
                   type="search"
                   value={searchDraft}
                   onChange={(e) => setSearchDraft(e.target.value)}
@@ -385,6 +400,7 @@ function AuditLogContent() {
               </label>
               <select
                 id="audit-entity-type"
+                className="touch-target"
                 value={filters.entityType}
                 onChange={(e) => updateUrl({ entityType: e.target.value })}
                 style={controlStyle}
@@ -404,6 +420,7 @@ function AuditLogContent() {
               </label>
               <select
                 id="audit-action"
+                className="touch-target"
                 value={filters.action}
                 onChange={(e) => updateUrl({ action: e.target.value })}
                 style={controlStyle}
@@ -432,6 +449,7 @@ function AuditLogContent() {
               </label>
               <input
                 id="audit-entity-id"
+                className="touch-target"
                 type="text"
                 value={entityIdDraft}
                 onChange={(e) => setEntityIdDraft(e.target.value)}
@@ -447,6 +465,7 @@ function AuditLogContent() {
               </label>
               <input
                 id="audit-actor-id"
+                className="touch-target"
                 type="text"
                 value={actorIdDraft}
                 onChange={(e) => setActorIdDraft(e.target.value)}
@@ -455,7 +474,17 @@ function AuditLogContent() {
                 style={controlStyle}
               />
               {filters.actorId && (
-                <div style={hintStyle}>
+                // A name and email together are longer than a 180px field, and
+                // an unbroken address widened the whole filter grid.
+                <div
+                  className="truncate"
+                  style={hintStyle}
+                  title={
+                    actorMatch
+                      ? `${actorMatch.actorName} (${actorMatch.actorEmail})`
+                      : undefined
+                  }
+                >
                   {actorMatch
                     ? `${actorMatch.actorName} (${actorMatch.actorEmail})`
                     : 'Filtering on this user id'}
@@ -469,6 +498,7 @@ function AuditLogContent() {
               </label>
               <input
                 id="audit-field"
+                className="touch-target"
                 type="text"
                 value={fieldDraft}
                 onChange={(e) => setFieldDraft(e.target.value)}
@@ -493,6 +523,7 @@ function AuditLogContent() {
               </label>
               <input
                 id="audit-from"
+                className="touch-target"
                 type="date"
                 value={filters.from}
                 max={filters.to || undefined}
@@ -507,6 +538,7 @@ function AuditLogContent() {
               </label>
               <input
                 id="audit-to"
+                className="touch-target"
                 type="date"
                 value={filters.to}
                 min={filters.from || undefined}
@@ -517,14 +549,12 @@ function AuditLogContent() {
           </div>
 
           <div
+            className="row-wrap"
             style={{
               padding: '12px 20px',
               borderTop: '1px solid #F5EEF2',
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
               gap: '12px',
-              flexWrap: 'wrap',
             }}
           >
             <p
@@ -541,6 +571,7 @@ function AuditLogContent() {
             </p>
             <button
               type="button"
+              className="touch-target"
               onClick={resetFilters}
               disabled={!hasFilters}
               style={{ ...secondaryButtonStyle, opacity: hasFilters ? 1 : 0.5 }}
@@ -558,20 +589,18 @@ function AuditLogContent() {
           aria-busy={isFetching}
         >
           <div
+            className="row-wrap"
             style={{
               padding: '14px 20px',
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
               gap: '12px',
-              flexWrap: 'wrap',
             }}
           >
             <div
               style={{ fontWeight: 700, fontSize: '0.95rem', color: '#2B253E' }}
             >
               {data && !rangeInvalid
-                ? `${total.toLocaleString()} ${total === 1 ? 'entry' : 'entries'}`
+                ? `${formatNumber(total)} ${total === 1 ? 'entry' : 'entries'}`
                 : 'Entries'}
               {isFetching && data && (
                 <span
@@ -597,6 +626,7 @@ function AuditLogContent() {
             >
               Rows per page
               <select
+                className="touch-target"
                 value={filters.pageSize}
                 onChange={(e) =>
                   updateUrl({
@@ -643,7 +673,11 @@ function AuditLogContent() {
                   Could not load the audit log
                   {apiError?.status ? ` (${apiError.status})` : ''}
                 </strong>
-                <span>{error.message}</span>
+                <span>
+                  {apiError?.status === 403
+                    ? 'You do not have permission to read this trail.'
+                    : 'The audit service did not answer. Nothing has been lost — try again, and if it keeps failing, quote the request ID below to support.'}
+                </span>
                 {apiError?.status === 403 && (
                   <span style={{ color: '#6E6781' }}>
                     Only platform admins may read another account’s trail, and
@@ -656,15 +690,12 @@ function AuditLogContent() {
                   </span>
                 )}
                 <div
-                  style={{
-                    display: 'flex',
-                    gap: '8px',
-                    marginTop: '4px',
-                    flexWrap: 'wrap',
-                  }}
+                  className="row-wrap"
+                  style={{ gap: '8px', marginTop: '4px' }}
                 >
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => void refetch()}
                     style={secondaryButtonStyle}
                   >
@@ -673,6 +704,7 @@ function AuditLogContent() {
                   {hasFilters && (
                     <button
                       type="button"
+                      className="touch-target"
                       onClick={resetFilters}
                       style={secondaryButtonStyle}
                     >
@@ -728,27 +760,24 @@ function AuditLogContent() {
               />
 
               <div
+                className="row-wrap"
                 style={{
                   padding: '12px 20px',
                   borderTop: '1px solid #F5EEF2',
-                  display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '12px',
-                  flexWrap: 'wrap',
                   fontSize: '0.78rem',
                   color: '#6E6781',
                 }}
               >
                 <span>
-                  Showing {firstShown.toLocaleString()}–
-                  {lastShown.toLocaleString()} of {total.toLocaleString()}
+                  Showing {formatNumber(firstShown)}–{formatNumber(lastShown)}{' '}
+                  of {formatNumber(total)}
                 </span>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
+                <div className="row-wrap" style={{ gap: '8px' }}>
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => goToPage(data.page - 1)}
                     disabled={data.page <= 1 || isPlaceholderData}
                     style={{
@@ -764,6 +793,7 @@ function AuditLogContent() {
                   </span>
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => goToPage(data.page + 1)}
                     disabled={data.page >= data.totalPages || isPlaceholderData}
                     style={{
@@ -814,7 +844,7 @@ export default function AuditLogPage() {
   return (
     <Suspense
       fallback={
-        <div style={{ padding: '24px' }}>
+        <div className="page-pad" style={{ paddingBlock: '24px' }}>
           <SkeletonTable rows={10} columns={5} label="Loading the audit log" />
         </div>
       }

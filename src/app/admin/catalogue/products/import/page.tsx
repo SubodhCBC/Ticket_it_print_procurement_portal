@@ -25,9 +25,9 @@ import {
   ImportJobResults,
   ImportJobStatusBadge,
 } from '@/components/admin/ImportJobResults'
+import { formatDateTime, formatNumber } from '@/lib/format'
 import {
   errorMessage,
-  formatDateTime,
   MONEY_PATTERN,
   normaliseHeader,
   parseCsv,
@@ -276,7 +276,7 @@ function parseImport(text: string): ParseResult {
     missingColumns,
     error:
       rows.length > MAX_ROWS
-        ? `This file has ${rows.length.toLocaleString()} rows. Import at most ${MAX_ROWS.toLocaleString()} at a time; split the file.`
+        ? `This file has ${formatNumber(rows.length)} rows. Import at most ${formatNumber(MAX_ROWS)} at a time; split the file.`
         : null,
   }
 }
@@ -390,7 +390,7 @@ export default function ProductImportPage() {
 
   const header = (
     <AdminHeader
-      title="Bulk Product Import"
+      title="Bulk product import"
       subtitle="Upload a CSV of products; it is processed as a background job with a per-row report"
       actionButton={
         <Link
@@ -420,12 +420,12 @@ export default function ProductImportPage() {
     return (
       <>
         {header}
-        <main style={{ padding: '24px' }}>
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <AdminCard>
             {status === 'ready' ? (
               <ReadOnlyNotice>
-                Bulk import needs the Catalog Manage permission. Ask a platform
-                administrator to run it.
+                Bulk import needs the Catalogue Manage permission. Ask a
+                platform administrator to run it.
               </ReadOnlyNotice>
             ) : (
               <StateBlock title="Checking your permissions…" />
@@ -440,8 +440,9 @@ export default function ProductImportPage() {
     <>
       {header}
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -541,7 +542,7 @@ export default function ProductImportPage() {
           <AdminCard>
             <SectionHeading
               title="2. Check and submit"
-              description={`${parsed.rows.length.toLocaleString()} row(s) read${
+              description={`${formatNumber(parsed.rows.length)} row(s) read${
                 rowsWithIssues.length > 0
                   ? `, ${rowsWithIssues.length} with problems to fix`
                   : ''
@@ -558,6 +559,7 @@ export default function ProductImportPage() {
             )}
 
             <AdminTable
+              minWidth={760}
               head={
                 <>
                   <Th first>Row</Th>
@@ -590,7 +592,7 @@ export default function ProductImportPage() {
             {parsed.rows.length > PREVIEW_ROWS && (
               <div style={{ fontSize: '0.78rem', color: '#A39BB3' }}>
                 Showing the first {PREVIEW_ROWS} of{' '}
-                {parsed.rows.length.toLocaleString()} rows.
+                {formatNumber(parsed.rows.length)} rows.
               </div>
             )}
 
@@ -710,7 +712,7 @@ export default function ProductImportPage() {
           {history.isLoading ? (
             <SkeletonTable
               rows={4}
-              columns={5}
+              columns={9}
               label="Loading import history"
             />
           ) : history.error ? (
@@ -728,6 +730,7 @@ export default function ProductImportPage() {
           ) : (
             <>
               <AdminTable
+                minWidth={900}
                 head={
                   <>
                     <Th first>Started</Th>

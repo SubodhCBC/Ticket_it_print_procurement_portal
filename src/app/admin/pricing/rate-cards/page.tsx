@@ -30,6 +30,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { FieldError, fieldOutline } from '@/components/ui/FormField'
 import { toApiError } from '@/services'
 import type { RateCard } from '@/types'
+import { formatDate } from '@/lib/format'
 
 /**
  * The transitions the API allows (see ALLOWED_TRANSITIONS in
@@ -233,12 +234,13 @@ export default function RateCardsPage() {
   return (
     <>
       <AdminHeader
-        title="Commercial Rate Cards & Contract Pricing"
-        subtitle="Manage client master discounts, SKU-specific price overrides, and contract validity terms"
+        title="Rate cards"
+        subtitle="Account discounts, per-SKU price overrides and the dates each card applies"
         actionButton={
           canManage ? (
             <button
               type="button"
+              className="touch-target"
               onClick={() => {
                 setCreateErrors({})
                 setFormError(null)
@@ -265,8 +267,9 @@ export default function RateCardsPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -298,11 +301,8 @@ export default function RateCardsPage() {
               Create New Commercial Rate Card Agreement
             </div>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '2fr 1fr 1fr',
-                gap: '14px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '200px' } as React.CSSProperties}
             >
               <div>
                 <label
@@ -457,15 +457,10 @@ export default function RateCardsPage() {
               </div>
             )}
 
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '8px',
-              }}
-            >
+            <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
               <button
                 type="button"
+                className="touch-target"
                 onClick={() => {
                   setCreateErrors({})
                   setFormError(null)
@@ -485,6 +480,7 @@ export default function RateCardsPage() {
               </button>
               <button
                 type="submit"
+                className="touch-target"
                 disabled={isSubmitting}
                 style={{
                   padding: '8px 14px',
@@ -531,6 +527,7 @@ export default function RateCardsPage() {
             <span>{createNotice.message}</span>
             <button
               type="button"
+              className="touch-target"
               onClick={() => setCreateNotice(null)}
               aria-label="Dismiss"
               style={{
@@ -635,6 +632,17 @@ export default function RateCardsPage() {
               >
                 <div
                   onClick={() => toggleCard(rc.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  aria-controls={`rate-card-panel-${rc.id}`}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      toggleCard(rc.id)
+                    }
+                  }}
                   style={{
                     padding: '16px 20px',
                     display: 'flex',
@@ -650,6 +658,7 @@ export default function RateCardsPage() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '12px',
+                      minWidth: 0,
                     }}
                   >
                     <Percent
@@ -657,16 +666,19 @@ export default function RateCardsPage() {
                       color="#A39BB3"
                       style={{ flexShrink: 0 }}
                     />
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           flexWrap: 'wrap',
                           gap: '10px',
+                          minWidth: 0,
                         }}
                       >
                         <span
+                          className="truncate"
+                          title={rc.name}
                           style={{
                             fontWeight: 700,
                             fontSize: '0.95rem',
@@ -715,17 +727,14 @@ export default function RateCardsPage() {
                       // Clicks here act on the card; they must not also
                       // open or close it.
                       <div
+                        className="row-wrap"
                         onClick={(e) => e.stopPropagation()}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          flexWrap: 'wrap',
-                        }}
+                        onKeyDown={(e) => e.stopPropagation()}
                       >
                         {!isArchived && (
                           <button
                             type="button"
+                            className="touch-target"
                             onClick={() => setEditingCard(rc)}
                             style={actionButtonStyle()}
                           >
@@ -736,6 +745,7 @@ export default function RateCardsPage() {
                         {nextStatuses.includes('ACTIVE') && (
                           <button
                             type="button"
+                            className="touch-target"
                             onClick={() =>
                               setStatusChange({ card: rc, target: 'ACTIVE' })
                             }
@@ -748,6 +758,7 @@ export default function RateCardsPage() {
                         {nextStatuses.includes('ARCHIVED') && (
                           <button
                             type="button"
+                            className="touch-target"
                             onClick={() =>
                               setStatusChange({ card: rc, target: 'ARCHIVED' })
                             }
@@ -759,6 +770,7 @@ export default function RateCardsPage() {
                         )}
                         <button
                           type="button"
+                          className="touch-target"
                           onClick={() => {
                             setDeleteError(null)
                             setDeletingCard(rc)
@@ -791,8 +803,8 @@ export default function RateCardsPage() {
                         }}
                       >
                         {rc.effectiveTo
-                          ? `Valid through ${new Date(rc.effectiveTo).toLocaleDateString()}`
-                          : `From ${new Date(rc.effectiveFrom).toLocaleDateString()} - open-ended`}
+                          ? `Valid through ${formatDate(rc.effectiveTo)}`
+                          : `From ${formatDate(rc.effectiveFrom)} - open-ended`}
                       </div>
                     </div>
                     {isExpanded ? (
@@ -805,6 +817,7 @@ export default function RateCardsPage() {
 
                 {isExpanded && (
                   <div
+                    id={`rate-card-panel-${rc.id}`}
                     style={{
                       paddingTop: '14px',
                       borderTop: '1px solid #F5EEF2',
@@ -834,12 +847,9 @@ export default function RateCardsPage() {
         {rateCardsData && rateCardsData.totalPages > 1 && (
           <nav
             aria-label="Rate card pages"
+            className="row-wrap"
             style={{
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '12px',
               fontSize: '0.8rem',
               color: '#6E6781',
             }}
@@ -853,9 +863,10 @@ export default function RateCardsPage() {
               of {rateCardsData.total} rate cards
               {isFetching && !isLoading ? ' · Loading…' : ''}
             </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="row-wrap">
               <button
                 type="button"
+                className="touch-target"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1 || isFetching}
                 style={{
@@ -871,6 +882,7 @@ export default function RateCardsPage() {
               </span>
               <button
                 type="button"
+                className="touch-target"
                 onClick={() =>
                   setPage((p) => Math.min(rateCardsData.totalPages, p + 1))
                 }

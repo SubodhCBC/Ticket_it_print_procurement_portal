@@ -1,7 +1,12 @@
 // src/components/admin/ApprovalRuleFormDrawer.tsx
 'use client'
 
-import { useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Drawer } from '@/components/ui/Drawer'
 import { useApprovalRuleMutations } from '@/hooks/useApprovals'
@@ -294,11 +299,10 @@ export function ApprovalRuleFormDrawer({
       width="520px"
       title={rule ? 'Edit approval rule' : 'New approval rule'}
       footer={
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
+            className="touch-target"
             onClick={close}
             disabled={isSaving}
             style={{ ...secondaryButton, ...disabledLook(isSaving) }}
@@ -307,6 +311,7 @@ export function ApprovalRuleFormDrawer({
           </button>
           <button
             type="submit"
+            className="touch-target"
             form={FORM_ID}
             disabled={isSaving}
             style={{ ...primaryButton, ...disabledLook(isSaving) }}
@@ -373,11 +378,8 @@ export function ApprovalRuleFormDrawer({
           </Field>
 
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '12px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '160px', gap: '12px' } as CSSProperties}
           >
             <Field
               label="Tier"
@@ -408,6 +410,7 @@ export function ApprovalRuleFormDrawer({
             >
               <button
                 type="button"
+                className="touch-target"
                 role="switch"
                 aria-checked={state.active}
                 aria-label="Rule active"
@@ -583,15 +586,16 @@ export function ApprovalRuleFormDrawer({
           description="Name exactly one approver — a role or a specific person."
         >
           <div
+            className="row-wrap"
             role="radiogroup"
             aria-label="Approver type"
-            style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}
           >
             {(['role', 'user'] as const).map((type) => {
               const selected = state.approverType === type
               return (
                 <label
                   key={type}
+                  className="touch-target"
                   style={{
                     flex: '1 1 140px',
                     display: 'flex',

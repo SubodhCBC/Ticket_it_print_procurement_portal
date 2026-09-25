@@ -1,5 +1,6 @@
 // src/lib/export/csv.ts
 import type { MonthlyBillingReport, Order, HOBillingLineItem } from '@/types'
+import { formatDate } from '@/lib/format'
 
 export function exportBillingReportCSV(report: MonthlyBillingReport): string {
   const headers = [
@@ -11,7 +12,7 @@ export function exportBillingReportCSV(report: MonthlyBillingReport): string {
     'Orders Count',
     'POs Count',
     'Primary Category',
-    'Total Spend (USD)',
+    'Total Spend (NZD)',
     'Status',
   ]
 
@@ -24,6 +25,8 @@ export function exportBillingReportCSV(report: MonthlyBillingReport): string {
     s.ordersCount,
     s.purchaseOrdersCount,
     `"${s.topCategory}"`,
+    // A raw amount, unquoted and unformatted, so the spreadsheet can sum the
+    // column. Not `formatMoney` — thousands separators would break the cell.
     s.totalSpend.toFixed(2),
     `"${s.status}"`,
   ])
@@ -41,20 +44,21 @@ export function exportOrdersCSV(orders: Order[]): string {
     'PO Reference',
     'Status',
     'Items Qty',
-    'Total Amount ($)',
+    'Total Amount (NZD)',
     'Carrier',
     'Tracking #',
   ]
 
   const rows = orders.map((o) => [
     `"${o.orderNumber}"`,
-    `"${new Date(o.createdAt).toLocaleDateString()}"`,
+    `"${formatDate(o.createdAt)}"`,
     `"${o.accountName}"`,
     `"${o.siteCode}"`,
     `"${o.siteName}"`,
     `"${o.poReference || 'N/A'}"`,
     `"${o.status}"`,
     o.itemCount,
+    // Raw, for the same reason as above: a summable cell, not a label.
     o.totalAmount.toFixed(2),
     `"${o.carrier || 'Pending'}"`,
     `"${o.trackingNumber || 'Pending'}"`,
@@ -130,7 +134,7 @@ export function exportBackingLinesCSV(
   ]
   const rows = lineItems.map((li) => [
     li.orderNumber,
-    new Date(li.orderDate).toLocaleDateString('en-NZ'),
+    formatDate(li.orderDate),
     li.accountName,
     li.accountId,
     li.siteName,
@@ -144,7 +148,8 @@ export function exportBackingLinesCSV(
     li.packSize,
     li.uom,
     li.qty,
-    li.unitPrice.toFixed(2),
+    // Raw amounts again — these three columns are meant to be added up.
+    li.unitPrice?.toFixed(2) ?? '',
     li.lineValue.toFixed(2),
     li.taxTreatment,
     li.orderTotal.toFixed(2),

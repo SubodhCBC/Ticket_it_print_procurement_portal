@@ -12,9 +12,7 @@ export const PACK_PRESETS = [1, 2, 5, 10, 25]
 /** Axes that describe what the design is printed on, shown as cards. */
 const STOCK_AXIS = /material|paper|stock|substrate|finish|lamination/i
 
-/** "$2,500.00": grouped thousands, so a quantity card reads at a glance. */
-export const money = (amount: number) =>
-  `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+// Money is formatted by `@/lib/format`; import `formatMoney` from there.
 
 /**
  * The pack counts a buyer can pick.

@@ -4,6 +4,7 @@
 import Link from 'next/link'
 import { ArrowRight, PackageCheck, PackageX, AlertTriangle } from 'lucide-react'
 import type { Product } from '@/types'
+import { packCount } from './cart/line-format'
 
 /**
  * What a buyer can still order of a stocked product.
@@ -38,14 +39,24 @@ export function StockAvailability({
       ? { color: '#B45309', background: '#FFFBEB' }
       : { color: '#3F9C68', background: '#ECFDF5' }
   const Icon = isOut ? PackageX : isLow ? AlertTriangle : PackageCheck
+  // What the number counts, said out loud. It is a count of PACKS — the thing
+  // a buyer orders — and it is what is still available: on hand less what
+  // placed orders have reserved. "120 in stock" read as pieces on a shelf, and
+  // was neither.
+  const available = packCount(remaining)
   const label = isOut
     ? 'Out of stock'
     : isLow
-      ? `Low stock: ${remaining} left`
-      : `${remaining} in stock`
+      ? `Low stock: ${available} available`
+      : `${available} available`
 
   return (
     <span
+      title={
+        isOut
+          ? 'No packs available to order'
+          : `${available} to order — on hand, less what placed orders have reserved`
+      }
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -83,6 +94,7 @@ export function SupersededNotice({
   return (
     <Link
       href={`/shop/catalogue/${encodeURIComponent(supersededBy.id)}`}
+      className="touch-target"
       style={{
         display: 'inline-flex',
         alignItems: 'center',

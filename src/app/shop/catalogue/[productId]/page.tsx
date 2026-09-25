@@ -6,7 +6,10 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/hooks/useAuth'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { stockLabel } from '@/components/shop/stock-label'
+import { packCount, packSizeOf } from '@/components/shop/cart/line-format'
+import { formatNumber } from '@/lib/format'
 import { findVariant } from '@/services/data-source/api/product.mapper'
 import { getProductWithPricing } from '@/services/products.service'
 import type { EffectiveProduct } from '@/types'
@@ -16,7 +19,6 @@ import {
 } from '@/components/shop/ProductAvailability'
 import {
   ArrowLeft,
-  Check,
   ShieldCheck,
   ShieldAlert,
   Download,
@@ -24,26 +26,6 @@ import {
   FileDown,
   Sparkles,
 } from 'lucide-react'
-
-/** The four personalisation fields share one label and one input style. */
-const fieldLabel: React.CSSProperties = {
-  display: 'block',
-  fontSize: '0.78rem',
-  fontWeight: 600,
-  color: '#5C566E',
-  marginBottom: '4px',
-}
-
-const fieldInput: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  borderRadius: '10px',
-  border: '1px solid #F0E6EC',
-  fontSize: '0.84rem',
-  color: '#2B253E',
-  backgroundColor: '#FFFFFF',
-  outline: 'none',
-}
 
 /**
  * A logistics fact: grey label over its value. These were four tinted,
@@ -75,14 +57,11 @@ export default function ProductDetailPage() {
   const [chosenOptions, setChosenOptions] = useState<Record<string, string>>({})
   const [imageFailed, setImageFailed] = useState(false)
 
-  // What the buyer types onto the preview. Empty to begin with: these were
-  // seeded with a New York phone number and a campaign nobody is running, and
-  // because they are values rather than placeholders they read as the branch's
-  // own details on a portal that ships with NZ Post.
-  const [customBranchHeadline, setCustomBranchHeadline] = useState('')
-  const [customPromoTag, setCustomPromoTag] = useState('')
-  const [customPhone, setCustomPhone] = useState('')
-  const [customHours, setCustomHours] = useState('')
+  // The hero is one card split into a tinted picture panel and a details
+  // panel, butted together with no gap and a hairline between them. No
+  // toolkit class can express that -- `.grid-2` would open a 14px white seam
+  // through the middle of the card -- so this one split reads the viewport.
+  const isPhone = useMediaQuery('(max-width: 767px)')
 
   useEffect(() => {
     async function loadProduct() {
@@ -93,7 +72,6 @@ export default function ProductDetailPage() {
         if (item) {
           setProduct(item)
           setImageFailed(false)
-          setCustomBranchHeadline(user?.siteName || '')
         }
       } catch (err) {
         console.error('Failed to load product detail', err)
@@ -103,7 +81,7 @@ export default function ProductDetailPage() {
     }
 
     loadProduct()
-  }, [productId, user?.accountId, user?.siteName])
+  }, [productId, user?.accountId])
 
   if (isLoading) {
     return (
@@ -165,8 +143,8 @@ export default function ProductDetailPage() {
             margin: '6px auto 16px',
           }}
         >
-          The requested marketing asset does not exist or is not available for
-          your site.
+          The requested product does not exist or is not available for your
+          site.
         </p>
         <Link
           href="/shop/catalogue"
@@ -194,6 +172,10 @@ export default function ProductDetailPage() {
   const stock = stockLabel(product)
   const moq = product.moq || 1
   const multiple = product.orderMultiple || 1
+  // The pack size as a count. `product.packSize` is the shelf label and cannot
+  // be multiplied; `unitsPerPack` is the same fact as a number.
+  const packSize = packSizeOf(product.unitsPerPack ?? product.packSize)
+  const unitsPerPack = packSize !== null && packSize > 1 ? packSize : null
 
   return (
     <div
@@ -204,17 +186,10 @@ export default function ProductDetailPage() {
       }}
     >
       {/* 1. Breadcrumbs */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
         <Link
           href="/shop/catalogue"
+          className="touch-target"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -226,17 +201,16 @@ export default function ProductDetailPage() {
           }}
         >
           <ArrowLeft size={14} />
-          <span>Back to Asset Catalogue</span>
+          <span>Back to catalogue</span>
         </Link>
 
         <div
+          className="row-wrap"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
             fontSize: '0.74rem',
             color: '#A39BB3',
             fontFamily: 'monospace',
+            overflowWrap: 'anywhere',
           }}
         >
           <span>ID: {product.id}</span>
@@ -255,20 +229,26 @@ export default function ProductDetailPage() {
           border: '1px solid #F0E6EC',
           overflow: 'hidden',
           display: 'grid',
-          gridTemplateColumns: 'minmax(300px, 5fr) minmax(360px, 7fr)',
+          gridTemplateColumns: isPhone
+            ? 'minmax(0, 1fr)'
+            : 'minmax(0, 5fr) minmax(0, 7fr)',
           gap: 0,
         }}
       >
         {/* Left Column: Image */}
         <div
+          className="page-pad"
           style={{
             backgroundColor: '#FCF7FA',
-            padding: '24px',
+            paddingBlock: '24px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            borderRight: '1px solid #F5EEF2',
+            // Stacked, the hairline belongs under the picture rather than
+            // down one side of it.
+            borderRight: isPhone ? 'none' : '1px solid #F5EEF2',
+            borderBottom: isPhone ? '1px solid #F5EEF2' : 'none',
             position: 'relative',
           }}
         >
@@ -314,49 +294,6 @@ export default function ProductDetailPage() {
                 }}
               >
                 <Package size={48} />
-              </div>
-            )}
-
-            {/* Customization live overlay badge on preview */}
-            {customBranchHeadline && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '10px',
-                  left: '10px',
-                  right: '10px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.8)',
-                  borderRadius: '10px',
-                  padding: '8px 12px',
-                  color: '#FFFFFF',
-                  fontSize: '0.72rem',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontWeight: 600,
-                    color: '#DCD3E0',
-                  }}
-                >
-                  <Check size={12} />
-                  Custom Template:
-                </div>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {customBranchHeadline}
-                </div>
-                <div style={{ fontSize: '0.68rem', color: '#A39BB3' }}>
-                  {customPromoTag}
-                </div>
               </div>
             )}
 
@@ -408,7 +345,7 @@ export default function ProductDetailPage() {
                   >
                     {product.status === 'SUPERSEDED'
                       ? 'This revision has been archived and replaced with an updated specification.'
-                      : 'This asset is currently not available for site dispatch.'}
+                      : 'This product is not currently available to order.'}
                   </p>
                   {product.status === 'SUPERSEDED' && product.supersededBy && (
                     <Link
@@ -434,8 +371,9 @@ export default function ProductDetailPage() {
 
         {/* Right Column: Details & Order Controls */}
         <div
+          className="page-pad"
           style={{
-            padding: '24px',
+            paddingBlock: '24px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -446,14 +384,7 @@ export default function ProductDetailPage() {
             style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
           >
             {/* Category & Status */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                flexWrap: 'wrap',
-              }}
-            >
+            <div className="row-wrap">
               <span
                 style={{
                   padding: '2px 8px',
@@ -479,7 +410,7 @@ export default function ProductDetailPage() {
                 }}
               >
                 {product.status === 'ACTIVE'
-                  ? 'Approved for Site Orders'
+                  ? 'Approved for branch orders'
                   : product.status}
               </span>
 
@@ -525,33 +456,38 @@ export default function ProductDetailPage() {
 
             {/* Logistics Specs Grid */}
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-                gap: '12px',
-                padding: '14px 0',
-                borderTop: '1px solid #F5EEF2',
-                borderBottom: '1px solid #F5EEF2',
-              }}
+              className="grid-auto"
+              style={
+                {
+                  ['--min']: '130px',
+                  padding: '14px 0',
+                  borderTop: '1px solid #F5EEF2',
+                  borderBottom: '1px solid #F5EEF2',
+                } as React.CSSProperties
+              }
             >
+              {/* One noun throughout: a quantity here is a number of PACKS,
+                  and what a pack holds is said once, beside the pack size.
+                  "MOQ", "UOM" and "Any Qty ≥ MOQ" were the warehouse's
+                  shorthand on a page a buyer reads. */}
               <div>
                 <span style={specLabel}>Pack Size</span>
-                <span style={specValue}>{product.packSize || '1 Unit'}</span>
-              </div>
-              <div>
-                <span style={specLabel}>UOM</span>
-                <span style={specValue}>{product.uom || 'EA'}</span>
-              </div>
-              <div>
-                <span style={specLabel}>MOQ</span>
                 <span style={specValue}>
-                  {moq} {product.uom}
+                  {unitsPerPack !== null
+                    ? `${formatNumber(unitsPerPack)} units per pack`
+                    : product.packSize || 'Single unit'}
                 </span>
               </div>
               <div>
-                <span style={specLabel}>Order Multiple</span>
+                <span style={specLabel}>Minimum order</span>
+                <span style={specValue}>{packCount(moq)}</span>
+              </div>
+              <div>
+                <span style={specLabel}>Sold in</span>
                 <span style={specValue}>
-                  {multiple > 1 ? `Multiples of ${multiple}` : 'Any Qty ≥ MOQ'}
+                  {multiple > 1
+                    ? `multiples of ${packCount(multiple)}`
+                    : `any quantity from ${packCount(moq)}`}
                 </span>
               </div>
               {stock && (
@@ -564,159 +500,24 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Dynamic Template Personalization Tool. A section of the card
-                rather than a pink panel inside it: the dividers either side
-                already set it apart. */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '8px',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <Sparkles size={16} color="#A39BB3" />
-                    <span
-                      style={{
-                        fontSize: '0.95rem',
-                        fontWeight: 700,
-                        color: '#2B253E',
-                      }}
-                    >
-                      Personalize Marketing Asset Template
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      borderRadius: '9999px',
-                      backgroundColor: '#F5EEF2',
-                      color: '#5C566E',
-                    }}
-                  >
-                    Web-to-Print Ready
-                  </span>
-                </div>
-                <p
-                  style={{
-                    fontSize: '0.76rem',
-                    color: '#A39BB3',
-                    margin: '3px 0 0',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Customize this asset with your branch details before
-                  submission. Customized graphics are rendered and attached to
-                  your order.
-                </p>
-              </div>
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
-                }}
-              >
-                <div>
-                  <label htmlFor="personalise-headline" style={fieldLabel}>
-                    Branch or location
-                  </label>
-                  <input
-                    id="personalise-headline"
-                    type="text"
-                    value={customBranchHeadline}
-                    onChange={(e) => setCustomBranchHeadline(e.target.value)}
-                    placeholder="Queen Street Branch"
-                    style={fieldInput}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="personalise-tagline" style={fieldLabel}>
-                    Campaign tagline
-                  </label>
-                  <input
-                    id="personalise-tagline"
-                    type="text"
-                    value={customPromoTag}
-                    onChange={(e) => setCustomPromoTag(e.target.value)}
-                    placeholder="Winter wellness check"
-                    style={fieldInput}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="personalise-phone" style={fieldLabel}>
-                    Branch phone
-                  </label>
-                  <input
-                    id="personalise-phone"
-                    type="tel"
-                    value={customPhone}
-                    onChange={(e) => setCustomPhone(e.target.value)}
-                    placeholder="09 123 4567"
-                    style={fieldInput}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="personalise-hours" style={fieldLabel}>
-                    Opening hours
-                  </label>
-                  <input
-                    id="personalise-hours"
-                    type="text"
-                    value={customHours}
-                    onChange={(e) => setCustomHours(e.target.value)}
-                    placeholder="Mon–Sat, 8am–6pm"
-                    style={fieldInput}
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Optional artwork / reference file (SOW F-10). Shown only when
                 the product has one; the link is signed by the API. */}
             {product.artworkUrl && (
               <div
+                className="row-wrap"
                 style={{
                   paddingTop: '16px',
                   borderTop: '1px solid #F5EEF2',
-                  display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '12px',
-                  flexWrap: 'wrap',
                 }}
               >
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
-                >
+                <div className="row-wrap">
                   <FileDown
                     size={16}
                     color="#A39BB3"
                     style={{ flexShrink: 0 }}
                   />
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div
                       style={{
                         fontSize: '0.84rem',
@@ -736,6 +537,7 @@ export default function ProductDetailPage() {
                   href={product.artworkUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="touch-target"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -796,15 +598,14 @@ export default function ProductDetailPage() {
                   >
                     {axis.name}
                   </span>
-                  <div
-                    style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}
-                  >
+                  <div className="row-wrap">
                     {axis.values.map((value) => {
                       const isChosen = chosenOptions[axis.name] === value
                       return (
                         <button
                           key={value}
                           type="button"
+                          className="touch-target"
                           onClick={() =>
                             setChosenOptions((current) => ({
                               ...current,
@@ -886,6 +687,7 @@ export default function ProductDetailPage() {
                 */}
                 <Link
                   href={`/shop/templates?product=${product.id}`}
+                  className="touch-target"
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',
@@ -935,7 +737,7 @@ export default function ProductDetailPage() {
                     margin: 0,
                   }}
                 >
-                  Ordering Disabled for this Asset
+                  Ordering disabled for this product
                 </p>
                 <p
                   style={{
@@ -959,7 +761,7 @@ export default function ProductDetailPage() {
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: '8px',
                 fontSize: '0.76rem',
                 color: '#A39BB3',

@@ -7,11 +7,11 @@ import type {
   ApprovalStepView,
 } from '@/services/data-source/api/approval.types'
 import { ApprovalStatusBadge } from './ApprovalStatusBadge'
+import { formatDateTime } from '@/lib/format'
 import {
   APPROVAL_COLORS,
   approverLabel,
   DECISION_LABELS,
-  formatDateTime,
 } from './ApprovalShared'
 
 const C = APPROVAL_COLORS

@@ -2,7 +2,7 @@
 'use client'
 
 import { SkeletonCardGrid } from '@/components/ui/Skeleton'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { useCart } from '@/hooks/useCart'
@@ -11,6 +11,7 @@ import {
   getProductCategories,
 } from '@/services/products.service'
 import { ProductCard } from '@/components/shop/ProductCard'
+import { useTemplates } from '@/hooks/useTemplates'
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,8 +19,13 @@ import {
   Search,
   ShoppingCart,
 } from 'lucide-react'
+import { formatMoney } from '@/lib/format'
+import { packCount } from '@/components/shop/cart/line-format'
 
 const PAGE_SIZE = 24
+
+/** The templates endpoint's largest page; see `designCounts` below. */
+const DESIGN_COUNT_PAGE = 100
 
 export default function ShopCataloguePage() {
   const { user } = useAuth()
@@ -78,6 +84,33 @@ export default function ShopCataloguePage() {
     setPage(1)
   }
 
+  // How many published designs each product has — counted ONCE for the page.
+  //
+  // Each tile used to ask for this itself, so a full page of 24 products issued
+  // 24 extra requests purely to print a number. One list read answers all of
+  // them. `DESIGN_COUNT_PAGE` is the endpoint's ceiling, so when the published
+  // library is larger than a single page the counts would be undercounts; the
+  // tiles then fall back to "Browse designs" rather than print a wrong number.
+  const publishedDesigns = useTemplates({
+    status: 'PUBLISHED',
+    pageSize: DESIGN_COUNT_PAGE,
+  })
+  const designCounts = useMemo(() => {
+    if (publishedDesigns.isLoading || publishedDesigns.error) return null
+    if (publishedDesigns.total > publishedDesigns.data.length) return null
+    const counts = new Map<string, number>()
+    for (const design of publishedDesigns.data) {
+      if (!design.productId) continue
+      counts.set(design.productId, (counts.get(design.productId) ?? 0) + 1)
+    }
+    return counts
+  }, [
+    publishedDesigns.data,
+    publishedDesigns.total,
+    publishedDesigns.isLoading,
+    publishedDesigns.error,
+  ])
+
   return (
     <div
       style={{
@@ -88,15 +121,7 @@ export default function ShopCataloguePage() {
     >
       {/* 1. Page header. The site this catalogue is scoped to used to sit in a
           chip on a dark banner; it now leads the description. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="stack-sm" style={{ justifyContent: 'space-between' }}>
         <div style={{ minWidth: 0, maxWidth: '680px' }}>
           <h1
             style={{
@@ -107,7 +132,7 @@ export default function ShopCataloguePage() {
               margin: 0,
             }}
           >
-            Approved Marketing & Collateral Catalogue
+            Approved product catalogue
           </h1>
           <p
             style={{
@@ -135,10 +160,12 @@ export default function ShopCataloguePage() {
         {/* Quick cart summary. One secondary button; the count it used to
             repeat in a green badge is already in its label. */}
         <button
+          className="touch-target"
           onClick={() => setIsCartDrawerOpen(true)}
           style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '8px',
             padding: '8px 14px',
             borderRadius: '10px',
@@ -158,7 +185,9 @@ export default function ShopCataloguePage() {
             Session Cart
           </span>
           <span>
-            ${subtotal.toFixed(2)} ({totalCount} items)
+            {/* The basket counts packs, not pieces and not "items" — the same
+                noun the basket, checkout and order screens use. */}
+            {formatMoney(subtotal)} ({packCount(totalCount)})
           </span>
         </button>
       </div>
@@ -177,22 +206,13 @@ export default function ShopCataloguePage() {
           gap: '12px',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
           {/* Search Input */}
           <div
             style={{
               position: 'relative',
-              flex: 1,
-              minWidth: '260px',
+              flex: '1 1 220px',
+              minWidth: 0,
               maxWidth: '460px',
             }}
           >
@@ -213,6 +233,7 @@ export default function ShopCataloguePage() {
               aria-label="Search the catalogue"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              className="touch-target"
               style={{
                 width: '100%',
                 paddingLeft: '36px',
@@ -230,6 +251,7 @@ export default function ShopCataloguePage() {
             />
             {searchQuery && (
               <button
+                className="touch-target"
                 onClick={() => setSearchQuery('')}
                 style={{
                   position: 'absolute',
@@ -254,7 +276,7 @@ export default function ShopCataloguePage() {
             <strong style={{ fontWeight: 600, color: '#2B253E' }}>
               {totalProducts}
             </strong>{' '}
-            approved asset{totalProducts === 1 ? '' : 's'}
+            approved product{totalProducts === 1 ? '' : 's'}
             {productsQuery.isFetching && !isLoading ? ' · updating…' : ''}
           </div>
         </div>
@@ -271,6 +293,7 @@ export default function ShopCataloguePage() {
         >
           <button
             type="button"
+            className="touch-target"
             onClick={() => chooseCategory('All')}
             style={{
               padding: '5px 12px',
@@ -295,6 +318,7 @@ export default function ShopCataloguePage() {
               <button
                 key={cat.id}
                 type="button"
+                className="touch-target"
                 onClick={() => chooseCategory(cat.id)}
                 style={{
                   padding: '5px 12px',
@@ -373,6 +397,7 @@ export default function ShopCataloguePage() {
               : 'There are currently no products configured for your account catalogue visibility. Please contact your Platform Administrator.'}
           </p>
           <button
+            className="touch-target"
             onClick={() => {
               setSearchQuery('')
               setSearch('')
@@ -394,25 +419,27 @@ export default function ShopCataloguePage() {
         </div>
       ) : (
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '16px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '200px' } as React.CSSProperties}
         >
           {filteredProducts.map((product, index) => (
-            <ProductCard key={product.id} product={product} index={index} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              index={index}
+              designCount={
+                designCounts ? (designCounts.get(product.id) ?? 0) : null
+              }
+            />
           ))}
         </div>
       )}
 
       {totalPages > 1 && (
         <div
+          className="row-wrap"
           style={{
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '12px',
             fontSize: '0.8rem',
             color: '#6E6781',
           }}
@@ -420,9 +447,10 @@ export default function ShopCataloguePage() {
           <span>
             Page {page} of {totalPages}
           </span>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="row-wrap">
             <button
               type="button"
+              className="touch-target"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
               style={pagerButton}
@@ -431,6 +459,7 @@ export default function ShopCataloguePage() {
             </button>
             <button
               type="button"
+              className="touch-target"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               style={pagerButton}

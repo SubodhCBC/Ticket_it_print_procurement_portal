@@ -51,22 +51,41 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
 
   const currentRoleDetails = role ? ROLE_DETAILS[role] : ROLE_DETAILS.admin
 
-  // Responsive breakpoint tracking
+  // Responsive breakpoint tracking.
+  //
+  // The sidebar is collapsed when the window ENTERS the tablet band, not on
+  // every resize event inside it. `resize` fires continuously while a window is
+  // dragged — and on mobile browsers whenever the URL bar slides — so setting
+  // the mini state on each event meant a tablet user who opened the sidebar had
+  // it shut again the moment anything nudged the viewport, with no way to keep
+  // it open. Remembering which band we were last in makes it a one-shot.
   useEffect(() => {
+    /** 'mobile' | 'tablet' | 'desktop' for a given width. */
+    const bandFor = (width: number) =>
+      width < 768 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop'
+
+    let band = bandFor(window.innerWidth)
+
     const handleResize = () => {
       const width = window.innerWidth
       setWindowWidth(width)
-      if (width < 768) {
-        // Mobile
-      } else if (width >= 768 && width < 1024) {
-        setIsMiniSidebar(true)
-        setIsMobileDrawerOpen(false)
-      } else {
-        setIsMobileDrawerOpen(false)
-      }
+
+      const next = bandFor(width)
+      if (next === band) return
+      band = next
+
+      // Entering the tablet band collapses the sidebar once; the user is then
+      // free to open it again and it stays open.
+      if (next === 'tablet') setIsMiniSidebar(true)
+      if (next !== 'mobile') setIsMobileDrawerOpen(false)
     }
 
-    handleResize()
+    // The first run sets the width and applies the band we start in, since
+    // `windowWidth` is seeded with a desktop guess for the server render.
+    setWindowWidth(window.innerWidth)
+    if (band === 'tablet') setIsMiniSidebar(true)
+    if (band !== 'mobile') setIsMobileDrawerOpen(false)
+
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
@@ -90,6 +109,20 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
       document.body.style.overflow = ''
     }
   }, [isMobile, isMobileDrawerOpen])
+
+  // Escape closes the mobile drawer. It covers the whole screen, so without
+  // this the one key everybody tries left the reader stuck behind it.
+  useEffect(() => {
+    if (!isMobileDrawerOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        setIsMobileDrawerOpen(false)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isMobileDrawerOpen])
 
   // An administrator can open the shop and head-office portals too, and keeps
   // the admin menu there.
@@ -131,6 +164,7 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
               : nested
                 ? '0.55rem 0.75rem'
                 : '0.65rem 0.85rem',
+            minHeight: '40px',
             borderRadius: '10px',
             color: isActive ? '#ffffff' : '#A39BB3',
             background: isActive ? 'rgba(247, 53, 130, 0.16)' : 'transparent',
@@ -324,9 +358,11 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
               type="button"
               onClick={() => setIsMobileDrawerOpen(false)}
               aria-label="Close drawer"
+              className="touch-target"
               style={{
                 width: '32px',
                 height: '32px',
+                flexShrink: 0,
                 borderRadius: '10px',
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 color: '#DCD3E0',
@@ -487,6 +523,7 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
                       alignItems: 'center',
                       gap: '0.75rem',
                       padding: '0.65rem 0.85rem',
+                      minHeight: '40px',
                       width: '100%',
                       borderRadius: '10px',
                       color: holdsActive ? '#ffffff' : '#A39BB3',
@@ -505,6 +542,7 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
                       style={{ flexShrink: 0 }}
                     />
                     <span
+                      title={entry.title}
                       style={{
                         flex: 1,
                         whiteSpace: 'nowrap',
@@ -647,6 +685,7 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
                   </div>
                   <div style={{ minWidth: 0, overflow: 'hidden' }}>
                     <div
+                      title={user?.name || 'Authorised user'}
                       style={{
                         fontSize: '0.82rem',
                         fontWeight: 700,
@@ -656,9 +695,10 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
                         overflow: 'hidden',
                       }}
                     >
-                      {user?.name || 'Authorized User'}
+                      {user?.name || 'Authorised user'}
                     </div>
                     <div
+                      title={user?.organization || 'Print Procurement Portal'}
                       style={{
                         fontSize: '0.68rem',
                         color: '#A39BB3',
@@ -758,14 +798,16 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
 
               {/* Drawer Content */}
               <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Navigation menu"
                 initial={{ x: '-100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 280 }}
                 style={{
                   position: 'relative',
-                  width: '85vw',
-                  maxWidth: '300px',
+                  width: 'min(85vw, 300px)',
                   height: '100%',
                   backgroundColor: '#2B253E',
                   color: '#ffffff',
@@ -831,6 +873,10 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
                       ? 'Expand Sidebar'
                       : 'Collapse to Mini'
                 }
+                aria-label={
+                  isMobile ? 'Open navigation menu' : 'Toggle sidebar'
+                }
+                className="touch-target"
                 style={{
                   background: '#F5EEF2',
                   border: '1px solid #F0E6EC',
@@ -858,15 +904,24 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
                   alignItems: 'center',
                   gap: '0.4rem',
                   fontSize: '0.85rem',
+                  minWidth: 0,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}
               >
-                <span style={{ color: '#6E6781', fontWeight: 600 }}>
+                <span
+                  className="hide-sm"
+                  style={{ color: '#6E6781', fontWeight: 600 }}
+                >
                   Print Procurement Portal
                 </span>
-                <ChevronRight size={14} color="#A39BB3" />
+                <ChevronRight
+                  size={14}
+                  color="#A39BB3"
+                  className="hide-sm"
+                  style={{ flexShrink: 0 }}
+                />
                 <span
                   style={{
                     color: currentRoleDetails.themeColor,
@@ -883,12 +938,8 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
 
             {/* Right: Quick Search + Persona Switcher + Status */}
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                flexShrink: 0,
-              }}
+              className="row-wrap"
+              style={{ gap: '0.65rem', justifyContent: 'flex-end' }}
             >
               {/* Delivery Network Status Pill (Hidden on very small screens) */}
               <div
@@ -921,9 +972,12 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
               <div style={{ position: 'relative' }}>
                 <button
                   onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
+                  aria-label="Switch portal"
+                  className="touch-target"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '0.4rem',
                     background: '#FCF7FA',
                     border: '1px solid #F0E6EC',
@@ -950,7 +1004,7 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
                         position: 'absolute',
                         right: 0,
                         top: '120%',
-                        width: '240px',
+                        width: 'min(240px, calc(100vw - 32px))',
                         background: '#ffffff',
                         borderRadius: '14px',
                         boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)',
@@ -987,9 +1041,12 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
+                aria-label="Sign out"
+                className="touch-target"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '0.35rem',
                   background: '#fee2e2',
                   border: '1px solid #fca5a5',
@@ -1009,9 +1066,13 @@ export function SaaSLayout({ children }: SaaSLayoutProps) {
 
           {/* Main Content Body */}
           <main
+            // .page-pad carries the side gutter (24 / 20 / 16) — an inline
+            // `padding` shorthand here would zero those sides again, so only
+            // paddingBlock is set inline.
+            className={isStudioRoute ? undefined : 'page-pad'}
             style={{
               flex: 1,
-              padding: isStudioRoute ? 0 : '24px',
+              paddingBlock: isStudioRoute ? 0 : '24px',
               display: 'flex',
               flexDirection: 'column',
               minHeight: 0,

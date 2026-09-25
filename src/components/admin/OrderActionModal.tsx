@@ -1,7 +1,8 @@
 // src/components/admin/OrderActionModal.tsx
 'use client'
 
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
+import { useDialogBehaviour } from '@/components/ui/useDialogBehaviour'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, CheckCircle, Printer } from 'lucide-react'
 import type { Order, OrderStatus } from '@/types'
@@ -10,6 +11,7 @@ import { isLiveLabel, useOrderShipments } from '@/hooks/useShipping'
 import { ShipmentLabelPanel } from '@/components/shipping/ShipmentLabelPanel'
 import { trackingReferencesOf } from '@/components/shipping/shipping-format'
 import { StatusPill } from './StatusPill'
+import { formatMoney, formatDateTime } from '@/lib/format'
 
 /**
  * The dialog is itself the card, so nothing inside it is framed again: the
@@ -111,7 +113,7 @@ export function OrderActionModal({
   canManageShipping = false,
 }: OrderActionModalProps) {
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus>(
-    order?.status || 'RECEIVED'
+    order?.status || 'APPROVED'
   )
   // No default carrier. A made-up name here replaced the NZ Post label's on
   // every dispatch, and read as a real courier on the buyer's order page.
@@ -122,6 +124,12 @@ export function OrderActionModal({
   const [deliveryNotes, setDeliveryNotes] = useState(order?.deliveryNotes || '')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
+
+  const titleId = useId()
+  const fieldId = useId()
+  // This opens on every row click of the two busiest order screens, so the
+  // keyboard has to be able to leave it the same way the mouse can.
+  const closeRef = useDialogBehaviour<HTMLButtonElement>(isOpen, onClose)
 
   const { shipments } = useOrderShipments(
     order?.id ?? '',
@@ -196,14 +204,14 @@ export function OrderActionModal({
 
   const statuses: { id: OrderStatus; label: string; desc: string }[] = [
     {
-      id: 'RECEIVED',
-      label: 'Received',
-      desc: 'Order placed by branch, awaiting fulfillment review',
+      id: 'APPROVED',
+      label: 'Approved',
+      desc: 'Cleared for production, not started yet',
     },
     {
       id: 'PROCESSING',
       label: 'Processing',
-      desc: 'Items staged and packed in warehouse/dispensary',
+      desc: 'Items picked and packed in the warehouse',
     },
     {
       id: 'DISPATCHED',
@@ -231,21 +239,24 @@ export function OrderActionModal({
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 100,
-          padding: '20px',
+          padding: '16px',
         }}
       >
         <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.2 }}
+          className="dialog-cap"
           style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '14px',
             border: '1px solid #F0E6EC',
             width: '100%',
             maxWidth: '850px',
-            maxHeight: '90vh',
             display: 'flex',
             flexDirection: 'column',
             boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)',
@@ -266,10 +277,11 @@ export function OrderActionModal({
             {/* No pink icon tile: the order number and its status already say
                 what this dialog is about. */}
             <div style={{ minWidth: 0 }}>
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
-              >
+              {/* The status pill is nowrap: beside a long order number it used
+                  to push the header wider than the dialog. */}
+              <div className="row-wrap" style={{ gap: '10px' }}>
                 <h2
+                  id={titleId}
                   style={{
                     fontSize: '1rem',
                     fontWeight: 700,
@@ -289,14 +301,17 @@ export function OrderActionModal({
                   marginTop: '2px',
                 }}
               >
-                Created on {new Date(order.createdAt).toLocaleString()} • PO:{' '}
+                Created on {formatDateTime(order.createdAt)} • PO:{' '}
                 {order.poReference || 'None'}
               </div>
             </div>
 
             <button
+              ref={closeRef}
+              className="touch-target"
               type="button"
               onClick={onClose}
+              aria-label="Close"
               style={{
                 width: '32px',
                 height: '32px',
@@ -323,32 +338,42 @@ export function OrderActionModal({
               gap: '20px',
             }}
           >
-            {/* Quick Metadata Grid */}
+            {/* Quick Metadata Grid. Three hard columns squeezed each tile to a
+                couple of words on a phone. */}
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '10px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '180px', gap: '10px' } as React.CSSProperties}
             >
-              <div style={metaTile}>
-                <div style={metaLabel}>Account & branch</div>
-                <div style={metaValue}>{order.siteName}</div>
-                <div style={metaSub}>
+              <div style={{ ...metaTile, minWidth: 0 }}>
+                <div style={metaLabel}>Account & site</div>
+                <div className="truncate" style={metaValue}>
+                  {order.siteName}
+                </div>
+                <div className="truncate" style={metaSub}>
                   {order.accountName} ({order.siteCode})
                 </div>
               </div>
 
-              <div style={metaTile}>
+              <div style={{ ...metaTile, minWidth: 0 }}>
                 <div style={metaLabel}>Requester / ordering user</div>
-                <div style={metaValue}>{order.userName}</div>
-                <div style={metaSub}>{order.userEmail}</div>
+                <div className="truncate" style={metaValue}>
+                  {order.userName}
+                </div>
+                {/* An email has nothing to wrap at and used to run past the
+                    tile; the full address is on the order page. */}
+                <div
+                  className="truncate"
+                  style={metaSub}
+                  title={order.userEmail}
+                >
+                  {order.userEmail}
+                </div>
               </div>
 
-              <div style={metaTile}>
+              <div style={{ ...metaTile, minWidth: 0 }}>
                 <div style={metaLabel}>Order total</div>
                 <div style={{ ...metaValue, fontWeight: 700 }}>
-                  ${order.totalAmount.toFixed(2)}
+                  {formatMoney(order.totalAmount)}
                 </div>
                 <div style={metaSub}>{order.itemCount} total units</div>
               </div>
@@ -356,15 +381,14 @@ export function OrderActionModal({
 
             {/* Operational Status Selector Stepper */}
             <div>
-              <div style={sectionTitle}>
-                Operational Workflow Status Transition:
-              </div>
+              <div style={sectionTitle}>Move this order to:</div>
+              {/* Four hard columns made each status card too narrow to read its
+                  description on a phone. */}
               <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '8px',
-                }}
+                className="grid-auto"
+                style={
+                  { ['--min']: '160px', gap: '8px' } as React.CSSProperties
+                }
               >
                 {statuses.map((s) => {
                   const isCurrent = selectedStatus === s.id
@@ -434,13 +458,7 @@ export function OrderActionModal({
             {/* Carrier & Tracking Inputs. With a live NZ Post label these stay
                 empty: dispatch reads the references from the label. They are for
                 a parcel that goes some other way. */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '14px',
-              }}
-            >
+            <div className="grid-2" style={{ gap: '14px' }}>
               {isDispatching && (
                 <p
                   style={{
@@ -458,8 +476,11 @@ export function OrderActionModal({
                 </p>
               )}
               <div>
-                <label style={fieldLabel}>Assigned Logistics Carrier</label>
+                <label htmlFor={`${fieldId}-carrier`} style={fieldLabel}>
+                  Assigned Logistics Carrier
+                </label>
                 <input
+                  id={`${fieldId}-carrier`}
                   type="text"
                   value={carrier}
                   onChange={(e) => setCarrier(e.target.value)}
@@ -473,8 +494,11 @@ export function OrderActionModal({
               </div>
 
               <div>
-                <label style={fieldLabel}>Waybill / Tracking Number</label>
+                <label htmlFor={`${fieldId}-tracking`} style={fieldLabel}>
+                  Waybill / Tracking Number
+                </label>
                 <input
+                  id={`${fieldId}-tracking`}
                   type="text"
                   value={trackingNumber}
                   onChange={(e) => setTrackingNumber(e.target.value)}
@@ -486,10 +510,11 @@ export function OrderActionModal({
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={fieldLabel}>
+                <label htmlFor={`${fieldId}-notes`} style={fieldLabel}>
                   Delivery Instructions / Dispatch Notes
                 </label>
                 <textarea
+                  id={`${fieldId}-notes`}
                   rows={2}
                   maxLength={500}
                   value={deliveryNotes}
@@ -507,10 +532,11 @@ export function OrderActionModal({
               </div>
               {/* Unframed: a bordered table inside the dialog was a card inside
                   a card. The outer columns sit flush with the section title. */}
-              <div style={{ overflowX: 'auto' }}>
+              <div className="table-scroll">
                 <table
                   style={{
                     width: '100%',
+                    minWidth: '520px',
                     borderCollapse: 'collapse',
                     textAlign: 'left',
                     fontSize: '0.84rem',
@@ -604,7 +630,7 @@ export function OrderActionModal({
                             color: '#6E6781',
                           }}
                         >
-                          ${item.unitPrice.toFixed(2)}
+                          {formatMoney(item.unitPrice)}
                         </td>
                         <td
                           style={{
@@ -614,7 +640,7 @@ export function OrderActionModal({
                             color: '#2B253E',
                           }}
                         >
-                          ${item.lineTotal.toFixed(2)}
+                          {formatMoney(item.lineTotal)}
                         </td>
                       </tr>
                     ))}
@@ -643,17 +669,19 @@ export function OrderActionModal({
 
           {/* Modal Footer. Print Slip stays on the left, apart from the pair
               that closes the dialog; Cancel and Apply sit right, 8px apart. */}
+          {/* Three buttons in one unwrapping row pushed Apply off the edge of a
+              phone; the row wraps instead. */}
           <div
+            className="row-wrap"
             style={{
               padding: '14px 20px',
               borderTop: '1px solid #F5EEF2',
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
               gap: '8px',
             }}
           >
             <button
+              className="touch-target"
               type="button"
               onClick={() => window.print()}
               style={secondaryButton}
@@ -662,13 +690,19 @@ export function OrderActionModal({
               <span>Print Slip</span>
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button type="button" onClick={onClose} style={secondaryButton}>
+            <div className="row-wrap" style={{ gap: '8px' }}>
+              <button
+                className="touch-target"
+                type="button"
+                onClick={onClose}
+                style={secondaryButton}
+              >
                 Cancel
               </button>
               {/* A pink border rather than none keeps it the same height as
                   Cancel beside it. */}
               <button
+                className="touch-target"
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleSave}

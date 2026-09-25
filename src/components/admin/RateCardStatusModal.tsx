@@ -6,15 +6,12 @@ import { Modal } from '@/components/ui/Modal'
 import { useRateCardAdminMutations } from '@/hooks/usePricing'
 import { toApiError } from '@/services'
 import type { RateCard } from '@/types'
+import { formatDate } from '@/lib/format'
 
 interface RateCardStatusModalProps {
   rateCard: RateCard
   targetStatus: 'ACTIVE' | 'ARCHIVED'
   onClose: () => void
-}
-
-function formatDate(iso?: string): string {
-  return iso ? new Date(iso).toLocaleDateString() : ''
 }
 
 /**
@@ -36,8 +33,8 @@ export function RateCardStatusModal({
   const isActivate = targetStatus === 'ACTIVE'
 
   const period = rateCard.effectiveTo
-    ? `${formatDate(rateCard.effectiveFrom)} until ${formatDate(rateCard.effectiveTo)}`
-    : `${formatDate(rateCard.effectiveFrom)} with no end date`
+    ? `${formatDate(rateCard.effectiveFrom, '')} until ${formatDate(rateCard.effectiveTo, '')}`
+    : `${formatDate(rateCard.effectiveFrom, '')} with no end date`
 
   const handleConfirm = async () => {
     setError(null)
@@ -139,11 +136,10 @@ export function RateCardStatusModal({
           </div>
         )}
 
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
+            className="touch-target"
             onClick={onClose}
             disabled={isPending}
             style={{
@@ -162,6 +158,7 @@ export function RateCardStatusModal({
           </button>
           <button
             type="button"
+            className="touch-target"
             onClick={handleConfirm}
             disabled={isPending}
             style={{

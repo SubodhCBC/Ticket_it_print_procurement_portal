@@ -23,6 +23,8 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
+import { formatMoney, formatDate } from '@/lib/format'
+import { packCount } from '@/components/shop/cart/line-format'
 
 /** The clock, read when a filter is chosen rather than while rendering. */
 function daysAgoIso(days: number): string {
@@ -163,12 +165,12 @@ export default function SiteOrderHistoryPage() {
               margin: 0,
             }}
           >
-            Site Collateral Order History
+            Branch order history
           </h1>
           <p
             style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}
           >
-            Read-only audit history of orders placed for this site branch.
+            Read-only history of orders placed for this branch.
           </p>
           <div
             style={{
@@ -192,9 +194,11 @@ export default function SiteOrderHistoryPage() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Link
             href="/shop/catalogue"
+            className="touch-target"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
               padding: '8px 14px',
               borderRadius: '10px',
@@ -213,14 +217,11 @@ export default function SiteOrderHistoryPage() {
       {/* 2. KPI Cards. The values were set in amber, green and pink with a
           matching pastel icon tile each; the labels already say what they are. */}
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '14px',
-        }}
+        className="grid-auto"
+        style={{ ['--min']: '200px' } as React.CSSProperties}
       >
         <StatCard
-          label="Total Site Orders"
+          label="Total branch orders"
           icon={ClipboardList}
           value={counts?.ALL ?? '—'}
         />
@@ -259,21 +260,13 @@ export default function SiteOrderHistoryPage() {
             gap: '12px',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '12px',
-            }}
-          >
+          <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
             {/* Search */}
             <div
               style={{
                 position: 'relative',
                 flex: 1,
-                minWidth: '260px',
+                minWidth: '160px',
                 maxWidth: '420px',
               }}
             >
@@ -289,6 +282,7 @@ export default function SiteOrderHistoryPage() {
               />
               <input
                 type="text"
+                className="touch-target"
                 placeholder="Search by order #, PO or your reference..."
                 aria-label="Search orders"
                 value={searchInput}
@@ -310,9 +304,10 @@ export default function SiteOrderHistoryPage() {
             </div>
 
             {/* Date Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="row-wrap">
               <Calendar size={16} color="#A39BB3" />
               <select
+                className="touch-target"
                 value={dateFilter}
                 aria-label="Date placed"
                 onChange={(e) => {
@@ -345,14 +340,7 @@ export default function SiteOrderHistoryPage() {
           </div>
 
           {/* Status Filter Tabs */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              overflowX: 'auto',
-            }}
-          >
+          <div className="row-wrap">
             {STATUS_TABS.map(({ status, label }) => {
               const isSelected = statusFilter === status
               const count = counts?.[status]
@@ -361,6 +349,7 @@ export default function SiteOrderHistoryPage() {
                 <button
                   key={status}
                   type="button"
+                  className="touch-target"
                   onClick={() => {
                     setStatusFilter(status)
                     setPage(1)
@@ -440,9 +429,11 @@ export default function SiteOrderHistoryPage() {
             {/* Secondary: the page header already carries the primary action. */}
             <Link
               href="/shop/catalogue"
+              className="touch-target"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '6px',
                 padding: '8px 14px',
                 borderRadius: '10px',
@@ -454,198 +445,209 @@ export default function SiteOrderHistoryPage() {
                 textDecoration: 'none',
               }}
             >
-              Order Marketing Assets
+              Order products
             </Link>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                textAlign: 'left',
-                fontSize: '0.84rem',
-              }}
-            >
-              <thead>
-                <tr>
-                  <Th edge>Order Number</Th>
-                  <Th>Date Placed</Th>
-                  <Th>PO Reference</Th>
-                  <Th>Items / Assets</Th>
-                  <Th>Fulfilment Status</Th>
-                  <Th align="right">Order Total</Th>
-                  <Th align="right" edge>
-                    Actions
-                  </Th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr
-                    key={order.id}
-                    style={{
-                      borderTop: '1px solid #F5EEF2',
-                      transition: 'background-color 120ms ease',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor = '#FCF7FA')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor = 'transparent')
-                    }
-                  >
-                    <td style={{ padding: '12px 20px' }}>
-                      <Link
-                        href={`/shop/orders/${order.id}`}
-                        style={{
-                          fontWeight: 600,
-                          color: '#2B253E',
-                          textDecoration: 'none',
-                          display: 'block',
-                        }}
-                      >
-                        {order.orderNumber}
-                      </Link>
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          fontFamily: 'monospace',
-                          color: '#A39BB3',
-                        }}
-                      >
-                        ID: {order.id}
-                      </span>
-                    </td>
-
-                    <td
+          <>
+            <div className="table-scroll">
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  textAlign: 'left',
+                  fontSize: '0.84rem',
+                }}
+              >
+                <thead>
+                  <tr>
+                    <Th edge>Order Number</Th>
+                    <Th>Date Placed</Th>
+                    <Th className="hide-sm">PO Reference</Th>
+                    <Th>Items</Th>
+                    <Th>Fulfilment Status</Th>
+                    <Th align="right">Order Total</Th>
+                    <Th align="right" edge>
+                      Actions
+                    </Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => (
+                    <tr
+                      key={order.id}
                       style={{
-                        padding: '12px 14px',
-                        color: '#6E6781',
-                        whiteSpace: 'nowrap',
+                        borderTop: '1px solid #F5EEF2',
+                        transition: 'background-color 120ms ease',
                       }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor = '#FCF7FA')
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = 'transparent')
+                      }
                     >
-                      {new Date(order.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </td>
-
-                    {/* Plain grey monospace, as on the dashboard. The grey chip
-                        behind it made a reference look like a status. */}
-                    <td
-                      style={{
-                        padding: '12px 14px',
-                        fontFamily: 'monospace',
-                        fontSize: '0.78rem',
-                        color: '#6E6781',
-                      }}
-                    >
-                      {order.poReference || '—'}
-                    </td>
-
-                    <td style={{ padding: '12px 14px' }}>
-                      <div style={{ maxWidth: '240px' }}>
+                      <td style={{ padding: '12px 20px' }}>
+                        <Link
+                          href={`/shop/orders/${order.id}`}
+                          style={{
+                            fontWeight: 600,
+                            color: '#2B253E',
+                            textDecoration: 'none',
+                            display: 'block',
+                          }}
+                        >
+                          {order.orderNumber}
+                        </Link>
                         <span
                           style={{
-                            fontWeight: 500,
+                            fontSize: '0.72rem',
+                            fontFamily: 'monospace',
+                            color: '#A39BB3',
+                          }}
+                        >
+                          ID: {order.id}
+                        </span>
+                        <span
+                          className="show-sm"
+                          style={{
+                            fontSize: '0.72rem',
+                            fontFamily: 'monospace',
+                            color: '#6E6781',
+                            display: 'block',
+                          }}
+                        >
+                          PO: {order.poReference || '—'}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '12px 14px',
+                          color: '#6E6781',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {formatDate(order.createdAt)}
+                      </td>
+
+                      {/* Plain grey monospace, as on the dashboard. The grey chip
+                        behind it made a reference look like a status. */}
+                      <td
+                        className="hide-sm"
+                        style={{
+                          padding: '12px 14px',
+                          fontFamily: 'monospace',
+                          fontSize: '0.78rem',
+                          color: '#6E6781',
+                        }}
+                      >
+                        {order.poReference || '—'}
+                      </td>
+
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ maxWidth: '240px' }}>
+                          <span
+                            style={{
+                              fontWeight: 500,
+                              color: '#2B253E',
+                              display: 'block',
+                            }}
+                          >
+                            {/* `itemCount` is the order's quantity, and a
+                              quantity on this portal counts packs. "items"
+                              read as pieces — 4 packs of 250 cards is not
+                              four things. */}
+                            {packCount(order.itemCount)} (
+                            {order.lineItems.length}{' '}
+                            {order.lineItems.length === 1 ? 'line' : 'lines'})
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              color: '#A39BB3',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: 'block',
+                            }}
+                          >
+                            {order.lineItems
+                              .map((li) => li.productName)
+                              .join(', ')}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '12px 14px' }}>
+                        <OrderStatusBadge status={order.status} size="sm" />
+                        {order.carrier && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              color: '#A39BB3',
+                              display: 'block',
+                              marginTop: '3px',
+                            }}
+                          >
+                            {order.carrier}
+                          </span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <span
+                          style={{
+                            fontWeight: 700,
                             color: '#2B253E',
                             display: 'block',
                           }}
                         >
-                          {order.itemCount} items ({order.lineItems.length}{' '}
-                          lines)
+                          {formatMoney(order.totalAmount)}
                         </span>
-                        <span
-                          style={{
-                            fontSize: '0.72rem',
-                            color: '#A39BB3',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: 'block',
-                          }}
-                        >
-                          {order.lineItems
-                            .map((li) => li.productName)
-                            .join(', ')}
+                        <span style={{ fontSize: '0.72rem', color: '#A39BB3' }}>
+                          On-Account
                         </span>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td style={{ padding: '12px 14px' }}>
-                      <OrderStatusBadge status={order.status} size="sm" />
-                      {order.carrier && (
-                        <span
-                          style={{
-                            fontSize: '0.72rem',
-                            color: '#A39BB3',
-                            display: 'block',
-                            marginTop: '3px',
-                          }}
+                      <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                        <div
+                          className="row-wrap"
+                          style={{ justifyContent: 'flex-end' }}
                         >
-                          {order.carrier}
-                        </span>
-                      )}
-                    </td>
-
-                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: '#2B253E',
-                          display: 'block',
-                        }}
-                      >
-                        ${order.totalAmount.toFixed(2)}
-                      </span>
-                      <span style={{ fontSize: '0.72rem', color: '#A39BB3' }}>
-                        On-Account
-                      </span>
-                    </td>
-
-                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                      <div
-                        style={{
-                          display: 'inline-flex',
-                          gap: '12px',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <ReorderButton
-                          orderId={order.id}
-                          orderNumber={order.orderNumber}
-                          compact
-                        />
-                        <Link
-                          href={`/shop/orders/${order.id}`}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            color: '#F73582',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            textDecoration: 'none',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <Eye size={14} /> View
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          <ReorderButton
+                            orderId={order.id}
+                            orderNumber={order.orderNumber}
+                            compact
+                          />
+                          <Link
+                            href={`/shop/orders/${order.id}`}
+                            className="touch-target"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              color: '#F73582',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <Eye size={14} /> View
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {totalPages > 1 && (
               <div
+                className="row-wrap"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '12px',
                   padding: '12px 20px',
                   borderTop: '1px solid #F5EEF2',
                   fontSize: '0.8rem',
@@ -656,9 +658,10 @@ export default function SiteOrderHistoryPage() {
                   Page {page} of {totalPages}
                   {ordersQuery.isFetching ? ' · updating…' : ''}
                 </span>
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div className="row-wrap">
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1}
                     style={pagerButton}
@@ -667,6 +670,7 @@ export default function SiteOrderHistoryPage() {
                   </button>
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
                     style={pagerButton}
@@ -676,7 +680,7 @@ export default function SiteOrderHistoryPage() {
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -749,13 +753,16 @@ function Th({
   children,
   align = 'left',
   edge,
+  className,
 }: {
   children?: React.ReactNode
   align?: 'left' | 'center' | 'right'
   edge?: boolean
+  className?: string
 }) {
   return (
     <th
+      className={className}
       style={{
         padding: edge ? '10px 20px' : '10px 14px',
         color: '#A39BB3',

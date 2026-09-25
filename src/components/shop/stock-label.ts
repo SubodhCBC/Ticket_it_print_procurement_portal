@@ -1,5 +1,6 @@
 // src/components/shop/stock-label.ts
 import type { Product } from '@/types'
+import { formatNumber } from '@/lib/format'
 
 /**
  * What a buyer can still order, in words. Null when stock is not counted —
@@ -15,7 +16,7 @@ export function stockLabel(product: Product): {
   if (left <= 0) return { text: 'Out of stock', color: '#DC2626' }
   if (product.isLowStock)
     return {
-      text: `Low stock · ${left.toLocaleString()} left`,
+      text: `Low stock · ${formatNumber(left)} left`,
       color: '#B45309',
     }
   return { text: 'In stock', color: '#047857' }

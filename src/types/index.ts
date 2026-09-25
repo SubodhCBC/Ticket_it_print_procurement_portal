@@ -53,7 +53,17 @@ export type Product = {
   thumbnailUrl: string
   categoryId: string
   categoryName?: string
+  /** The shelf label — "Pack of 250". Not a number; see `unitsPerPack`. */
   packSize: string
+  /**
+   * How many pieces one pack holds, as a count.
+   *
+   * The portal sells packs: a quantity of 5 is five packs, 1,250 cards. The
+   * label above says that in words but cannot be multiplied, so the count
+   * travels beside it. Optional because the fixtures and the template builder
+   * construct partial products that never had one.
+   */
+  unitsPerPack?: number
   uom: string
   basePrice: number
   moq: number
@@ -152,7 +162,7 @@ export type ProductVariant = {
  */
 export type OrderableProduct = Pick<
   Product,
-  'moq' | 'orderMultiple' | 'uom' | 'packSize'
+  'moq' | 'orderMultiple' | 'uom' | 'packSize' | 'unitsPerPack'
 >
 
 export type ProductCategory = {
@@ -411,15 +421,21 @@ export type PortalUser = {
   createdAt?: string
 }
 
+/**
+ * The order's fulfilment lifecycle — the nine the server defines in
+ * `src/server/orders/order-status.ts`, and nothing else.
+ *
+ * This union used to carry four more: `PAID`, `ORDER_PLACED`, `IN_PRODUCTION`
+ * and `RECEIVED`. They were display states from the fixtures, the API has never
+ * sent one, and `PAID` in particular belongs to `PaymentStatus` — an order on
+ * Net 30 terms is routinely delivered a month before it is paid, so a value
+ * from that axis in this one made the ordinary sequence unrepresentable.
+ */
 export type OrderStatus =
   | 'DRAFT'
   | 'PENDING_APPROVAL'
   | 'CHANGES_REQUESTED'
   | 'APPROVED'
-  | 'PAID'
-  | 'ORDER_PLACED'
-  | 'IN_PRODUCTION'
-  | 'RECEIVED'
   | 'PROCESSING'
   | 'DISPATCHED'
   | 'DELIVERED'
@@ -726,9 +742,14 @@ export type MonthlyBillingReport = {
 
 export type DashboardKPIs = {
   totalRevenueMonth: number
-  revenueDeltaPct: number
+  /**
+   * Growth against the previous window, or null when there is no previous
+   * window to compare against. Null is not zero: zero says "flat", null says
+   * "nothing to compare yet", and the tiles render it as a dash.
+   */
+  revenueDeltaPct: number | null
   activeOrdersCount: number
-  ordersDeltaPct: number
+  ordersDeltaPct: number | null
   /**
    * The live queue, as of now rather than over the reporting window.
    *
@@ -787,10 +808,11 @@ export type HODashboardKPIs = {
   accountName: string
   totalSpendThisMonth: number
   totalSpendLastMonth: number
-  spendDeltaPct: number
+  /** Null where there is no prior month; see `DashboardKPIs.revenueDeltaPct`. */
+  spendDeltaPct: number | null
   orderCountThisMonth: number
   orderCountLastMonth: number
-  ordersDeltaPct: number
+  ordersDeltaPct: number | null
   activeSitesCount: number
   topSite: { siteName: string; siteCode: string; spend: number }
   recentOrders: Order[]
@@ -820,7 +842,8 @@ export type HOBillingLineItem = {
   uom: string
   // Qty / Pricing
   qty: number
-  unitPrice: number
+  /** Null where the row carries no per-product detail — a dash, not $0.00. */
+  unitPrice: number | null
   lineValue: number
   taxTreatment: string
   // Order totals

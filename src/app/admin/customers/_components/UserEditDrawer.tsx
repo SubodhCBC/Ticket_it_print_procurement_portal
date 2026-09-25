@@ -24,6 +24,7 @@ import {
   Tag,
 } from './CustomerAdminUi'
 import { UserPermissionGrants } from './UserPermissionGrants'
+import { formatDateTime } from '@/lib/format'
 import {
   MONEY_PATTERN,
   ROLE_LABELS,
@@ -31,7 +32,6 @@ import {
   buttonStyle,
   errorMessage,
   fieldStyle,
-  formatDateTime,
   hintStyle,
   palette,
   sameMoney,
@@ -450,7 +450,7 @@ function UserEditForm({
           Additional sites
         </div>
         <div style={{ ...hintStyle, marginTop: 0, marginBottom: '8px' }}>
-          Extra branches this user oversees, typically for head-office users.
+          Extra sites this user oversees, typically for head-office users.
           Saving replaces the whole set.
         </div>
         {sitesQuery.isLoading ? (
@@ -502,8 +502,8 @@ function UserEditForm({
           <div style={hintStyle}>
             {sitesComplete
               ? changes.additionalSiteIds !== undefined
-                ? `Access to ${unlistedAdditional.length} removed or deactivated branch${unlistedAdditional.length === 1 ? '' : 'es'} will be dropped on save.`
-                : `Also has access to ${unlistedAdditional.length} removed or deactivated branch${unlistedAdditional.length === 1 ? '' : 'es'}; it is dropped when the additional sites are changed and saved.`
+                ? `Access to ${unlistedAdditional.length} removed or deactivated site${unlistedAdditional.length === 1 ? '' : 's'} will be dropped on save.`
+                : `Also has access to ${unlistedAdditional.length} removed or deactivated site${unlistedAdditional.length === 1 ? '' : 's'}; it is dropped when the additional sites are changed and saved.`
               : `Also has access to ${unlistedAdditional.length} site${unlistedAdditional.length === 1 ? '' : 's'} not listed here; kept as is.`}
           </div>
         )}
@@ -524,7 +524,7 @@ function UserEditForm({
           hint={
             budgetCap.trim() === '0' || budgetCap.trim() === '0.00'
               ? 'Zero stops this user placing orders at all.'
-              : "Checked at checkout alongside the branch's budget, against everything this user places in the month. Blank for no personal limit."
+              : "Checked at checkout alongside the site's budget, against everything this user places in the month. Blank for no personal limit."
           }
           error={errors.budgetCap}
         >
@@ -550,7 +550,7 @@ function UserEditForm({
         <Field
           label="PO prefix"
           htmlFor="user-edit-po-prefix"
-          hint="For accounts that allocate PO ranges per buyer. Overrides the branch's and account's prefix. Blank to use theirs."
+          hint="For accounts that allocate PO ranges per buyer. Overrides the site's and account's prefix. Blank to use theirs."
         >
           <input
             id="user-edit-po-prefix"
@@ -573,7 +573,7 @@ function UserEditForm({
         </SuccessNote>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+      <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
         <button
           type="button"
           onClick={onClose}

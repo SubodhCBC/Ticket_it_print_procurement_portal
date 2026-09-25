@@ -71,3 +71,44 @@ export const authStackStyle: React.CSSProperties = {
  */
 export const PASSWORD_HINT = 'Use at least 12 characters.'
 export const PASSWORD_MIN_LENGTH = 12
+
+export interface PasswordErrors {
+  password: string | null
+  confirmPassword: string | null
+}
+
+export const NO_PASSWORD_ERRORS: PasswordErrors = {
+  password: null,
+  confirmPassword: null,
+}
+
+/**
+ * Both boxes, checked in one pass.
+ *
+ * One pass rather than one refusal at a time: someone who left the form empty
+ * is told about both boxes at once, which is precisely what the browser's own
+ * validation would not do.
+ *
+ * Lives beside the rule it enforces, and is shared by the two screens that set
+ * a password — the reset and the invitation — which had a copy each. Two
+ * copies of a rule is two chances to change only one of them.
+ */
+export function validatePasswords(
+  password: string,
+  confirmPassword: string,
+  /** "Enter a new password." on a reset, "Choose a password." on an invite. */
+  emptyPasswordMessage = 'Enter a new password.'
+): PasswordErrors {
+  const errors: PasswordErrors = { ...NO_PASSWORD_ERRORS }
+
+  if (!password) errors.password = emptyPasswordMessage
+  else if (password.length < PASSWORD_MIN_LENGTH)
+    errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters — this one has ${password.length}.`
+
+  if (!confirmPassword)
+    errors.confirmPassword = 'Type the new password again to confirm it.'
+  else if (password !== confirmPassword)
+    errors.confirmPassword = 'Passwords do not match.'
+
+  return errors
+}

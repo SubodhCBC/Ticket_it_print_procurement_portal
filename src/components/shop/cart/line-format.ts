@@ -6,18 +6,45 @@
 // same fact.
 
 import type { CorporatePaymentMethod } from '@/types'
+import { formatNumber } from '@/lib/format'
 
-/** Server money, formatted. A dash when there is no price to show. */
-export function formatMoney(value: number | null | undefined): string {
-  return value === null || value === undefined || !Number.isFinite(value)
-    ? '—'
-    : `$${value.toFixed(2)}`
+// Money and dates are formatted by `@/lib/format` — import `formatMoney` and
+// `formatDate` from there, not from here.
+
+/**
+ * A pack size as a number, or null when it is not a usable one.
+ *
+ * Two shapes reach this. `Product.unitsPerPack` and `OrderLineItem` carry the
+ * COUNT, which is what should be passed. The catalogue mapper also composes a
+ * shelf LABEL — "Pack of 250", "Box of 50" — and that label used to be handed
+ * here by mistake: `Number("Pack of 250")` is NaN, so every catalogue-side line
+ * quietly degraded from "5 packs · 1,250 units" to "5 units". The label is
+ * therefore read too, rather than trusted to never arrive.
+ */
+export function packSizeOf(packSize: string | number | null | undefined) {
+  if (packSize === null || packSize === undefined) return null
+
+  const size =
+    typeof packSize === 'number' ? packSize : numberWithinLabel(packSize)
+  return Number.isFinite(size) && size > 0 ? size : null
 }
 
-/** A pack size as a number, or null when it is not a usable one. */
-export function packSizeOf(packSize: string | number | null | undefined) {
-  const size = Number(packSize)
-  return Number.isFinite(size) && size > 0 ? size : null
+/** The count inside "Pack of 250" — or NaN, which `packSizeOf` rejects. */
+function numberWithinLabel(packSize: string): number {
+  const trimmed = packSize.trim()
+  if (trimmed === '') return NaN
+  const direct = Number(trimmed)
+  if (Number.isFinite(direct)) return direct
+  // "Pack of 250", "Box of 50", "Square metres: 4" — the count is the last
+  // run of digits. A label naming no count ("Single pack") stays unusable,
+  // which is right: one per pack is not a pack size worth saying twice.
+  const digits = trimmed.match(/(\d[\d,]*)(?!.*\d)/)
+  return digits ? Number(digits[1].replace(/,/g, '')) : NaN
+}
+
+/** "1 pack" / "5 packs" — a quantity whose pack size is unknown or mixed. */
+export function packCount(qty: number): string {
+  return `${formatNumber(qty)} ${qty === 1 ? 'pack' : 'packs'}`
 }
 
 /**
@@ -33,9 +60,9 @@ export function packsAndUnits(
   const size = packSizeOf(packSize)
   if (size !== null && size > 1) {
     const units = qty * size
-    return `${qty} ${qty === 1 ? 'pack' : 'packs'} · ${units.toLocaleString('en-US')} units`
+    return `${packCount(qty)} · ${formatNumber(units)} units`
   }
-  return `${qty} ${qty === 1 ? 'unit' : 'units'}`
+  return `${formatNumber(qty)} ${qty === 1 ? 'unit' : 'units'}`
 }
 
 /** "pack" or "unit" — what a unit price is a price of. */
@@ -77,18 +104,4 @@ export const PAYMENT_METHOD_LABELS: Record<CorporatePaymentMethod, string> = {
   PURCHASING_CARD: 'Corporate purchasing card',
   CORPORATE_ACH: 'Bank transfer (ACH)',
   PREAPPROVED_CREDIT: 'Invoice, net 30',
-}
-
-/** "12 Sep 2026", from an ISO date or date-time. A dash when there is none. */
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleDateString('en-NZ', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        timeZone: 'UTC',
-      })
 }

@@ -59,6 +59,7 @@ export function DocketButton({
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
       <button
+        className="touch-target"
         type="button"
         onClick={() => void open()}
         disabled={pending}

@@ -2,11 +2,14 @@ import type { Metadata, Viewport } from 'next'
 import { StoreProvider } from '@/store/StoreProvider'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { QueryProvider } from '@/lib/query/QueryProvider'
+import { DocumentTitle } from '@/components/layout/DocumentTitle'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title:
-    'Print Procurement Portal | Marketing Collateral & Digital Asset Ordering Platform',
+  // The title a tab falls back to. Each screen's own name is set from the
+  // route by `DocumentTitle` below — see src/lib/page-title.ts for why that is
+  // not 62 one-line layouts.
+  title: 'Print Procurement Portal',
   description:
     'Self-service digital asset library and collateral ordering portal with consolidated monthly multi-site billing and DAM integration.',
   keywords: [
@@ -50,6 +53,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <DocumentTitle />
         <StoreProvider>
           <QueryProvider>
             <AuthProvider>

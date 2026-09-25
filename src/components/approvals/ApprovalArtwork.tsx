@@ -65,13 +65,11 @@ export function ApprovalArtwork({
       )}
       <div style={{ minWidth: 0 }}>
         <div
+          className="truncate"
           style={{
             fontSize: '0.9rem',
             fontWeight: 600,
             color: '#2B253E',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
           }}
         >
           {shown

@@ -89,9 +89,16 @@ export function CartDrawer() {
               justifyContent: 'space-between',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                minWidth: 0,
+              }}
+            >
               <ShoppingCart size={16} color="#A39BB3" />
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <h3
                   style={{
                     fontSize: '1rem',
@@ -120,9 +127,11 @@ export function CartDrawer() {
             <button
               onClick={() => setIsCartDrawerOpen(false)}
               aria-label="Close cart"
+              className="touch-target"
               style={{
                 width: '32px',
                 height: '32px',
+                flexShrink: 0,
                 borderRadius: '10px',
                 display: 'flex',
                 alignItems: 'center',
@@ -184,11 +193,12 @@ export function CartDrawer() {
                     lineHeight: 1.5,
                   }}
                 >
-                  Browse your approved site marketing catalogue and add items to
-                  place a collateral order.
+                  Browse your approved branch catalogue and add items to place a
+                  collateral order.
                 </p>
                 <button
                   onClick={() => setIsCartDrawerOpen(false)}
+                  className="touch-target"
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',
@@ -200,7 +210,7 @@ export function CartDrawer() {
                     border: 'none',
                   }}
                 >
-                  Browse Catalogue
+                  Browse catalogue
                 </button>
               </div>
             ) : (
@@ -292,7 +302,11 @@ export function CartDrawer() {
                 <Link
                   href="/shop/cart"
                   onClick={() => setIsCartDrawerOpen(false)}
+                  className="touch-target"
                   style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     padding: '8px 14px',
                     borderRadius: '10px',
                     border: '1px solid #F0E6EC',
@@ -310,6 +324,7 @@ export function CartDrawer() {
                 <Link
                   href="/shop/checkout/details"
                   onClick={() => setIsCartDrawerOpen(false)}
+                  className="touch-target"
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',

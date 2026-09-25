@@ -31,6 +31,7 @@ import {
   type InvoiceFormat,
 } from '@/services/data-source/api/api-reports.adapter'
 import { InlineAlert, InvoiceStatusBadge } from '../_components/invoice-ui'
+import { formatDate, formatMoney } from '@/lib/format'
 import {
   card,
   cardSubtitle,
@@ -38,8 +39,6 @@ import {
   dangerButton,
   disabledWhen,
   errorMessage,
-  formatDate,
-  formatMoney,
   periodLabel,
   primaryButton,
   secondaryButton,
@@ -190,7 +189,7 @@ export default function InvoiceDetailPage() {
     return (
       <>
         <AdminHeader title="Invoice" />
-        <main style={{ padding: '24px' }}>
+        <main className="page-pad" style={{ paddingBlock: '24px' }}>
           <SkeletonDetail label="Loading invoice" />
         </main>
       </>
@@ -200,7 +199,7 @@ export default function InvoiceDetailPage() {
   if (!invoice) {
     return (
       <>
-        <AdminHeader title="Invoice Not Found" />
+        <AdminHeader title="Invoice not found" />
         <div style={placeholderStyle}>
           <div style={{ marginBottom: '12px' }}>
             {loadError ?? 'This invoice could not be found.'}
@@ -227,14 +226,7 @@ export default function InvoiceDetailPage() {
         title={title}
         subtitle={`${invoice.accountName} (${invoice.accountCode}) · ${periodLabel(invoice.billingPeriod)}`}
         actionButton={
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="row-wrap" style={{ gap: '8px' }}>
             {(
               [
                 ['pdf', 'PDF', FileText],
@@ -245,6 +237,7 @@ export default function InvoiceDetailPage() {
               <button
                 key={format}
                 type="button"
+                className="touch-target"
                 onClick={() => handleDownload(format)}
                 disabled={downloading !== null}
                 style={disabledWhen(secondaryButton, downloading !== null)}
@@ -258,8 +251,9 @@ export default function InvoiceDetailPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -285,10 +279,10 @@ export default function InvoiceDetailPage() {
               flexWrap: 'wrap',
             }}
           >
-            <div>
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
-              >
+            <div style={{ minWidth: 0 }}>
+              {/* A long invoice number beside its status badge could not both
+                  fit on one phone line. */}
+              <div className="row-wrap">
                 <h2 style={{ ...cardTitle, fontSize: '1.1rem' }}>
                   {invoice.invoiceNumber ?? 'Draft (not yet numbered)'}
                 </h2>
@@ -304,10 +298,11 @@ export default function InvoiceDetailPage() {
             </div>
 
             {actions.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="row-wrap" style={{ gap: '8px' }}>
                 {actions.includes('regenerate') && (
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => setDialog('regenerate')}
                     style={secondaryButton}
                   >
@@ -318,6 +313,7 @@ export default function InvoiceDetailPage() {
                 {actions.includes('issue') && (
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => setDialog('issue')}
                     disabled={invoice.orderCount === 0}
                     title={
@@ -337,6 +333,7 @@ export default function InvoiceDetailPage() {
                 {actions.includes('paid') && (
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => setDialog('paid')}
                     style={primaryButton}
                   >
@@ -347,6 +344,7 @@ export default function InvoiceDetailPage() {
                 {actions.includes('void') && (
                   <button
                     type="button"
+                    className="touch-target"
                     onClick={() => setDialog('void')}
                     style={dangerButton}
                   >
@@ -359,12 +357,14 @@ export default function InvoiceDetailPage() {
           </div>
 
           <dl
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '16px',
-              margin: '20px 0 0',
-            }}
+            className="grid-auto"
+            style={
+              {
+                ['--min']: '150px',
+                gap: '16px',
+                margin: '20px 0 0',
+              } as React.CSSProperties
+            }
           >
             <Fact label="Created" value={formatDate(invoice.createdAt)} />
             <Fact label="Issued" value={formatDate(invoice.issuedAt)} />
@@ -411,13 +411,15 @@ export default function InvoiceDetailPage() {
 
         {/* Totals */}
         <section
-          style={{
-            ...card,
-            padding: '20px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '20px',
-          }}
+          className="grid-auto"
+          style={
+            {
+              ...card,
+              ['--min']: '160px',
+              padding: '20px',
+              gap: '20px',
+            } as React.CSSProperties
+          }
         >
           <Figure label="Subtotal" value={formatMoney(invoice.subtotal)} />
           <Figure
@@ -445,6 +447,7 @@ export default function InvoiceDetailPage() {
             <h3 style={cardTitle}>Invoice document</h3>
             <button
               type="button"
+              className="touch-target"
               onClick={() => setShowDocument((open) => !open)}
               style={secondaryButton}
             >
@@ -462,14 +465,16 @@ export default function InvoiceDetailPage() {
           )}
         </section>
 
-        {/* Per-branch totals */}
+        {/* Per-site totals */}
         {sites.length > 0 && (
           <section style={{ ...card, overflow: 'hidden' }}>
             <div style={sectionHeader}>
-              <h3 style={cardTitle}>By branch</h3>
+              <h3 style={cardTitle}>By site</h3>
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={tableStyle}>
+            <div className="table-scroll">
+              {/* Site, code, orders, tax and amount: dense by nature, so it
+                  scrolls in its card rather than wrapping every figure. */}
+              <table style={{ ...tableStyle, minWidth: '560px' }}>
                 <thead>
                   <tr>
                     <th style={thEdge}>Site</th>
@@ -532,8 +537,10 @@ export default function InvoiceDetailPage() {
           {lines.length === 0 ? (
             <div style={placeholderStyle}>No orders on this invoice.</div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={tableStyle}>
+            <div className="table-scroll">
+              {/* Eight columns per order line, and the expanded item rows sit
+                  inside the same grid — it keeps its width and scrolls. */}
+              <table style={{ ...tableStyle, minWidth: '900px' }}>
                 <thead>
                   <tr>
                     <th style={thEdge}>Order</th>

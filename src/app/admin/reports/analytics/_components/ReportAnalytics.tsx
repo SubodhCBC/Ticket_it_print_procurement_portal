@@ -29,6 +29,12 @@ import type {
   ApiReportExportName,
   ApiReportRangeQuery,
 } from '@/services/data-source/api/report.types'
+import {
+  formatMoney,
+  formatNumber,
+  formatDate,
+  formatMonthYear,
+} from '@/lib/format'
 
 /**
  * The analytics reports, one card per endpoint.
@@ -147,18 +153,6 @@ const stateBox: React.CSSProperties = {
 
 // --- Formatting ------------------------------------------------------------------
 
-function money(value: string | number | null | undefined): string {
-  const amount = value == null ? 0 : Number(value)
-  return `$${(Number.isFinite(amount) ? amount : 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
-
-function count(value: number | null | undefined): string {
-  return (value ?? 0).toLocaleString()
-}
-
 function percent(value: number | null | undefined, signed = false): string {
   if (value == null) return '—'
   const sign = signed && value > 0 ? '+' : ''
@@ -174,12 +168,7 @@ function growthColor(value: number | null | undefined): string {
 function bucketLabel(bucket: string, granularity: ApiGranularity): string {
   const date = new Date(bucket)
   if (Number.isNaN(date.getTime())) return bucket
-  return date.toLocaleDateString('en-GB', {
-    ...(granularity === 'month' ? {} : { day: 'numeric' }),
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return granularity === 'month' ? formatMonthYear(date) : formatDate(date)
 }
 
 function errorMessage(error: unknown): string {
@@ -275,19 +264,15 @@ function ExportButtons({
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        flexWrap: 'wrap',
-      }}
-    >
+    // The export pair sat in the card header next to the title, so on a phone
+    // the failure message and the second button were pushed off the card.
+    <div className="row-wrap">
       {error && (
         <span style={{ fontSize: '0.74rem', color: '#DC2626' }}>{error}</span>
       )}
       <button
         type="button"
+        className="touch-target"
         onClick={() => run('csv')}
         disabled={busy !== null}
         style={{ ...secondaryButton, opacity: busy ? 0.6 : 1 }}
@@ -297,6 +282,7 @@ function ExportButtons({
       </button>
       <button
         type="button"
+        className="touch-target"
         onClick={() => run('xlsx')}
         disabled={busy !== null}
         style={{ ...secondaryButton, opacity: busy ? 0.6 : 1 }}
@@ -352,7 +338,12 @@ function ReportSection({
         }}
       >
         <span style={{ color: '#DC2626' }}>{errorMessage(error)}</span>
-        <button type="button" onClick={onRetry} style={secondaryButton}>
+        <button
+          type="button"
+          className="touch-target"
+          onClick={onRetry}
+          style={secondaryButton}
+        >
           <RotateCw size={14} />
           <span>Retry</span>
         </button>
@@ -367,28 +358,18 @@ function ReportSection({
   return (
     <section style={{ ...card, overflow: 'hidden' }}>
       <div
+        className="row-wrap"
         style={{
           padding: '16px 20px',
           borderBottom: '1px solid #F5EEF2',
-          display: 'flex',
-          alignItems: 'center',
           justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
         }}
       >
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h3 style={cardTitle}>{title}</h3>
           {subtitle && <p style={cardSubtitle}>{subtitle}</p>}
         </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="row-wrap">
           {controls}
           {exportName && (
             <ExportButtons name={exportName} query={exportQuery} />
@@ -408,7 +389,9 @@ function Table({
   children: React.ReactNode
 }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
+    // Eight-column report tables scroll inside their own card rather than
+    // taking the whole page sideways with them.
+    <div className="table-scroll">
       <table
         style={{
           width: '100%',
@@ -484,13 +467,16 @@ function SpendSummarySection({ query }: { query: ApiReportRangeQuery }) {
 
   const figures = data
     ? [
-        { label: 'Total spend', value: money(data.totalSpend) },
-        { label: 'Orders', value: count(data.orderCount) },
-        { label: 'Average order value', value: money(data.averageOrderValue) },
-        { label: 'Ordering branches', value: count(data.siteCount) },
+        { label: 'Total spend', value: formatMoney(data.totalSpend) },
+        { label: 'Orders', value: formatNumber(data.orderCount) },
+        {
+          label: 'Average order value',
+          value: formatMoney(data.averageOrderValue),
+        },
+        { label: 'Ordering sites', value: formatNumber(data.siteCount) },
         {
           label: 'Previous window spend',
-          value: money(data.previous.totalSpend),
+          value: formatMoney(data.previous.totalSpend),
         },
         {
           label: 'Spend growth',
@@ -499,7 +485,7 @@ function SpendSummarySection({ query }: { query: ApiReportRangeQuery }) {
         },
         {
           label: 'Previous window orders',
-          value: count(data.previous.orderCount),
+          value: formatNumber(data.previous.orderCount),
         },
         {
           label: 'Order growth',
@@ -519,12 +505,14 @@ function SpendSummarySection({ query }: { query: ApiReportRangeQuery }) {
       onRetry={() => void report.refetch()}
     >
       <div
-        style={{
-          padding: '20px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '20px',
-        }}
+        className="grid-auto"
+        style={
+          {
+            padding: '20px',
+            gap: '20px',
+            ['--min']: '170px',
+          } as React.CSSProperties
+        }
       >
         {figures.map((figure) => (
           <div key={figure.label}>
@@ -575,7 +563,9 @@ function SpendOverTimeSection({ query }: { query: ApiReportRangeQuery }) {
               <td style={{ ...td, paddingLeft: '20px', fontWeight: 600 }}>
                 {bucketLabel(bucket.bucket, data.granularity)}
               </td>
-              <td style={{ ...tdMuted, ...right }}>{count(bucket.orders)}</td>
+              <td style={{ ...tdMuted, ...right }}>
+                {formatNumber(bucket.orders)}
+              </td>
               <td
                 style={{
                   ...td,
@@ -584,7 +574,7 @@ function SpendOverTimeSection({ query }: { query: ApiReportRangeQuery }) {
                   fontWeight: 700,
                 }}
               >
-                {money(bucket.spend)}
+                {formatMoney(bucket.spend)}
               </td>
             </tr>
           ))}
@@ -621,9 +611,9 @@ function DimensionTable({
             {row.label}
           </td>
           {sublabelHeading && <td style={tdMono}>{row.sublabel ?? '—'}</td>}
-          <td style={{ ...tdMuted, ...right }}>{count(row.orders)}</td>
+          <td style={{ ...tdMuted, ...right }}>{formatNumber(row.orders)}</td>
           <td style={{ ...td, ...right, fontWeight: 700 }}>
-            {money(row.spend)}
+            {formatMoney(row.spend)}
           </td>
           <td style={{ ...td, paddingRight: '20px' }}>
             <ShareBar value={row.sharePercent} />
@@ -718,9 +708,11 @@ function OrdersByStatusSection({ query }: { query: ApiReportRangeQuery }) {
               <td style={{ ...td, paddingLeft: '20px' }}>
                 <StatusPill status={row.status} size="sm" />
               </td>
-              <td style={{ ...tdMuted, ...right }}>{count(row.orders)}</td>
+              <td style={{ ...tdMuted, ...right }}>
+                {formatNumber(row.orders)}
+              </td>
               <td style={{ ...td, ...right, fontWeight: 700 }}>
-                {money(row.value)}
+                {formatMoney(row.value)}
               </td>
               <td style={{ ...td, paddingRight: '20px' }}>
                 <ShareBar value={row.sharePercent} />
@@ -753,17 +745,19 @@ function OrderVelocitySection({ query }: { query: ApiReportRangeQuery }) {
       {data && (
         <>
           <div
-            style={{
-              padding: '20px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '20px',
-              borderBottom: '1px solid #F5EEF2',
-            }}
+            className="grid-auto"
+            style={
+              {
+                padding: '20px',
+                gap: '20px',
+                borderBottom: '1px solid #F5EEF2',
+                ['--min']: '160px',
+              } as React.CSSProperties
+            }
           >
             <div>
               <div style={kpiLabel}>Orders</div>
-              <div style={kpiValue}>{count(data.orders)}</div>
+              <div style={kpiValue}>{formatNumber(data.orders)}</div>
             </div>
             <div>
               <div style={kpiLabel}>Orders per day</div>
@@ -773,7 +767,7 @@ function OrderVelocitySection({ query }: { query: ApiReportRangeQuery }) {
               <div style={kpiLabel}>Busiest {data.granularity}</div>
               <div style={kpiValue}>
                 {data.busiestBucket
-                  ? `${bucketLabel(data.busiestBucket, data.granularity)} (${count(data.busiestBucketOrders)})`
+                  ? `${bucketLabel(data.busiestBucket, data.granularity)} (${formatNumber(data.busiestBucketOrders)})`
                   : '—'}
               </div>
             </div>
@@ -809,10 +803,10 @@ function OrderVelocitySection({ query }: { query: ApiReportRangeQuery }) {
                     {bucketLabel(bucket.bucket, data.granularity)}
                   </td>
                   <td style={{ ...td, ...right, fontWeight: 700 }}>
-                    {count(bucket.orders)}
+                    {formatNumber(bucket.orders)}
                   </td>
                   <td style={{ ...tdMuted, ...right, paddingRight: '20px' }}>
-                    {money(bucket.spend)}
+                    {formatMoney(bucket.spend)}
                   </td>
                 </tr>
               ))}
@@ -838,8 +832,10 @@ function TopProductsSection({ query }: { query: ApiReportRangeQuery }) {
       exportQuery={params}
       controls={
         <>
+          {/* Both selects were about 28px tall — too small to hit on a phone. */}
           <select
             aria-label="Rank by"
+            className="touch-target"
             value={by}
             onChange={(e) => setBy(e.target.value as 'spend' | 'quantity')}
             style={{
@@ -853,6 +849,7 @@ function TopProductsSection({ query }: { query: ApiReportRangeQuery }) {
           </select>
           <select
             aria-label="Number of products"
+            className="touch-target"
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
             style={{
@@ -895,7 +892,9 @@ function TopProductsSection({ query }: { query: ApiReportRangeQuery }) {
               <td style={{ ...td, fontWeight: 600 }}>{row.name}</td>
               <td style={tdMono}>{row.sku}</td>
               <td style={tdMuted}>{row.categoryName}</td>
-              <td style={{ ...tdMuted, ...right }}>{count(row.orders)}</td>
+              <td style={{ ...tdMuted, ...right }}>
+                {formatNumber(row.orders)}
+              </td>
               <td
                 style={{
                   ...td,
@@ -903,7 +902,7 @@ function TopProductsSection({ query }: { query: ApiReportRangeQuery }) {
                   fontWeight: by === 'quantity' ? 700 : 400,
                 }}
               >
-                {count(row.quantity)}
+                {formatNumber(row.quantity)}
               </td>
               <td
                 style={{
@@ -913,7 +912,7 @@ function TopProductsSection({ query }: { query: ApiReportRangeQuery }) {
                   fontWeight: by === 'spend' ? 700 : 400,
                 }}
               >
-                {money(row.spend)}
+                {formatMoney(row.spend)}
               </td>
             </tr>
           ))}
@@ -953,13 +952,15 @@ function InventorySection() {
       {data && (
         <>
           <div
-            style={{
-              padding: '20px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: '20px',
-              borderBottom: '1px solid #F5EEF2',
-            }}
+            className="grid-auto"
+            style={
+              {
+                padding: '20px',
+                gap: '20px',
+                borderBottom: '1px solid #F5EEF2',
+                ['--min']: '150px',
+              } as React.CSSProperties
+            }
           >
             {[
               { label: 'Tracked products', value: data.trackedProducts },
@@ -970,7 +971,7 @@ function InventorySection() {
             ].map((figure) => (
               <div key={figure.label}>
                 <div style={kpiLabel}>{figure.label}</div>
-                <div style={kpiValue}>{count(figure.value)}</div>
+                <div style={kpiValue}>{formatNumber(figure.value)}</div>
               </div>
             ))}
           </div>
@@ -1017,21 +1018,21 @@ function InventorySection() {
                       </span>
                     </td>
                     <td style={{ ...td, ...right }}>
-                      {count(item.stockOnHand)}
+                      {formatNumber(item.stockOnHand)}
                     </td>
                     <td style={{ ...tdMuted, ...right }}>
-                      {count(item.stockReserved)}
+                      {formatNumber(item.stockReserved)}
                     </td>
                     <td style={{ ...td, ...right, fontWeight: 700 }}>
-                      {count(item.available)}
+                      {formatNumber(item.available)}
                     </td>
                     <td style={{ ...tdMuted, ...right }}>
-                      {count(item.lowStockThreshold)}
+                      {formatNumber(item.lowStockThreshold)}
                     </td>
                     <td style={{ ...tdMuted, ...right, paddingRight: '20px' }}>
                       {item.reorderQuantity == null
                         ? '—'
-                        : count(item.reorderQuantity)}
+                        : formatNumber(item.reorderQuantity)}
                     </td>
                   </tr>
                 )
@@ -1085,14 +1086,16 @@ function InventoryTurnoverSection({ query }: { query: ApiReportRangeQuery }) {
               </td>
               <td style={tdMono}>{row.sku}</td>
               <td style={{ ...td, ...right, fontWeight: 700 }}>
-                {count(row.unitsShipped)}
+                {formatNumber(row.unitsShipped)}
               </td>
-              <td style={{ ...tdMuted, ...right }}>{count(row.stockOnHand)}</td>
+              <td style={{ ...tdMuted, ...right }}>
+                {formatNumber(row.stockOnHand)}
+              </td>
               <td style={{ ...td, ...right }}>
-                {row.turnoverRatio == null ? '—' : row.turnoverRatio.toFixed(2)}
+                {formatNumber(row.turnoverRatio)}
               </td>
               <td style={{ ...tdMuted, ...right, paddingRight: '20px' }}>
-                {row.daysOfCover == null ? '—' : count(row.daysOfCover)}
+                {row.daysOfCover == null ? '—' : formatNumber(row.daysOfCover)}
               </td>
             </tr>
           ))}
@@ -1135,14 +1138,13 @@ export function ReportAnalytics({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Filter bar */}
+      {/* Filter bar. Four controls and a reset in one unwrapping row ran off a
+          phone; each field now takes the next line when it has to. */}
       <div
+        className="row-wrap"
         style={{
           ...card,
           padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'flex-end',
-          flexWrap: 'wrap',
           gap: '16px',
         }}
       >
@@ -1150,6 +1152,7 @@ export function ReportAnalytics({
           <div style={fieldLabel}>From</div>
           <input
             type="date"
+            className="touch-target"
             value={filters.from}
             max={filters.to || undefined}
             onChange={(e) => update({ from: e.target.value })}
@@ -1160,6 +1163,7 @@ export function ReportAnalytics({
           <div style={fieldLabel}>To</div>
           <input
             type="date"
+            className="touch-target"
             value={filters.to}
             min={filters.from || undefined}
             onChange={(e) => update({ to: e.target.value })}
@@ -1169,6 +1173,7 @@ export function ReportAnalytics({
         <label>
           <div style={fieldLabel}>Granularity</div>
           <select
+            className="touch-target"
             value={filters.granularity}
             onChange={(e) =>
               update({ granularity: e.target.value as Filters['granularity'] })
@@ -1195,6 +1200,7 @@ export function ReportAnalytics({
         )}
         <button
           type="button"
+          className="touch-target"
           onClick={() => setFilters(defaultFilters())}
           style={{ ...secondaryButton, padding: '8px 14px' }}
         >

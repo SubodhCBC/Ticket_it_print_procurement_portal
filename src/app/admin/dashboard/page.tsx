@@ -2,6 +2,7 @@
 'use client'
 
 import { SkeletonTable } from '@/components/ui/Skeleton'
+import { EmptyState, ErrorState } from '@/components/ui/TableState'
 import { useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -24,6 +25,7 @@ import { OrderActionModal } from '@/components/admin/OrderActionModal'
 import { useDashboardKPIs } from '@/hooks/useReports'
 import { useOrders, useOrderMutations } from '@/hooks/useOrders'
 import type { Order } from '@/types'
+import { formatMoney, formatDate } from '@/lib/format'
 
 /**
  * ---------------------------------------------------------------------------
@@ -76,11 +78,30 @@ const sectionLink: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
+/**
+ * A button that wears the cell it sits in: the keyboard gets a real control
+ * where the row's click already was, and the table looks untouched.
+ */
+const rowButton: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  textAlign: 'left',
+  fontFamily: 'inherit',
+  fontSize: 'inherit',
+  fontWeight: 'inherit',
+  color: 'inherit',
+  cursor: 'pointer',
+}
+
 export default function AdminDashboardPage() {
   const { data: kpis } = useDashboardKPIs()
   const {
     data: ordersData,
     isLoading: isOrdersLoading,
+    error: ordersError,
     refetch: refetchOrders,
   } = useOrders({ pageSize: 6 })
   const { updateOrderStatus } = useOrderMutations()
@@ -88,7 +109,10 @@ export default function AdminDashboardPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
 
-  const revenueUp = (kpis?.revenueDeltaPct ?? 0) >= 0
+  // Null where the API has no earlier window to compare against; the tile
+  // says so rather than drawing a green "+0.0%" over an unknown.
+  const revenueDelta = kpis?.revenueDeltaPct ?? null
+  const revenueUp = (revenueDelta ?? 0) >= 0
   // The bars were scaled against a hard-coded $40,000 ceiling, so a month over
   // it drew past the top of the card and a quiet quarter drew as slivers.
   // Scaling to the tallest bar makes the chart describe its own data.
@@ -118,15 +142,18 @@ export default function AdminDashboardPage() {
           them as coloured chips made the first thing on the page a row of
           buttons rather than the numbers underneath it. */}
       <AdminHeader
-        title="Operational Overview"
-        subtitle="Orders, fulfilment and consolidated revenue across every branch"
+        title="Dashboard"
+        subtitle="Orders, fulfilment and consolidated revenue across every site"
         // The one action here: the same platform dashboard, as a PDF.
         actionButton={<DashboardPdfButton params={{ scope: 'platform' }} />}
       />
 
+      {/* A flat 24px gutter left a phone with only 312px of card between the
+          edges; the page gutter shrinks with the screen instead. */}
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -134,44 +161,49 @@ export default function AdminDashboardPage() {
       >
         {/* KPIs */}
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-            gap: '14px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '230px' } as React.CSSProperties}
         >
           <StatCard
-            label="Monthly volume"
+            // The figure behind this is the last 30 days, which its own footer
+            // says; calling it "monthly" invited the reader to reconcile it
+            // against a calendar month it was never counting.
+            label="Last 30 days"
             icon={DollarSign}
             index={0}
-            value={`$${(kpis?.totalRevenueMonth ?? 0).toLocaleString(
-              undefined,
-              { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-            )}`}
+            value={formatMoney(kpis?.totalRevenueMonth ?? 0)}
             footer={
-              <>
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                    fontWeight: 600,
-                    color: revenueUp ? '#3F9C68' : '#DC2626',
-                  }}
-                >
-                  {revenueUp ? (
-                    <TrendingUp size={13} />
-                  ) : (
-                    <TrendingDown size={13} />
-                  )}
-                  {revenueUp ? '+' : ''}
-                  {(kpis?.revenueDeltaPct ?? 0).toFixed(1)}%
-                </span>
-                {/* The window is the last thirty days against the thirty before
-                    it, not two calendar months — comparing a 31-day January
-                    against a 28-day February makes every February a downturn. */}
-                <span>vs previous 30 days</span>
-              </>
+              revenueDelta === null ? (
+                <>
+                  <span style={{ fontWeight: 600, color: '#6E6781' }}>—</span>
+                  <span>no prior period</span>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      fontWeight: 600,
+                      color: revenueUp ? '#3F9C68' : '#DC2626',
+                    }}
+                  >
+                    {revenueUp ? (
+                      <TrendingUp size={13} />
+                    ) : (
+                      <TrendingDown size={13} />
+                    )}
+                    {revenueUp ? '+' : ''}
+                    {revenueDelta.toFixed(1)}%
+                  </span>
+                  {/* The window is the last thirty days against the thirty
+                      before it, not two calendar months — comparing a 31-day
+                      January against a 28-day February makes every February a
+                      downturn. */}
+                  <span>vs previous 30 days</span>
+                </>
+              )
             }
           />
 
@@ -204,7 +236,7 @@ export default function AdminDashboardPage() {
           />
 
           <StatCard
-            label="Client branches"
+            label="Client sites"
             icon={Building2}
             index={3}
             value={kpis?.activeSitesCount ?? 0}
@@ -222,17 +254,14 @@ export default function AdminDashboardPage() {
         {/* Recent orders */}
         <div style={{ ...card, overflow: 'hidden' }}>
           <div
+            className="row-wrap"
             style={{
               padding: '16px 20px',
               borderBottom: '1px solid #F5EEF2',
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '12px',
-              flexWrap: 'wrap',
             }}
           >
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h3 style={cardTitle}>Recent orders</h3>
               <p style={cardSubtitle}>
                 Select a row to inspect line items, assign tracking or move an
@@ -247,8 +276,24 @@ export default function AdminDashboardPage() {
 
           {isOrdersLoading ? (
             <SkeletonTable rows={5} columns={6} label="Loading recent orders" />
+          ) : ordersError ? (
+            // Before this branch a failed request fell through to an empty
+            // table, so a backend hiccup was indistinguishable from a quiet
+            // month. The error itself goes to the console, not the page.
+            <ErrorState
+              title="Recent orders could not be loaded"
+              detail="The orders service did not respond. Nothing has been lost — try again."
+              error={ordersError}
+              onRetry={() => refetchOrders()}
+            />
+          ) : !ordersData?.items.length ? (
+            <EmptyState
+              icon={ShoppingCart}
+              title="No orders yet"
+              detail="Orders placed by any site appear here as soon as they are submitted."
+            />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll">
               <table
                 style={{
                   width: '100%',
@@ -263,7 +308,7 @@ export default function AdminDashboardPage() {
                 <thead>
                   <tr>
                     <Th edge>Order</Th>
-                    <Th>Branch</Th>
+                    <Th>Site</Th>
                     <Th>PO reference</Th>
                     <Th>Status</Th>
                     <Th align="center">Items</Th>
@@ -272,7 +317,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ordersData?.items.map((order) => (
+                  {ordersData.items.map((order) => (
                     <tr
                       key={order.id}
                       onClick={() => handleOpenOrder(order)}
@@ -295,10 +340,25 @@ export default function AdminDashboardPage() {
                           color: '#2B253E',
                         }}
                       >
-                        <div>{order.orderNumber}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#A39BB3' }}>
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </div>
+                        {/* The row itself is clickable for the mouse; this is
+                            the same action as a control the keyboard can
+                            reach, drawn to inherit so nothing moves. */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenOrder(order)
+                          }}
+                          aria-label={`Open order ${order.orderNumber}`}
+                          style={rowButton}
+                        >
+                          <div>{order.orderNumber}</div>
+                          <div
+                            style={{ fontSize: '0.72rem', color: '#A39BB3' }}
+                          >
+                            {formatDate(order.createdAt)}
+                          </div>
+                        </button>
                       </td>
                       <td style={{ padding: '13px 14px', color: '#2B253E' }}>
                         <div>{order.siteName}</div>
@@ -336,7 +396,7 @@ export default function AdminDashboardPage() {
                           color: '#2B253E',
                         }}
                       >
-                        ${order.totalAmount.toFixed(2)}
+                        {formatMoney(order.totalAmount)}
                       </td>
                       {/* One link where there were two controls. "Manage"
                           opened the same modal the row click opens, so it was a
@@ -369,27 +429,21 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {/* Trend and shortcuts */}
+        {/* Trend and shortcuts. A 320px minimum was wider than a 360px phone's
+            content column, so the chart could not shrink into it. */}
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '16px',
-          }}
+          className="grid-auto"
+          style={{ ['--min']: '280px', gap: '16px' } as React.CSSProperties}
         >
-          <div style={{ ...card, padding: '20px' }}>
+          <div style={{ ...card, padding: '20px', minWidth: 0 }}>
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between',
-                gap: '12px',
-              }}
+              className="row-wrap"
+              style={{ justifyContent: 'space-between' }}
             >
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <h3 style={cardTitle}>Monthly spend</h3>
                 <p style={cardSubtitle}>
-                  Across all branches and active rate cards
+                  Across all sites and active rate cards
                 </p>
               </div>
               <Link href="/admin/reports/monthly-billing" style={sectionLink}>

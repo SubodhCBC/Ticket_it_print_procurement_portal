@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useCart } from '@/hooks/useCart'
-import { formatMoney } from '@/components/shop/cart/line-format'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { formatMoney } from '@/lib/format'
 import {
   Building2,
   FileText,
@@ -34,6 +35,13 @@ export default function CheckoutDetailsPage() {
     siteCode,
     isLoading,
   } = useCart()
+
+  // The order summary sits beside the form on a laptop and under it below
+  // 1024px: at tablet width a fixed 340px column leaves the form too narrow
+  // for its own paired fields, and on a phone there is only one column to
+  // have. Stacked, the summary is still in the flow right under the form —
+  // scrolled to, never clipped.
+  const stacked = useMediaQuery('(max-width: 1023.98px)')
 
   const [poReference, setPoReference] = useState<string>(
     checkoutState.poReference || ''
@@ -133,7 +141,9 @@ export default function CheckoutDetailsPage() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 340px',
+        gridTemplateColumns: stacked
+          ? 'minmax(0, 1fr)'
+          : 'minmax(0, 1fr) 340px',
         gap: '20px',
         alignItems: 'start',
       }}
@@ -162,11 +172,10 @@ export default function CheckoutDetailsPage() {
             margin: 0,
           }}
         >
-          Customer & Site Details
+          Branch and PO reference
         </h1>
         <p style={{ fontSize: '0.8rem', color: '#6E6781', margin: '4px 0 0' }}>
-          Your account affiliation and site ordering credentials are
-          pre-populated automatically.
+          Your account and branch details are filled in for you.
         </p>
       </div>
 
@@ -203,13 +212,8 @@ export default function CheckoutDetailsPage() {
             }}
           >
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                flexWrap: 'wrap',
-              }}
+              className="row-wrap"
+              style={{ justifyContent: 'space-between', gap: '8px' }}
             >
               <div
                 style={{
@@ -241,14 +245,7 @@ export default function CheckoutDetailsPage() {
               </span>
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '14px',
-                fontSize: '0.84rem',
-              }}
-            >
+            <div className="grid-2" style={{ fontSize: '0.84rem' }}>
               <div>
                 <span
                   style={{
@@ -378,13 +375,8 @@ export default function CheckoutDetailsPage() {
           {/* PO Reference Field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                flexWrap: 'wrap',
-              }}
+              className="row-wrap"
+              style={{ justifyContent: 'space-between', gap: '8px' }}
             >
               <label
                 htmlFor="poReference"
@@ -438,9 +430,9 @@ export default function CheckoutDetailsPage() {
                 lineHeight: 1.5,
               }}
             >
-              Enter your site's PO, authorization code, or internal job
-              reference for this collateral batch. This reference will appear on
-              your monthly consolidated billing statement.
+              Enter your branch&apos;s PO, authorisation code or internal job
+              reference for this order. It appears on your monthly consolidated
+              billing statement.
             </p>
 
             {poFormat ? (
@@ -485,6 +477,7 @@ export default function CheckoutDetailsPage() {
 
             <input
               id="poReference"
+              className="touch-target"
               type="text"
               placeholder="PO-1042"
               value={poReference}
@@ -582,6 +575,7 @@ export default function CheckoutDetailsPage() {
                 that were here were invented. */}
             <input
               id="campaignCode"
+              className="touch-target"
               type="text"
               placeholder="SPRING-2026"
               value={campaignCode}
@@ -642,6 +636,7 @@ export default function CheckoutDetailsPage() {
             </p>
             <input
               id="projectCode"
+              className="touch-target"
               type="text"
               placeholder="PRJ-0142"
               value={projectCode}
@@ -704,6 +699,7 @@ export default function CheckoutDetailsPage() {
 
             <input
               id="customerReference"
+              className="touch-target"
               type="text"
               value={customerReference}
               onChange={(e) => setCustomerReference(e.target.value)}
@@ -745,18 +741,17 @@ export default function CheckoutDetailsPage() {
 
           {/* Buttons */}
           <div
+            className="row-wrap"
             style={{
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
               gap: '8px',
-              flexWrap: 'wrap',
               paddingTop: '16px',
               borderTop: '1px solid #F5EEF2',
             }}
           >
             <Link
               href="/shop/cart"
+              className="touch-target"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -777,6 +772,7 @@ export default function CheckoutDetailsPage() {
             <button
               type="submit"
               disabled={isSaving || isLoading}
+              className="touch-target"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -858,7 +854,7 @@ export default function CheckoutDetailsPage() {
           >
             <span>Subtotal:</span>
             <strong style={{ color: '#2B253E', fontWeight: 600 }}>
-              ${subtotal.toFixed(2)}
+              {formatMoney(subtotal)}
             </strong>
           </div>
           {/* Delivery is chosen on the next step; until then the total is the
@@ -874,7 +870,7 @@ export default function CheckoutDetailsPage() {
             <span>Shipping:</span>
             {shipping ? (
               <strong style={{ color: '#2B253E', fontWeight: 600 }}>
-                ${Number(shipping.price).toFixed(2)}
+                {formatMoney(shipping.price)}
               </strong>
             ) : (
               <span style={{ color: '#A39BB3' }}>Chosen at delivery</span>
@@ -892,7 +888,7 @@ export default function CheckoutDetailsPage() {
             <strong
               style={{ color: '#2B253E', fontSize: '1rem', fontWeight: 700 }}
             >
-              ${total.toFixed(2)}
+              {formatMoney(total)}
             </strong>
           </div>
           <div
@@ -935,7 +931,7 @@ export default function CheckoutDetailsPage() {
             <span>Account B2B Policy</span>
           </div>
           <p style={{ margin: 0 }}>
-            Orders are authorized under your group contract. Your Head Office
+            Orders are authorised under your group contract. Your Head Office
             finance controller will review the consolidated report at month end.
           </p>
         </div>

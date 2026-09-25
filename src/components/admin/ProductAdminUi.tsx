@@ -223,6 +223,7 @@ export function ActionButton({
   children,
   disabled,
   style,
+  className,
   type = 'button',
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -237,6 +238,7 @@ export function ActionButton({
     <button
       type={type}
       disabled={isDisabled}
+      className={className ? `touch-target ${className}` : 'touch-target'}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -319,11 +321,13 @@ export function Field({
 export function TextInput({
   invalid,
   style,
+  className,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
   return (
     <input
       aria-invalid={invalid || undefined}
+      className={className ? `touch-target ${className}` : 'touch-target'}
       style={{
         ...controlStyle,
         ...(invalid ? { borderColor: COLORS.danger } : {}),
@@ -337,10 +341,15 @@ export function TextInput({
 export function SelectInput({
   style,
   children,
+  className,
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select style={{ ...controlStyle, ...style }} {...rest}>
+    <select
+      className={className ? `touch-target ${className}` : 'touch-target'}
+      style={{ ...controlStyle, ...style }}
+      {...rest}
+    >
       {children}
     </select>
   )
@@ -422,25 +431,38 @@ export function Td({
 export function AdminTable({
   head,
   children,
+  minWidth = 0,
 }: {
   head: ReactNode
   children: ReactNode
+  /**
+   * Below this the table scrolls inside its card rather than crushing. Left at
+   * 0 for a narrow table (three or four short columns) that a phone can hold as
+   * it is — scrolling one of those would be worse than fitting it.
+   */
+  minWidth?: number
 }) {
   return (
-    <div style={{ overflowX: 'auto', margin: '0 -20px' }}>
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          textAlign: 'left',
-          fontSize: '0.84rem',
-        }}
-      >
-        <thead>
-          <tr>{head}</tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
+    // The outer wrapper keeps the full-bleed edges (the card's own 20px of
+    // padding); `.table-scroll` goes on the inner one, whose containing block is
+    // already that full width, so its `max-width: 100%` cannot undo the bleed.
+    <div style={{ marginInline: '-20px' }}>
+      <div className="table-scroll">
+        <table
+          style={{
+            width: '100%',
+            minWidth: `${minWidth}px`,
+            borderCollapse: 'collapse',
+            textAlign: 'left',
+            fontSize: '0.84rem',
+          }}
+        >
+          <thead>
+            <tr>{head}</tr>
+          </thead>
+          <tbody>{children}</tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -596,9 +618,7 @@ export function ConfirmModal({
         </div>
         {children}
         {error && <Notice tone="error">{error}</Notice>}
-        <div
-          style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <ActionButton onClick={onCancel} disabled={pending}>
             Cancel
           </ActionButton>

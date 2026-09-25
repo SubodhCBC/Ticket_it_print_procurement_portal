@@ -9,21 +9,9 @@ import {
   auditActionLabel,
   auditActorRoleLabel,
 } from './AuditLogVocabulary'
+import { formatDateTime } from '@/lib/format'
 
 const COLUMN_COUNT = 6
-
-function formatTimestamp(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
 
 function formatDetails(details: unknown): string | null {
   if (details === undefined || details === null) return null
@@ -63,15 +51,19 @@ export function AuditLogTable({
 
   return (
     <div
+      className="table-scroll"
       style={{
-        overflowX: 'auto',
         opacity: dimmed ? 0.6 : 1,
         transition: 'opacity 150ms ease',
       }}
     >
+      {/* Six dense columns in 360px crushed the actor and entity cells into
+          one word per line. The table keeps its natural width and scrolls
+          inside the card instead. */}
       <table
         style={{
           width: '100%',
+          minWidth: '900px',
           borderCollapse: 'collapse',
           textAlign: 'left',
           fontSize: '0.84rem',
@@ -114,7 +106,9 @@ export function AuditLogTable({
                   >
                     <button
                       type="button"
+                      className="touch-target"
                       aria-expanded={isOpen}
+                      aria-controls={`audit-entry-${entry.id}`}
                       aria-label={
                         isOpen ? 'Hide entry details' : 'Show entry details'
                       }
@@ -150,8 +144,23 @@ export function AuditLogTable({
                     }}
                   >
                     <time dateTime={entry.timestamp} title={entry.timestamp}>
-                      {formatTimestamp(entry.timestamp)}
+                      {formatDateTime(entry.timestamp)}
                     </time>
+                    {/* Scrolled sideways on a phone, the leading column was a
+                        bare time with nothing to say whose entry it was; the
+                        Actor column had scrolled out of sight. */}
+                    <div
+                      className="show-sm truncate"
+                      style={{
+                        maxWidth: '150px',
+                        fontSize: '0.74rem',
+                        color: '#6E6781',
+                        marginTop: '2px',
+                      }}
+                      title={entry.actorName}
+                    >
+                      {entry.actorName}
+                    </div>
                   </td>
                   <td style={tdStyle}>
                     <div style={{ fontWeight: 600, color: '#2B253E' }}>
@@ -248,6 +257,7 @@ export function AuditLogTable({
                 {isOpen && (
                   <tr style={{ backgroundColor: rowBackground }}>
                     <td
+                      id={`audit-entry-${entry.id}`}
                       colSpan={COLUMN_COUNT}
                       style={{ padding: '0 20px 18px 64px' }}
                     >
@@ -285,12 +295,14 @@ function AuditEntryDetails({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <dl
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '12px 20px',
-          margin: 0,
-        }}
+        className="grid-auto"
+        style={
+          {
+            ['--min']: '200px',
+            gap: '12px 20px',
+            margin: 0,
+          } as React.CSSProperties
+        }
       >
         <DetailItem
           label="Request ID"
@@ -342,7 +354,7 @@ function AuditEntryDetails({
       </div>
 
       {(onFilterActor || onFilterEntity) && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        <div className="row-wrap" style={{ gap: '8px' }}>
           {onFilterActor && (
             <button
               type="button"
@@ -419,16 +431,19 @@ function AuditChanges({
         </div>
       ) : (
         <div
+          className="table-scroll"
           style={{
-            overflowX: 'auto',
             border: '1px solid #F0E6EC',
             borderRadius: '10px',
             backgroundColor: '#FFFFFF',
           }}
         >
+          {/* Before/after values are arbitrary JSON; three columns of it went
+              narrower than a word on a phone. */}
           <table
             style={{
               width: '100%',
+              minWidth: '420px',
               borderCollapse: 'collapse',
               fontSize: '0.78rem',
             }}

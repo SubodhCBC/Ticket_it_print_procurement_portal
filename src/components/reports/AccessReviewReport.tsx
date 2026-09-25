@@ -17,7 +17,7 @@ import { errorMessage } from '@/components/admin/ProductAdminUtils'
 import { useAccessReview } from '@/hooks/useReports'
 import type { AccessReviewParams } from '@/services/data-source/api/governance.types'
 import { ReportDownloadButtons } from './ReportDownloadButtons'
-import { formatDate, formatDateTime } from './reportFormat'
+import { formatDate, formatDateTime, formatNumber } from '@/lib/format'
 
 /** Sign-ins older than this are called out for the reviewer. */
 const DORMANT_DAYS = 90
@@ -87,14 +87,7 @@ export function AccessReviewReport({ accountId }: { accountId?: string }) {
             />
           }
         />
-        <div
-          style={{
-            display: 'flex',
-            gap: '16px',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="row-wrap" style={{ gap: '16px' }}>
           <label
             style={{
               display: 'flex',
@@ -113,7 +106,7 @@ export function AccessReviewReport({ accountId }: { accountId?: string }) {
           </label>
           <TextInput
             type="search"
-            placeholder="Filter by name, email, role or branch…"
+            placeholder="Filter by name, email, role or site…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ maxWidth: '320px' }}
@@ -122,11 +115,8 @@ export function AccessReviewReport({ accountId }: { accountId?: string }) {
 
         {data && (
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '12px',
-            }}
+            className="grid-auto"
+            style={{ ['--min']: '160px', gap: '12px' } as React.CSSProperties}
           >
             <StatTile label="Users" value={counts.total} />
             <StatTile
@@ -155,7 +145,7 @@ export function AccessReviewReport({ accountId }: { accountId?: string }) {
             description={errorMessage(error, 'Try again in a moment.')}
           />
         ) : isLoading || !data ? (
-          <SkeletonTable rows={8} columns={6} label="Loading users" />
+          <SkeletonTable rows={8} columns={8} label="Loading users" />
         ) : users.length === 0 ? (
           <StateBlock title="No users match" />
         ) : (
@@ -165,8 +155,8 @@ export function AccessReviewReport({ accountId }: { accountId?: string }) {
                 <Th first>User</Th>
                 <Th>Role</Th>
                 <Th>Status</Th>
-                <Th>Primary branch</Th>
-                <Th>Additional branches</Th>
+                <Th>Primary site</Th>
+                <Th>Additional sites</Th>
                 <Th>Permission overrides</Th>
                 <Th>Last sign-in</Th>
                 <Th>Created</Th>
@@ -238,7 +228,11 @@ export function AccessReviewReport({ accountId }: { accountId?: string }) {
                       <>
                         {formatDate(user.lastLoginAt)}
                         <div style={{ fontSize: '0.72rem', fontWeight: 400 }}>
-                          {user.daysSinceLastLogin} days ago
+                          {user.daysSinceLastLogin === 0
+                            ? 'today'
+                            : user.daysSinceLastLogin === 1
+                              ? 'yesterday'
+                              : `${formatNumber(user.daysSinceLastLogin)} days ago`}
                         </div>
                       </>
                     ) : (

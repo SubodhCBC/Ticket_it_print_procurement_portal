@@ -58,10 +58,13 @@ export function ReportDownloadButtons({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      {/* Two small buttons side by side pushed past the card edge on a phone;
+          they wrap now, and a finger can hit each one. */}
+      <div className="row-wrap">
         {formats.map((format) => (
           <ActionButton
             key={format}
+            className="touch-target"
             size="sm"
             icon={<Download size={13} />}
             pending={pending === format}

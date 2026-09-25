@@ -63,6 +63,7 @@ export function LineNoteEditor({
       <button
         type="button"
         onClick={open}
+        className="touch-target"
         style={{ ...linkButton, alignSelf: 'flex-start' }}
       >
         <MessageSquarePlus size={12} /> Add a note for this item
@@ -94,18 +95,12 @@ export function LineNoteEditor({
           resize: 'vertical',
         }}
       />
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="row-wrap" style={{ gap: '8px' }}>
         <button
           type="button"
           onClick={() => void save()}
           disabled={isSaving}
+          className="touch-target"
           style={{
             padding: '5px 12px',
             borderRadius: '8px',
@@ -122,6 +117,7 @@ export function LineNoteEditor({
         <button
           type="button"
           onClick={() => setIsEditing(false)}
+          className="touch-target"
           style={linkButton}
         >
           Cancel

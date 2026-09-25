@@ -10,11 +10,15 @@ import { getOrderById } from '@/services/orders.service'
 import type { Order } from '@/types'
 import { OrderStatusBadge } from '@/components/shop/OrderStatusBadge'
 import { OrderLineAsset } from '@/components/shop/cart/OrderLineAsset'
-import { OrderTotals } from '@/components/shop/cart/OrderTotals'
+import {
+  OrderTotals,
+  useTaxBasisNote,
+} from '@/components/shop/cart/OrderTotals'
 import { STANDARD_DELIVERY_LABEL } from '@/components/shop/cart/line-format'
 import { TrackingTimeline } from '@/components/shipping/TrackingTimeline'
 import { ReorderButton } from '@/components/shop/ReorderButton'
 import { ArrowLeft, Printer, CheckCircle2, Lock } from 'lucide-react'
+import { formatMoney } from '@/lib/format'
 
 /** The shared card: hairline border and a soft shadow. */
 const card: React.CSSProperties = {
@@ -56,6 +60,10 @@ export default function SiteOrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  // The figure a buyer remembers has to reconcile with the invoice, so the
+  // total says which GST basis it is on rather than leaving it unstated.
+  const taxNote = useTaxBasisNote('on account')
 
   useEffect(() => {
     async function loadOrder() {
@@ -106,12 +114,14 @@ export default function SiteOrderDetailPage() {
             margin: '0 0 16px 0',
           }}
         >
-          This order does not exist or does not belong to your site account.
+          This order does not exist or does not belong to your branch.
         </p>
         <Link
           href="/shop/orders/history"
+          className="touch-target"
           style={{
             display: 'inline-flex',
+            justifyContent: 'center',
             alignItems: 'center',
             gap: '6px',
             padding: '8px 14px',
@@ -129,8 +139,11 @@ export default function SiteOrderDetailPage() {
     )
   }
 
+  // Keyed on statuses the API actually sends. `RECEIVED` was neither a server
+  // status nor reachable, so every approved order matched nothing and fell to
+  // step 0 by accident rather than by rule.
   const statusSteps = [
-    { key: 'RECEIVED', label: 'Order Received', desc: 'Logged on-account' },
+    { key: 'APPROVED', label: 'Order Received', desc: 'Logged on-account' },
     {
       key: 'PROCESSING',
       label: 'In Fulfilment',
@@ -139,13 +152,13 @@ export default function SiteOrderDetailPage() {
     {
       key: 'DISPATCHED',
       label: 'Dispatched',
-      desc: order.carrier ? `${order.carrier}` : 'In transit to site',
+      desc: order.carrier ? `${order.carrier}` : 'In transit to branch',
     },
-    { key: 'DELIVERED', label: 'Delivered', desc: 'Signed at site dock' },
+    { key: 'DELIVERED', label: 'Delivered', desc: 'Signed for at the branch' },
   ]
 
   const statusOrder: Record<string, number> = {
-    RECEIVED: 0,
+    APPROVED: 0,
     PROCESSING: 1,
     DISPATCHED: 2,
     DELIVERED: 3,
@@ -184,6 +197,7 @@ export default function SiteOrderDetailPage() {
         >
           <Link
             href="/shop/orders/history"
+            className="touch-target"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -194,7 +208,7 @@ export default function SiteOrderDetailPage() {
               textDecoration: 'none',
             }}
           >
-            <ArrowLeft size={14} /> Back to My Site Orders
+            <ArrowLeft size={14} /> Back to my orders
           </Link>
           <div
             style={{
@@ -237,8 +251,10 @@ export default function SiteOrderDetailPage() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
             onClick={() => window.print()}
+            className="touch-target"
             style={{
               display: 'inline-flex',
+              justifyContent: 'center',
               alignItems: 'center',
               gap: '6px',
               padding: '8px 14px',
@@ -287,6 +303,7 @@ export default function SiteOrderDetailPage() {
             here, so it alone carries colour. Each step takes an equal share of
             the width, so the rule runs from the first dot's centre to the last. */}
         <div
+          className="hide-sm"
           style={{
             position: 'relative',
             display: 'flex',
@@ -387,6 +404,91 @@ export default function SiteOrderDetailPage() {
           })}
         </div>
 
+        {/* The same four steps as a vertical list on a phone, where four
+            fixed-width steps and their captions cannot share one line. */}
+        <div
+          className="show-sm"
+          style={{ display: 'flex', flexDirection: 'column' }}
+        >
+          {statusSteps.map((step, idx) => {
+            const isPassed = idx <= currentStepIdx
+            const isCurrent = idx === currentStepIdx
+            const isLast = idx === statusSteps.length - 1
+
+            return (
+              <div
+                key={step.key}
+                style={{ display: 'flex', gap: '10px', minWidth: 0 }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                    paddingTop: '5px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '9px',
+                      height: '9px',
+                      borderRadius: '50%',
+                      boxSizing: 'border-box',
+                      backgroundColor: isCurrent
+                        ? '#F73582'
+                        : isPassed
+                          ? '#A39BB3'
+                          : '#FFFFFF',
+                      border: isPassed ? 'none' : '1px solid #DCD3E0',
+                    }}
+                  />
+                  {!isLast && (
+                    <div
+                      style={{
+                        width: '1px',
+                        flex: 1,
+                        minHeight: '20px',
+                        backgroundColor:
+                          idx < currentStepIdx ? '#A39BB3' : '#F0E6EC',
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div
+                  style={{ minWidth: 0, paddingBottom: isLast ? 0 : '14px' }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.78rem',
+                      fontWeight: isCurrent ? 600 : 500,
+                      display: 'block',
+                      color: isCurrent
+                        ? '#2B253E'
+                        : isPassed
+                          ? '#5C566E'
+                          : '#A39BB3',
+                    }}
+                  >
+                    {step.label}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      color: '#A39BB3',
+                      display: 'block',
+                      marginTop: '2px',
+                    }}
+                  >
+                    {step.desc}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
         {/* Tracking sits under a divider rather than in a violet panel with its
             own icon tile, so the card holds one surface instead of two. The
             scans are NZ Post's, newest first; a courier the portal does not
@@ -411,17 +513,18 @@ export default function SiteOrderDetailPage() {
         }}
       >
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '16px',
-            paddingBottom: '20px',
-            borderBottom: '1px solid #F5EEF2',
-            fontSize: '0.76rem',
-          }}
+          className="grid-auto"
+          style={
+            {
+              ['--min']: '180px',
+              paddingBottom: '20px',
+              borderBottom: '1px solid #F5EEF2',
+              fontSize: '0.76rem',
+            } as React.CSSProperties
+          }
         >
           <div>
-            <span style={fieldLabel}>Site & Branch:</span>
+            <span style={fieldLabel}>Branch:</span>
             <strong style={fieldValue}>{order.siteName}</strong>
             <span style={{ color: '#A39BB3', fontFamily: 'monospace' }}>
               Code: {order.siteCode}
@@ -479,7 +582,7 @@ export default function SiteOrderDetailPage() {
           >
             <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
             <span>
-              Authorized by{' '}
+              Authorised by{' '}
               <strong style={{ fontWeight: 600 }}>{order.approvedBy}</strong>{' '}
               {order.approvalNotes ? `(${order.approvalNotes})` : ''}
             </span>
@@ -492,7 +595,7 @@ export default function SiteOrderDetailPage() {
             Itemized Collateral Assets ({order.itemCount} units)
           </h3>
 
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-scroll">
             <table
               style={{
                 width: '100%',
@@ -563,7 +666,7 @@ export default function SiteOrderDetailPage() {
                         color: '#6E6781',
                       }}
                     >
-                      ${line.unitPrice.toFixed(2)}
+                      {formatMoney(line.unitPrice)}
                     </td>
                     <td
                       style={{
@@ -573,7 +676,7 @@ export default function SiteOrderDetailPage() {
                         color: '#2B253E',
                       }}
                     >
-                      ${line.lineTotal.toFixed(2)}
+                      {formatMoney(line.lineTotal)}
                     </td>
                   </tr>
                 ))}
@@ -585,14 +688,15 @@ export default function SiteOrderDetailPage() {
         {/* Totals and Notes. Both used to be tinted, bordered boxes inside this
             card; the divider above already separates them from the items. */}
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-            gap: '20px',
-            paddingTop: '16px',
-            borderTop: '1px solid #F5EEF2',
-            fontSize: '0.84rem',
-          }}
+          className="grid-auto"
+          style={
+            {
+              ['--min']: '240px',
+              paddingTop: '16px',
+              borderTop: '1px solid #F5EEF2',
+              fontSize: '0.84rem',
+            } as React.CSSProperties
+          }
         >
           <div
             style={{
@@ -635,6 +739,7 @@ export default function SiteOrderDetailPage() {
             shippingPrice={order.shippingCost ?? 0}
             total={order.totalAmount}
             totalLabel="Total Billed to Account"
+            totalNote={taxNote}
             size="lg"
           />
         </div>

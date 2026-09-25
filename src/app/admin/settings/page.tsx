@@ -116,7 +116,6 @@ const S: Record<string, React.CSSProperties> = {
     color: '#5C566E',
     marginBottom: '6px',
   },
-  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
   submit: {
     padding: '8px 14px',
     borderRadius: '10px',
@@ -163,10 +162,13 @@ function Toggle({
   checked,
   onChange,
   disabled,
+  label,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   disabled?: boolean
+  /** What this switch is for. The track carries no text of its own. */
+  label?: string
 }) {
   return (
     <label
@@ -182,6 +184,7 @@ function Toggle({
     >
       <input
         type="checkbox"
+        aria-label={label}
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
@@ -257,7 +260,12 @@ function SwitchRow({
           </div>
         )}
       </div>
-      <Toggle checked={checked} onChange={onChange} disabled={disabled} />
+      <Toggle
+        checked={checked}
+        onChange={onChange}
+        disabled={disabled}
+        label={title}
+      />
     </div>
   )
 }
@@ -494,19 +502,21 @@ function AdminSettingsContent() {
   return (
     <>
       <AdminHeader
-        title="Settings & Configuration"
+        title="Settings"
         subtitle="Your profile, the account's store and order policy, alert routing, and access."
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
           maxWidth: '1280px',
           margin: '0 auto',
           width: '100%',
+          minWidth: 0,
         }}
       >
         {/* Which account this is, and where it is stored — the two things the
@@ -572,14 +582,9 @@ function AdminSettingsContent() {
           </div>
         )}
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '260px 1fr',
-            gap: '20px',
-            alignItems: 'start',
-          }}
-        >
+        {/* The tab rail sits beside the form on a laptop and above it below
+            1024px — see .split-nav. */}
+        <div className="split-nav">
           {/* Tabs. The current one is a grey fill with a pink icon — the
               accent marks where you are, instead of a solid pink slab with a
               glow competing with the form beside it. */}
@@ -738,7 +743,7 @@ function AdminSettingsContent() {
                         gap: '14px',
                       }}
                     >
-                      <div style={S.grid2}>
+                      <div className="grid-2">
                         <div>
                           <label htmlFor="set-first-name" style={S.label}>
                             First Name
@@ -797,7 +802,7 @@ function AdminSettingsContent() {
                         </div>
                       </div>
 
-                      <div style={S.grid2}>
+                      <div className="grid-2">
                         <div>
                           <label htmlFor="set-email" style={S.label}>
                             Work Email Address
@@ -824,8 +829,11 @@ function AdminSettingsContent() {
                           )}
                         </div>
                         <div>
-                          <label style={S.label}>Direct Phone Number</label>
+                          <label htmlFor="set-phone" style={S.label}>
+                            Direct Phone Number
+                          </label>
                           <input
+                            id="set-phone"
                             type="tel"
                             style={S.input}
                             value={profile.phone}
@@ -836,10 +844,13 @@ function AdminSettingsContent() {
                         </div>
                       </div>
 
-                      <div style={S.grid2}>
+                      <div className="grid-2">
                         <div>
-                          <label style={S.label}>Department</label>
+                          <label htmlFor="set-department" style={S.label}>
+                            Department
+                          </label>
                           <input
+                            id="set-department"
                             style={S.input}
                             placeholder="Marketing"
                             value={profile.department}
@@ -852,8 +863,11 @@ function AdminSettingsContent() {
                           />
                         </div>
                         <div>
-                          <label style={S.label}>Role</label>
+                          <label htmlFor="set-role" style={S.label}>
+                            Role
+                          </label>
                           <input
+                            id="set-role"
                             style={{
                               ...S.input,
                               backgroundColor: '#FCF7FA',
@@ -952,10 +966,13 @@ function AdminSettingsContent() {
                     Store Identity &amp; Locale
                   </CardTitle>
 
-                  <div style={S.grid2}>
+                  <div className="grid-2">
                     <div>
-                      <label style={S.label}>Store / Account Name</label>
+                      <label htmlFor="set-account-name" style={S.label}>
+                        Store / Account Name
+                      </label>
                       <input
+                        id="set-account-name"
                         style={S.input}
                         disabled={loading}
                         placeholder="Northbridge Health Group"
@@ -984,24 +1001,25 @@ function AdminSettingsContent() {
                     </div>
                   </div>
 
-                  <div style={S.grid2}>
+                  <div className="grid-2">
                     <div>
-                      <label style={S.label}>
+                      <label htmlFor="set-currency" style={S.label}>
                         Reporting &amp; Invoicing Currency
                       </label>
                       <select
+                        id="set-currency"
                         style={S.input}
                         disabled={loading}
-                        value={form.currency ?? 'USD'}
+                        value={form.currency ?? 'NZD'}
                         onChange={(e) => set('currency', e.target.value)}
                       >
-                        <option value="USD">USD ($) — US Dollar</option>
-                        <option value="AUD">AUD ($) — Australian Dollar</option>
-                        <option value="GBP">GBP (£) — British Pound</option>
-                        <option value="EUR">EUR (€) — Euro</option>
                         <option value="NZD">
                           NZD ($) — New Zealand Dollar
                         </option>
+                        <option value="AUD">AUD ($) — Australian Dollar</option>
+                        <option value="USD">USD ($) — US Dollar</option>
+                        <option value="GBP">GBP (£) — British Pound</option>
+                        <option value="EUR">EUR (€) — Euro</option>
                       </select>
                       <div style={S.hint}>
                         Reporting and invoicing only. Prices are stored without
@@ -1009,8 +1027,11 @@ function AdminSettingsContent() {
                       </div>
                     </div>
                     <div>
-                      <label style={S.label}>Operations Timezone</label>
+                      <label htmlFor="set-timezone" style={S.label}>
+                        Operations Timezone
+                      </label>
                       <select
+                        id="set-timezone"
                         style={S.input}
                         disabled={loading}
                         value={form.timezone ?? 'UTC'}
@@ -1085,14 +1106,14 @@ function AdminSettingsContent() {
                   />
                   <SwitchRow
                     title="Allow a one-off delivery address"
-                    description="Buyers may type a different ship-to address at checkout instead of choosing one of the branch's saved addresses. It is used for that order only and never added to the branch. Deny ORDER_CUSTOM_DELIVERY_ADDRESS to exclude a buyer."
+                    description="Buyers may type a different ship-to address at checkout instead of choosing one of the site's saved addresses. It is used for that order only and never added to the site. Deny ORDER_CUSTOM_DELIVERY_ADDRESS to exclude a buyer."
                     checked={form.allowCustomDeliveryAddress ?? false}
                     onChange={(v) => set('allowCustomDeliveryAddress', v)}
                   />
 
                   <div style={{ maxWidth: '320px' }}>
                     <label htmlFor="set-approval-threshold" style={S.label}>
-                      Approval threshold ({form.currency ?? 'USD'})
+                      Approval threshold ({form.currency ?? 'NZD'})
                     </label>
                     <input
                       id="set-approval-threshold"
@@ -1421,7 +1442,7 @@ function AdminSettingsContent() {
                     )}
                   </div>
 
-                  <div style={{ ...S.grid2, maxWidth: '640px' }}>
+                  <div className="grid-2" style={{ maxWidth: '640px' }}>
                     <div>
                       <label htmlFor="set-pw-next" style={S.label}>
                         New Password
@@ -1618,10 +1639,11 @@ export default function AdminSettingsPage() {
     return (
       <div
         role="status"
+        className="page-pad"
         style={{
           margin: '32px auto',
-          maxWidth: '480px',
-          padding: '24px',
+          maxWidth: 'min(480px, calc(100% - 32px))',
+          paddingBlock: '24px',
           textAlign: 'center',
           borderRadius: '14px',
           border: '1px solid #F0E6EC',
@@ -1643,7 +1665,10 @@ export default function AdminSettingsPage() {
   return (
     <Suspense
       fallback={
-        <div style={{ padding: '24px', maxWidth: '720px' }}>
+        <div
+          className="page-pad"
+          style={{ paddingBlock: '24px', maxWidth: '720px' }}
+        >
           <SkeletonForm fields={6} label="Loading settings" />
         </div>
       }

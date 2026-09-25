@@ -24,7 +24,7 @@ export default function AdminPortalRedirect() {
         fontSize: '1rem',
       }}
     >
-      Entering Platform HQ Administrator Dashboard...
+      Opening the admin dashboard...
     </div>
   )
 }

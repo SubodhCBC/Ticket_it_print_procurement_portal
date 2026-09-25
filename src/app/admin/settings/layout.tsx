@@ -22,7 +22,8 @@ const UNGUARDED_PREFIX = '/admin/settings/approval-rules'
 function NotAvailable() {
   return (
     <div
-      style={{ padding: '3rem 1.5rem', maxWidth: '600px', margin: '0 auto' }}
+      className="page-pad"
+      style={{ paddingBlock: '3rem', maxWidth: '600px', margin: '0 auto' }}
     >
       <div
         style={{

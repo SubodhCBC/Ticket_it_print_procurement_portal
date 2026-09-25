@@ -49,6 +49,7 @@ import { exportProof, renderSidePreview } from '@/lib/design/proof-export'
 import { printedBack, type ReviewIssue } from '@/lib/design/review-checks'
 import type { ApiTemplateField } from '@/services/data-source/api/template.types'
 import { CustomiseCheckoutOverlay } from './customise/CustomiseCheckoutOverlay'
+import { SmallScreenNotice } from './customise/SmallScreenNotice'
 import { prepareReview } from './customise/prepare-review'
 import type { PreparedReview } from './customise/types'
 import { OVERLAY_CLASS, T, overlayCss, primaryButton } from './customise/theme'
@@ -767,10 +768,40 @@ export function TemplateCustomizerStudio({
   // their words, so the header stays one row instead of three.
   const compactHeader = useMediaQuery('(max-width: 899.98px)')
 
+  /**
+   * A phone gets the notice instead of the canvas.
+   *
+   * False on the server and on the first client render, so the studio is what
+   * hydrates and the notice arrives after mount — no mismatch, and no new
+   * layout for a laptop, which never matches this query.
+   */
+  const tooNarrowForCanvas = useMediaQuery('(max-width: 767.98px)')
+
   const handleEditIssue = (issue: ReviewIssue) => {
     const backId = review?.design.backs?.[0]?.id ?? null
     setReview(null)
     studioRef.current?.showSide(issue.side === 'back' ? backId : null)
+  }
+
+  /* Review → final steps → cart. Held in one place because a phone shows it
+     without the studio underneath it. */
+  const checkout = review ? (
+    <CustomiseCheckoutOverlay
+      template={template}
+      templateVersionId={templateVersionId}
+      prepared={review}
+      existingLineId={existingLineId}
+      savedQuantity={savedQuantity}
+      savedOptions={savedOptions}
+      onClose={() => setReview(null)}
+      onEditIssue={handleEditIssue}
+    />
+  ) : null
+
+  /* On a phone: the notice, or the checkout the buyer already opened — which
+     is usable at 360px even though the canvas behind it is not. */
+  if (tooNarrowForCanvas) {
+    return checkout ?? <SmallScreenNotice />
   }
 
   return (
@@ -828,22 +859,30 @@ export function TemplateCustomizerStudio({
               border: `1px solid ${T.border}`,
               flexShrink: 0,
             }}
-            title="Back to Templates Gallery"
-            aria-label="Back to Templates Gallery"
+            title="Back to the design gallery"
+            aria-label="Back to the design gallery"
+            className="touch-target"
           >
             <ArrowLeft size={16} />
           </Link>
 
           <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                // So the name can give way on a tablet rather than pushing the
+                // header's actions off the screen.
+                minWidth: 0,
+              }}
+            >
               <span
+                className="truncate"
                 style={{
                   fontSize: '0.92rem',
                   fontWeight: 700,
                   color: T.text,
-                  whiteSpace: 'nowrap',
-                  textOverflow: 'ellipsis',
-                  overflow: 'hidden',
                   maxWidth: '300px',
                 }}
               >
@@ -880,18 +919,11 @@ export function TemplateCustomizerStudio({
 
             Undo, redo and everything else that acts on the artwork live in the
             studio's own toolbar below, where the artwork is. */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            flexWrap: 'wrap',
-            justifyContent: 'flex-end',
-          }}
-        >
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
             onClick={handleResetAll}
+            className="touch-target"
             style={compactHeader ? iconToolButton : toolButton}
             title="Start again from the published design"
             aria-label="Reset"
@@ -907,6 +939,7 @@ export function TemplateCustomizerStudio({
             <button
               type="button"
               onClick={() => void openBackPicker()}
+              className="touch-target"
               style={{ ...toolButton, maxWidth: '240px' }}
               title="What prints on the back. Blank unless you choose a design."
             >
@@ -935,6 +968,7 @@ export function TemplateCustomizerStudio({
             aria-busy={isPreviewing}
             title="See your design as it will print"
             aria-label="Preview"
+            className="touch-target"
             style={{
               ...(compactHeader ? iconToolButton : toolButton),
               opacity: isPreviewing ? 0.6 : 1,
@@ -954,6 +988,7 @@ export function TemplateCustomizerStudio({
             disabled={isExporting || pictureWait !== null}
             title={pictureWait ?? 'Download a print-ready PDF of your proof'}
             aria-label="Export"
+            className="touch-target"
             style={{
               ...(compactHeader ? iconToolButton : toolButton),
               opacity: isExporting || pictureWait ? 0.6 : 1,
@@ -974,6 +1009,7 @@ export function TemplateCustomizerStudio({
             disabled={preparing || pictureWait !== null}
             aria-busy={preparing}
             title={pictureWait ?? undefined}
+            className="touch-target"
             style={{
               ...primaryButton(false),
               padding: '9px 20px',
@@ -1080,15 +1116,19 @@ export function TemplateCustomizerStudio({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 40 }}
               onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '460px',
-                maxWidth: '100%',
-                height: '100%',
-                backgroundColor: T.card,
-                boxShadow: '-12px 0 40px rgba(43, 37, 62, 0.2)',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
+              // .drawer-panel sets the width: 460px where there is room for it,
+              // the screen less a margin where there is not.
+              className="drawer-panel"
+              style={
+                {
+                  '--drawer-w': '460px',
+                  height: '100%',
+                  backgroundColor: T.card,
+                  boxShadow: '-12px 0 40px rgba(43, 37, 62, 0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                } as React.CSSProperties
+              }
             >
               <div
                 style={{
@@ -1130,11 +1170,16 @@ export function TemplateCustomizerStudio({
                   <button
                     type="button"
                     onClick={() => setBackPickerOpen(false)}
+                    className="touch-target"
                     style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
                       color: T.muted,
+                      flexShrink: 0,
                     }}
                     aria-label="Close"
                   >
@@ -1384,18 +1429,7 @@ export function TemplateCustomizerStudio({
       )}
 
       {/* 3. REVIEW → FINAL STEPS → CART */}
-      {review && (
-        <CustomiseCheckoutOverlay
-          template={template}
-          templateVersionId={templateVersionId}
-          prepared={review}
-          existingLineId={existingLineId}
-          savedQuantity={savedQuantity}
-          savedOptions={savedOptions}
-          onClose={() => setReview(null)}
-          onEditIssue={handleEditIssue}
-        />
-      )}
+      {checkout}
     </div>
   )
 }

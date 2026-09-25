@@ -2,6 +2,7 @@
 'use client'
 
 import { SkeletonTable } from '@/components/ui/Skeleton'
+import { EmptyState, ErrorState } from '@/components/ui/TableState'
 import { useState } from 'react'
 import { FileSpreadsheet, Download, Printer } from 'lucide-react'
 import { AdminHeader } from '@/components/admin/AdminHeader'
@@ -11,6 +12,7 @@ import { InvoicesPanel } from '@/components/billing/InvoicesPanel'
 import { exportBillingReportCSV, downloadCSV } from '@/utils/export/csv'
 import { exportBillingReportXLSX } from '@/utils/export/xlsx'
 import { printBillingReportPDF } from '@/utils/export/pdf'
+import { formatMoney, formatMonthYear, formatMonthYearLong } from '@/lib/format'
 
 /** The shared card: hairline border and a soft shadow, as on the admin dashboard. */
 const card: React.CSSProperties = {
@@ -96,16 +98,8 @@ function recentBillingPeriods(
 
     return {
       key,
-      label: date.toLocaleDateString('en-GB', {
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'UTC',
-      }),
-      shortLabel: date.toLocaleDateString('en-GB', {
-        month: 'short',
-        year: '2-digit',
-        timeZone: 'UTC',
-      }),
+      label: formatMonthYearLong(date),
+      shortLabel: formatMonthYear(date),
     }
   })
 }
@@ -113,7 +107,12 @@ function recentBillingPeriods(
 export default function MonthlyBillingReportPage() {
   const periods = recentBillingPeriods()
   const [selectedPeriod, setSelectedPeriod] = useState(periods[0].key)
-  const { data: report, isLoading } = useMonthlyBillingReport(selectedPeriod)
+  const {
+    data: report,
+    isLoading,
+    error: reportError,
+    refetch: refetchReport,
+  } = useMonthlyBillingReport(selectedPeriod)
 
   // These three export the period report as it is on screen, across every
   // account. An account's invoice documents are rendered by the server and
@@ -137,12 +136,14 @@ export default function MonthlyBillingReportPage() {
   return (
     <>
       <AdminHeader
-        title="Monthly Consolidated Billing & Spend Report"
-        subtitle="Consolidated multi-site invoicing, collateral category allocations, and verified contract billing"
+        title="Monthly billing"
+        subtitle="One consolidated invoice per account each month, and what each site spent"
         actionButton={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          /* Three export buttons side by side ran off the header on a phone. */
+          <div className="row-wrap" style={{ gap: '8px' }}>
             <button
               type="button"
+              className="touch-target"
               onClick={handlePrintPDF}
               style={secondaryButton}
             >
@@ -151,6 +152,7 @@ export default function MonthlyBillingReportPage() {
             </button>
             <button
               type="button"
+              className="touch-target"
               onClick={handleExportCSV}
               style={secondaryButton}
             >
@@ -161,6 +163,7 @@ export default function MonthlyBillingReportPage() {
                 the outlined buttons beside it. */}
             <button
               type="button"
+              className="touch-target"
               onClick={handleExportXLSX}
               style={{
                 ...secondaryButton,
@@ -177,8 +180,9 @@ export default function MonthlyBillingReportPage() {
       />
 
       <main
+        className="page-pad"
         style={{
-          padding: '24px',
+          paddingBlock: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
@@ -186,13 +190,11 @@ export default function MonthlyBillingReportPage() {
       >
         {/* Period Selector & Top Invoicing Summary */}
         <div
+          className="row-wrap"
           style={{
             ...card,
             padding: '20px',
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            flexWrap: 'wrap',
             gap: '20px',
           }}
         >
@@ -215,9 +217,11 @@ export default function MonthlyBillingReportPage() {
               }}
             >
               <select
+                className="touch-target"
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
                 style={{
+                  maxWidth: '100%',
                   padding: '8px 12px',
                   borderRadius: '10px',
                   border: '1px solid #F0E6EC',
@@ -238,20 +242,26 @@ export default function MonthlyBillingReportPage() {
           </div>
 
           {report && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            // Three figures held in one unbreakable row pushed the card wider
+            // than the screen; they now fit as many per row as there is room.
+            <div
+              className="grid-auto"
+              style={
+                {
+                  ['--min']: '150px',
+                  flex: '1 1 260px',
+                  gap: '20px',
+                } as React.CSSProperties
+              }
+            >
               <div>
                 <div style={kpiLabel}>Total Consolidated Spend</div>
-                <div style={kpiValue}>
-                  $
-                  {report.totalSpend.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
-                </div>
+                <div style={kpiValue}>{formatMoney(report.totalSpend)}</div>
               </div>
               <div
                 style={{ borderLeft: '1px solid #F5EEF2', paddingLeft: '20px' }}
               >
-                <div style={kpiLabel}>Active Site Branches</div>
+                <div style={kpiLabel}>Active Sites</div>
                 <div style={kpiValue}>{report.activeSitesCount}</div>
               </div>
               <div
@@ -272,16 +282,15 @@ export default function MonthlyBillingReportPage() {
         {/* Site Breakdown Table */}
         <div style={{ ...card, overflow: 'hidden' }}>
           <div
+            className="row-wrap"
             style={{
               padding: '16px 20px',
               borderBottom: '1px solid #F5EEF2',
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
             }}
           >
             <div>
-              <h3 style={cardTitle}>Branch-by-Branch Spend Allocation</h3>
+              <h3 style={cardTitle}>Spend by site</h3>
               <p style={cardSubtitle}>
                 Breakdown feeding the monthly consolidated healthcare network
                 invoice
@@ -295,11 +304,29 @@ export default function MonthlyBillingReportPage() {
               columns={7}
               label="Loading the billing statement"
             />
+          ) : reportError ? (
+            // Ahead of the empty check: a failed request drew a bare header
+            // over white space, which reads as a month in which nobody ordered.
+            <ErrorState
+              title="The billing statement could not be loaded"
+              detail="The reporting service did not respond. No figures here are final until it does — try again."
+              error={reportError}
+              onRetry={() => refetchReport()}
+            />
+          ) : !report?.siteBreakdowns.length ? (
+            <EmptyState
+              icon={FileSpreadsheet}
+              title={`No site spend recorded for ${formatMonthYearLong(`${selectedPeriod}-01`)}`}
+              detail="Each site that places an order in this period appears here with its share of the consolidated invoice."
+            />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll">
+              {/* Seven columns of site, code, account and money: it keeps its
+                  width and scrolls in the card rather than squeezing. */}
               <table
                 style={{
                   width: '100%',
+                  minWidth: '880px',
                   borderCollapse: 'collapse',
                   textAlign: 'left',
                   fontSize: '0.84rem',
@@ -307,13 +334,15 @@ export default function MonthlyBillingReportPage() {
               >
                 <thead>
                   <tr>
-                    <th style={thEdge}>Site Branch</th>
+                    <th style={thEdge}>Site</th>
                     <th style={th}>Site Code</th>
                     <th style={th}>Parent Account</th>
                     <th style={{ ...th, textAlign: 'center' }}>Orders</th>
                     <th style={th}>Top Collateral Category</th>
+                    {/* NZD. The portal bills in New Zealand dollars and
+                        `formatMoney` renders them; the header said USD. */}
                     <th style={{ ...th, textAlign: 'right' }}>
-                      Total Spend (USD)
+                      Total Spend (NZD)
                     </th>
                     <th style={{ ...thEdge, textAlign: 'right' }}>
                       Billing Status
@@ -321,7 +350,7 @@ export default function MonthlyBillingReportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {report?.siteBreakdowns.map((site) => (
+                  {report.siteBreakdowns.map((site) => (
                     <tr
                       key={site.siteId}
                       style={{ borderTop: '1px solid #F5EEF2' }}
@@ -368,10 +397,7 @@ export default function MonthlyBillingReportPage() {
                           color: '#2B253E',
                         }}
                       >
-                        $
-                        {site.totalSpend.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                        })}
+                        {formatMoney(site.totalSpend)}
                       </td>
                       <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                         <StatusPill status={site.status} />
@@ -392,15 +418,14 @@ export default function MonthlyBillingReportPage() {
             </h3>
             {/* Plain columns on the card rather than framed tiles inside it;
                 the spacing separates them and the pink is left to the bars. */}
+            {/* Four fixed columns left each category about 60px on a phone —
+                enough for neither its name nor its figure. */}
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '20px',
-              }}
+              className="grid-auto"
+              style={{ ['--min']: '180px', gap: '20px' } as React.CSSProperties}
             >
-              {report.categoryBreakdown.map((cat, idx) => (
-                <div key={idx}>
+              {report.categoryBreakdown.map((cat) => (
+                <div key={cat.category}>
                   <div
                     style={{
                       fontSize: '0.78rem',
@@ -419,10 +444,7 @@ export default function MonthlyBillingReportPage() {
                       marginTop: '4px',
                     }}
                   >
-                    $
-                    {cat.spend.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
+                    {formatMoney(cat.spend)}
                   </div>
                   <div
                     style={{

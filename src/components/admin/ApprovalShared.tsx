@@ -193,18 +193,8 @@ export const DECISION_LABELS = {
 } as const
 
 // --- Formatting -------------------------------------------------------------
-
-/** Money strings from the API, printed the way the other admin tables do. */
-export function formatMoney(value: string | number | null | undefined): string {
-  const amount = Number(value ?? 0)
-  return `$${(Number.isFinite(amount) ? amount : 0).toFixed(2)}`
-}
-
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
-}
+//
+// Money and dates are formatted by `@/lib/format`; import them from there.
 
 /** "3d", "5h", "12m" — how long something has been waiting. */
 export function formatAge(iso: string, now: number = Date.now()): string {

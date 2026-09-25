@@ -27,8 +27,8 @@ import type {
   CreateShipmentInput,
 } from '@/services/data-source/api/shipping.types'
 import type { Order } from '@/types'
+import { formatDateTime } from '@/lib/format'
 import {
-  formatDateTime,
   newIdempotencyKey,
   panelStyles as s,
   trackingReferencesOf,
@@ -49,6 +49,12 @@ import { FieldError, fieldOutline } from '@/components/ui/FormField'
 const MAX_PARCELS = 20
 
 interface ParcelRow {
+  /**
+   * This box's identity, so the row keeps its own DOM node when a box above it
+   * is removed. Keyed by position, deleting box 1 of 3 handed box 2's values to
+   * box 1's inputs — including the caret of whoever was typing in them.
+   */
+  id: string
   weightKg: string
   lengthCm: string
   widthCm: string
@@ -65,7 +71,14 @@ interface AddressForm {
   postcode: string
 }
 
-const EMPTY_PARCEL: ParcelRow = {
+/** Ids only have to be unique within this form, and never leave it. */
+let parcelSeq = 0
+function nextParcelId(): string {
+  parcelSeq += 1
+  return `parcel-${parcelSeq}`
+}
+
+const EMPTY_PARCEL: Omit<ParcelRow, 'id'> = {
   weightKg: '',
   lengthCm: '',
   widthCm: '',
@@ -83,9 +96,11 @@ function initialParcels(order: Order | null): ParcelRow[] {
   const estimate = order?.nzPostDelivery?.parcelEstimate
   // Named, not merely hinted at: the box carries this description onto the
   // label whether or not the packer changes it.
-  if (!estimate) return [{ ...EMPTY_PARCEL, description: 'Box 1' }]
+  if (!estimate)
+    return [{ ...EMPTY_PARCEL, id: nextParcelId(), description: 'Box 1' }]
   return [
     {
+      id: nextParcelId(),
       weightKg: asField(estimate.weightKg),
       lengthCm: asField(estimate.lengthCm),
       widthCm: asField(estimate.widthCm),
@@ -208,14 +223,7 @@ function PanelBody({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-        }}
-      >
+      <div className="row-wrap" style={{ justifyContent: 'space-between' }}>
         <h3
           style={{
             ...s.title,
@@ -283,15 +291,17 @@ function PanelBody({
                 maxLength={500}
                 onChange={(e) => setVoidReason(e.target.value)}
                 placeholder="e.g. Wrong weight entered — repacking into two boxes"
+                className="touch-target"
                 style={s.input}
               />
               <p style={s.muted}>
                 Discard any printed copy. A label NZ Post never scans is not
                 charged.
               </p>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="row-wrap">
                 <button
                   type="button"
+                  className="touch-target"
                   disabled={voidReason.trim().length < 3 || mutations.isVoiding}
                   onClick={() =>
                     run(async () => {
@@ -316,6 +326,7 @@ function PanelBody({
                 <button
                   type="button"
                   onClick={() => setVoidingId(null)}
+                  className="touch-target"
                   style={s.button}
                 >
                   Keep it
@@ -340,7 +351,7 @@ function PanelBody({
             !current &&
             order && (
               <p style={s.muted}>
-                {order.status === 'APPROVED' || order.status === 'RECEIVED'
+                {order.status === 'APPROVED'
                   ? 'Move the order to Processing, pack it, then create its label here.'
                   : order.status === 'DISPATCHED' ||
                       order.status === 'DELIVERED'
@@ -355,6 +366,7 @@ function PanelBody({
               <button
                 type="button"
                 onClick={() => setShowHistory((open) => !open)}
+                className="touch-target"
                 style={{
                   ...s.button,
                   border: 'none',
@@ -379,24 +391,26 @@ function PanelBody({
                   {history.map((item) => (
                     <li
                       key={item.id}
-                      style={{
-                        fontSize: '0.76rem',
-                        color: '#6E6781',
-                        display: 'flex',
-                        gap: '8px',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                      }}
+                      className="row-wrap"
+                      style={{ fontSize: '0.76rem', color: '#6E6781' }}
                     >
                       <StatusChip status={item.status} />
                       <span>{formatDateTime(item.createdAt)}</span>
                       {item.consignmentId && (
-                        <span style={{ fontFamily: 'monospace' }}>
+                        <span
+                          style={{
+                            fontFamily: 'monospace',
+                            minWidth: 0,
+                            overflowWrap: 'anywhere',
+                          }}
+                        >
                           {item.consignmentId}
                         </span>
                       )}
                       {(item.voidReason || item.lastError) && (
-                        <span>· {item.voidReason ?? item.lastError}</span>
+                        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                          · {item.voidReason ?? item.lastError}
+                        </span>
                       )}
                     </li>
                   ))}
@@ -456,6 +470,7 @@ function CurrentShipment({
               type="button"
               onClick={onRetry}
               disabled={busy}
+              className="touch-target"
               style={{ ...s.button, opacity: busy ? 0.5 : 1 }}
             >
               <RotateCcw size={14} /> Retry the same request
@@ -469,12 +484,10 @@ function CurrentShipment({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: '10px',
-          fontSize: '0.8rem',
-        }}
+        className="grid-auto"
+        style={
+          { ['--min']: '140px', fontSize: '0.8rem' } as React.CSSProperties
+        }
       >
         <Fact label="Consignment" value={shipment.consignmentId ?? '—'} mono />
         <Fact label="Service" value={shipment.serviceCode} mono />
@@ -482,50 +495,55 @@ function CurrentShipment({
         <Fact label="Requested by" value={shipment.requestedByName} />
       </div>
 
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontSize: '0.78rem',
-          textAlign: 'left',
-        }}
-      >
-        <thead>
-          <tr style={{ color: '#A39BB3' }}>
-            <th style={{ padding: '4px 8px 4px 0', fontWeight: 500 }}>Box</th>
-            <th style={{ padding: '4px 8px', fontWeight: 500 }}>Weight</th>
-            <th style={{ padding: '4px 8px', fontWeight: 500 }}>Size (cm)</th>
-            <th style={{ padding: '4px 0 4px 8px', fontWeight: 500 }}>
-              Tracking reference
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {shipment.parcels.map((parcel) => (
-            <tr
-              key={parcel.sequence}
-              style={{ borderTop: '1px solid #F5EEF2' }}
-            >
-              <td style={{ padding: '6px 8px 6px 0', color: '#2B253E' }}>
-                {parcel.description ?? `Box ${parcel.sequence}`}
-              </td>
-              <td style={{ padding: '6px 8px' }}>{parcel.weightKg} kg</td>
-              <td style={{ padding: '6px 8px' }}>
-                {parcel.lengthCm} × {parcel.widthCm} × {parcel.heightCm}
-              </td>
-              <td
-                style={{
-                  padding: '6px 0 6px 8px',
-                  fontFamily: 'monospace',
-                  color: '#2B253E',
-                }}
-              >
-                {parcel.trackingReference ?? '—'}
-              </td>
+      {/* The parcel columns are wider than the panel on a narrow screen. They
+          scroll inside this box so the page itself never does. */}
+      <div className="table-scroll">
+        <table
+          style={{
+            width: '100%',
+            minWidth: '380px',
+            borderCollapse: 'collapse',
+            fontSize: '0.78rem',
+            textAlign: 'left',
+          }}
+        >
+          <thead>
+            <tr style={{ color: '#A39BB3' }}>
+              <th style={{ padding: '4px 8px 4px 0', fontWeight: 500 }}>Box</th>
+              <th style={{ padding: '4px 8px', fontWeight: 500 }}>Weight</th>
+              <th style={{ padding: '4px 8px', fontWeight: 500 }}>Size (cm)</th>
+              <th style={{ padding: '4px 0 4px 8px', fontWeight: 500 }}>
+                Tracking reference
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {shipment.parcels.map((parcel) => (
+              <tr
+                key={parcel.sequence}
+                style={{ borderTop: '1px solid #F5EEF2' }}
+              >
+                <td style={{ padding: '6px 8px 6px 0', color: '#2B253E' }}>
+                  {parcel.description ?? `Box ${parcel.sequence}`}
+                </td>
+                <td style={{ padding: '6px 8px' }}>{parcel.weightKg} kg</td>
+                <td style={{ padding: '6px 8px' }}>
+                  {parcel.lengthCm} × {parcel.widthCm} × {parcel.heightCm}
+                </td>
+                <td
+                  style={{
+                    padding: '6px 0 6px 8px',
+                    fontFamily: 'monospace',
+                    color: '#2B253E',
+                  }}
+                >
+                  {parcel.trackingReference ?? '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {shipment.unscannedFlaggedAt && (
         <p style={{ ...s.notice, display: 'flex', gap: 8 }}>
@@ -551,7 +569,7 @@ function CurrentShipment({
         )}
       </p>
 
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      <div className="row-wrap">
         <button
           type="button"
           onClick={onDownload}
@@ -559,6 +577,7 @@ function CurrentShipment({
           title={
             shipment.labelReady ? undefined : 'The PDF is still being stored'
           }
+          className="touch-target"
           style={{
             ...s.primaryButton,
             opacity: shipment.labelReady ? 1 : 0.5,
@@ -571,6 +590,7 @@ function CurrentShipment({
             type="button"
             onClick={onStartVoid}
             disabled={busy}
+            className="touch-target"
             style={{ ...s.button, opacity: busy ? 0.5 : 1 }}
           >
             <Trash2 size={14} /> Void label
@@ -675,7 +695,12 @@ function CreateLabelForm({
   if (!open) {
     return (
       <div>
-        <button type="button" onClick={() => setOpen(true)} style={s.button}>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="touch-target"
+          style={s.button}
+        >
           <Plus size={14} /> Make a new label
         </button>
       </div>
@@ -774,11 +799,16 @@ function CreateLabelForm({
     index: number,
     field: keyof ParcelRow,
     name: string,
-    example: string
+    example: string,
+    /** The column heading, repeated above the field once the columns fold. */
+    heading: string
   ) => {
     const error = parcelErrors[index]?.[field]
     return (
       <div>
+        <span className="show-sm" style={s.label}>
+          {heading}
+        </span>
         <input
           type="number"
           inputMode="decimal"
@@ -788,6 +818,7 @@ function CreateLabelForm({
           aria-label={`Box ${index + 1} ${name}`}
           aria-invalid={error ? true : undefined}
           onChange={(e) => setParcel(index, { [field]: e.target.value })}
+          className="touch-target"
           style={{ ...s.input, ...fieldOutline(Boolean(error)) }}
         />
         {error && <FieldError>{error}</FieldError>}
@@ -826,45 +857,92 @@ function CreateLabelForm({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.8fr 0.8fr 32px',
-            gap: '6px',
-            fontSize: '0.72rem',
-            color: '#A39BB3',
-          }}
-        >
-          <span>Description</span>
-          <span>Weight (kg)</span>
-          <span>Length (cm)</span>
-          <span>Width (cm)</span>
-          <span>Height (cm)</span>
-          <span />
+        {/*
+          The five measurements fit one row on a laptop and fold to two columns
+          on a phone. The column headings only make sense while the fields are
+          still in columns, so on a phone they go and each field carries the
+          same wording as its own label instead (the `show-sm` spans below).
+        */}
+        <div className="hide-sm" style={{ display: 'flex', gap: '6px' }}>
+          <div
+            className="grid-auto"
+            style={
+              {
+                ['--min']: '110px',
+                flex: 1,
+                minWidth: 0,
+                fontSize: '0.72rem',
+                color: '#A39BB3',
+              } as React.CSSProperties
+            }
+          >
+            <span>Description</span>
+            <span>Weight (kg)</span>
+            <span>Length (cm)</span>
+            <span>Width (cm)</span>
+            <span>Height (cm)</span>
+          </div>
+          <span aria-hidden="true" style={{ width: '40px', flexShrink: 0 }} />
         </div>
         {parcels.map((row, index) => (
           <div
-            key={index}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.8fr 0.8fr 32px',
-              gap: '6px',
-              alignItems: 'start',
-            }}
+            key={row.id}
+            style={{ display: 'flex', gap: '6px', alignItems: 'start' }}
           >
-            <input
-              value={row.description}
-              maxLength={100}
-              aria-label={`Box ${index + 1} description`}
-              onChange={(e) =>
-                setParcel(index, { description: e.target.value })
+            <div
+              className="grid-auto"
+              style={
+                {
+                  ['--min']: '110px',
+                  flex: 1,
+                  minWidth: 0,
+                } as React.CSSProperties
               }
-              style={s.input}
-            />
-            {numberInput(index, 'weightKg', 'weight in kilograms', '2.5')}
-            {numberInput(index, 'lengthCm', 'length in centimetres', '40')}
-            {numberInput(index, 'widthCm', 'width in centimetres', '30')}
-            {numberInput(index, 'heightCm', 'height in centimetres', '20')}
+            >
+              <div>
+                <span className="show-sm" style={s.label}>
+                  Description
+                </span>
+                <input
+                  value={row.description}
+                  maxLength={100}
+                  aria-label={`Box ${index + 1} description`}
+                  onChange={(e) =>
+                    setParcel(index, { description: e.target.value })
+                  }
+                  className="touch-target"
+                  style={s.input}
+                />
+              </div>
+              {numberInput(
+                index,
+                'weightKg',
+                'weight in kilograms',
+                '2.5',
+                'Weight (kg)'
+              )}
+              {numberInput(
+                index,
+                'lengthCm',
+                'length in centimetres',
+                '40',
+                'Length (cm)'
+              )}
+              {numberInput(
+                index,
+                'widthCm',
+                'width in centimetres',
+                '30',
+                'Width (cm)'
+              )}
+              {numberInput(
+                index,
+                'heightCm',
+                'height in centimetres',
+                '20',
+                'Height (cm)'
+              )}
+            </div>
             <button
               type="button"
               aria-label={`Remove box ${index + 1}`}
@@ -873,8 +951,11 @@ function CreateLabelForm({
                 setParcels((rows) => rows.filter((_, i) => i !== index))
                 setIdempotencyKey(newIdempotencyKey('label'))
               }}
+              className="touch-target"
               style={{
                 ...s.button,
+                width: '40px',
+                flexShrink: 0,
                 padding: '6px',
                 justifyContent: 'center',
                 opacity: parcels.length === 1 ? 0.4 : 1,
@@ -887,11 +968,16 @@ function CreateLabelForm({
         <div>
           <button
             type="button"
+            className="touch-target"
             disabled={parcels.length >= MAX_PARCELS}
             onClick={() => {
               setParcels((rows) => [
                 ...rows,
-                { ...EMPTY_PARCEL, description: `Box ${rows.length + 1}` },
+                {
+                  ...EMPTY_PARCEL,
+                  id: nextParcelId(),
+                  description: `Box ${rows.length + 1}`,
+                },
               ])
               setIdempotencyKey(newIdempotencyKey('label'))
             }}
@@ -911,13 +997,7 @@ function CreateLabelForm({
             This order&apos;s address was not validated by NZ Post at checkout.
             Enter it in parts for the label.
           </p>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '0.6fr 1.4fr 1fr',
-              gap: '8px',
-            }}
-          >
+          <div className="grid-3">
             <AddressField
               label="Street number"
               value={address.streetNumber}
@@ -961,9 +1041,7 @@ function CreateLabelForm({
         </div>
       )}
 
-      <div
-        style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px' }}
-      >
+      <div className="grid-2">
         <div>
           <label style={s.label} htmlFor="label-service">
             Service code
@@ -974,6 +1052,7 @@ function CreateLabelForm({
             maxLength={32}
             aria-describedby="label-service-hint"
             onChange={(e) => setServiceCode(e.target.value)}
+            className="touch-target"
             style={{ ...s.input, fontFamily: 'monospace' }}
           />
           {/* What a blank box does is a fact about the field, so it is said in
@@ -995,6 +1074,7 @@ function CreateLabelForm({
             maxLength={500}
             aria-describedby="label-instructions-hint"
             onChange={(e) => setInstructions(e.target.value)}
+            className="touch-target"
             style={s.input}
           />
           <p
@@ -1008,11 +1088,12 @@ function CreateLabelForm({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="row-wrap">
         <button
           type="button"
           onClick={() => void submit()}
           disabled={isCreating}
+          className="touch-target"
           style={{ ...s.primaryButton, opacity: isCreating ? 0.5 : 1 }}
         >
           {isCreating ? (
@@ -1030,7 +1111,12 @@ function CreateLabelForm({
           )}
         </button>
         {replacing && (
-          <button type="button" onClick={() => setOpen(false)} style={s.button}>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="touch-target"
+            style={s.button}
+          >
             Cancel
           </button>
         )}
@@ -1063,6 +1149,7 @@ function AddressField({
         aria-label={label}
         aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
+        className="touch-target"
         style={{ ...s.input, ...fieldOutline(Boolean(error)) }}
       />
       {error && <FieldError>{error}</FieldError>}

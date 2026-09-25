@@ -11,9 +11,9 @@ export const MobileNav: React.FC = () => {
   const { isAuthenticated } = useAuth()
 
   const items = [
-    { label: 'Site Hub', href: '/shop/catalogue', icon: Store },
+    { label: 'Order', href: '/shop/catalogue', icon: Store },
     { label: 'Head Office', href: '/head-office', icon: Building2 },
-    { label: 'Admin DAM', href: '/admin', icon: Shield },
+    { label: 'Admin', href: '/admin', icon: Shield },
     {
       label: isAuthenticated ? 'Switch Role' : 'Login',
       href: '/login',
@@ -57,27 +57,37 @@ export const MobileNav: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.2rem',
+              // Four items have to share 360px: each takes an equal share,
+              // keeps a 44px touch height, and truncates its own label rather
+              // than widening the bar.
+              flex: '1 1 0',
+              minWidth: 0,
+              minHeight: '44px',
+              textAlign: 'center',
               color: isActive
                 ? 'var(--color-primary)'
                 : 'var(--color-text-sub)',
               fontSize: '0.7rem',
               fontWeight: 700,
-              padding: '0.4rem 0.6rem',
+              padding: '0.4rem 0.3rem',
             }}
           >
             <Icon
               size={19}
+              style={{ flexShrink: 0 }}
               color={
                 isActive ? 'var(--color-primary)' : 'var(--color-text-sub)'
               }
             />
-            <span>{item.label}</span>
+            <span className="truncate" style={{ maxWidth: '100%' }}>
+              {item.label}
+            </span>
           </Link>
         )
       })}
 
       <style jsx>{`
-        @media (min-width: 769px) {
+        @media (min-width: 768px) {
           .mobile-nav-bar {
             display: none !important;
           }
