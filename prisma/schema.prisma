@@ -122,7 +122,7 @@ model AccountSettings {
   // --- Locale ----------------------------------------------------------------
   /// ISO 4217. Reporting and invoicing only: prices are stored as NUMERIC and
   /// carry no currency of their own, so changing this does not convert them.
-  currency String @default("USD") @db.NVarChar(500)
+  currency String @default("NZD") @db.NVarChar(500)
   /// IANA zone name. Decides the day a report bucket starts on and the period
   /// an order is billed into, both of which move across a date boundary.
   timezone String @default("UTC") @db.NVarChar(500)
